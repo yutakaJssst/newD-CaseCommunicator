@@ -157,12 +157,22 @@ export const Canvas: React.FC = () => {
     }
   };
 
-  // ズーム
+  // ズーム & スクロール
   const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    const newScale = Math.max(0.2, Math.min(3.0, viewport.scale + delta));
-    setViewport({ scale: newScale });
+
+    // Ctrl/Cmd + ホイールでズーム
+    if (e.ctrlKey || e.metaKey) {
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      const newScale = Math.max(0.2, Math.min(3.0, viewport.scale + delta));
+      setViewport({ scale: newScale });
+    } else {
+      // 通常のホイールでスクロール（パン）
+      setViewport({
+        offsetX: viewport.offsetX - e.deltaX,
+        offsetY: viewport.offsetY - e.deltaY,
+      });
+    }
   };
 
   return (
@@ -172,8 +182,7 @@ export const Canvas: React.FC = () => {
         width="100%"
         height="100%"
         style={{
-          border: '1px solid #ddd',
-          backgroundColor: '#fff',
+          backgroundColor: '#FFFFFF',
           cursor: isPanning ? 'grabbing' : mode === 'addNode' ? 'crosshair' : linkSourceId ? 'crosshair' : 'default',
         }}
         onClick={handleCanvasClick}
@@ -244,15 +253,17 @@ export const Canvas: React.FC = () => {
         <div
           style={{
             position: 'absolute',
-            top: '10px',
+            top: '20px',
             left: '50%',
             transform: 'translateX(-50%)',
-            backgroundColor: '#007bff',
-            color: '#fff',
-            padding: '10px 20px',
-            borderRadius: '4px',
+            backgroundColor: '#3B82F6',
+            color: '#FFFFFF',
+            padding: '12px 24px',
+            borderRadius: '8px',
             fontSize: '14px',
+            fontWeight: '500',
             zIndex: 100,
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
           }}
         >
           子ノードをクリックしてリンクを作成（ESCでキャンセル）

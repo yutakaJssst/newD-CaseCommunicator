@@ -37,12 +37,13 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         position: 'fixed',
         left: x,
         top: y,
-        backgroundColor: '#fff',
-        border: '1px solid #ccc',
-        borderRadius: '4px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+        backgroundColor: '#FFFFFF',
+        border: '1px solid #E5E7EB',
+        borderRadius: '8px',
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         zIndex: 1000,
-        minWidth: '150px',
+        minWidth: '180px',
+        overflow: 'hidden',
       }}
     >
       <div
@@ -52,12 +53,16 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           onClose();
         }}
         style={{
-          padding: '10px 15px',
+          padding: '12px 16px',
           cursor: 'pointer',
-          borderBottom: '1px solid #eee',
+          borderBottom: '1px solid #F3F4F6',
+          fontSize: '14px',
+          fontWeight: '500',
+          color: '#374151',
+          transition: 'background-color 0.15s',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = '#f0f0f0';
+          e.currentTarget.style.backgroundColor = '#F9FAFB';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.backgroundColor = 'transparent';
@@ -72,12 +77,15 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           onClose();
         }}
         style={{
-          padding: '10px 15px',
+          padding: '12px 16px',
           cursor: 'pointer',
-          color: '#dc3545',
+          fontSize: '14px',
+          fontWeight: '500',
+          color: '#EF4444',
+          transition: 'background-color 0.15s',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = '#f0f0f0';
+          e.currentTarget.style.backgroundColor = '#FEF2F2';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.backgroundColor = 'transparent';

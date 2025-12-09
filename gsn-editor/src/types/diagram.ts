@@ -116,15 +116,15 @@ export interface DiagramData {
 }
 
 /**
- * ノードタイプごとのデフォルト色設定
+ * ノードタイプごとのデフォルト色設定（モダンなカラーパレット）
  */
 export const NODE_COLORS: Record<NodeType, string> = {
-  Goal: '#CCFFCC',
+  Goal: '#FFFFFF',
   Strategy: '#FFFFFF',
   Context: '#FFFFFF',
-  Evidence: '#FFC5AA',
-  Assumption: '#FFE699',
-  Justification: '#BDD7EE',
+  Evidence: '#FFFFFF',
+  Assumption: '#FFFFFF',
+  Justification: '#FFFFFF',
   Undeveloped: '#FFFFFF',
 };
 

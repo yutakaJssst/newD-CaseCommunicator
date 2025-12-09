@@ -58,13 +58,14 @@ export const Header: React.FC = () => {
   return (
     <div
       style={{
-        height: '60px',
-        borderBottom: '1px solid #ddd',
-        backgroundColor: '#fff',
+        height: '64px',
+        borderBottom: '1px solid #E5E7EB',
+        backgroundColor: '#FFFFFF',
         display: 'flex',
         alignItems: 'center',
-        padding: '0 20px',
-        gap: '20px',
+        padding: '0 24px',
+        gap: '24px',
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
       }}
     >
       <input
@@ -74,27 +75,46 @@ export const Header: React.FC = () => {
         placeholder="タイトル"
         style={{
           flex: 1,
-          maxWidth: '300px',
-          padding: '8px',
-          fontSize: '16px',
-          border: '1px solid #ccc',
-          borderRadius: '4px',
+          maxWidth: '320px',
+          padding: '10px 14px',
+          fontSize: '15px',
+          border: '1px solid #D1D5DB',
+          borderRadius: '8px',
+          backgroundColor: '#FFFFFF',
+          outline: 'none',
+          transition: 'border-color 0.2s',
         }}
+        onFocus={(e) => (e.target.style.borderColor = '#3B82F6')}
+        onBlur={(e) => (e.target.style.borderColor = '#D1D5DB')}
       />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span style={{ fontSize: '14px' }}>
-          表示倍率: {Math.round(viewport.scale * 100)}%
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <span style={{ fontSize: '14px', color: '#6B7280', fontWeight: '500' }}>
+          {Math.round(viewport.scale * 100)}%
         </span>
         <button
           onClick={handleZoomOut}
           style={{
-            padding: '5px 15px',
+            width: '36px',
+            height: '36px',
             fontSize: '18px',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
+            border: '1px solid #D1D5DB',
+            borderRadius: '8px',
             cursor: 'pointer',
-            backgroundColor: '#fff',
+            backgroundColor: '#FFFFFF',
+            color: '#374151',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#F3F4F6';
+            e.currentTarget.style.borderColor = '#9CA3AF';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#D1D5DB';
           }}
         >
           −
@@ -102,43 +122,71 @@ export const Header: React.FC = () => {
         <button
           onClick={handleZoomIn}
           style={{
-            padding: '5px 15px',
+            width: '36px',
+            height: '36px',
             fontSize: '18px',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
+            border: '1px solid #D1D5DB',
+            borderRadius: '8px',
             cursor: 'pointer',
-            backgroundColor: '#fff',
+            backgroundColor: '#FFFFFF',
+            color: '#374151',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#F3F4F6';
+            e.currentTarget.style.borderColor = '#9CA3AF';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#D1D5DB';
           }}
         >
           ＋
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
+      <div style={{ display: 'flex', gap: '12px', marginLeft: 'auto' }}>
         <button
           onClick={handleExport}
           style={{
-            padding: '8px 16px',
+            padding: '10px 18px',
             fontSize: '14px',
-            border: '1px solid #007bff',
-            borderRadius: '4px',
+            fontWeight: '500',
+            border: 'none',
+            borderRadius: '8px',
             cursor: 'pointer',
-            backgroundColor: '#007bff',
-            color: '#fff',
+            backgroundColor: '#3B82F6',
+            color: '#FFFFFF',
+            transition: 'background-color 0.2s',
           }}
+          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2563EB')}
+          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#3B82F6')}
         >
           エクスポート
         </button>
         <button
           onClick={handleImport}
           style={{
-            padding: '8px 16px',
+            padding: '10px 18px',
             fontSize: '14px',
-            border: '1px solid #28a745',
-            borderRadius: '4px',
+            fontWeight: '500',
+            border: '1px solid #D1D5DB',
+            borderRadius: '8px',
             cursor: 'pointer',
-            backgroundColor: '#28a745',
-            color: '#fff',
+            backgroundColor: '#FFFFFF',
+            color: '#374151',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#F3F4F6';
+            e.currentTarget.style.borderColor = '#9CA3AF';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#D1D5DB';
           }}
         >
           インポート
@@ -146,13 +194,23 @@ export const Header: React.FC = () => {
         <button
           onClick={handleReset}
           style={{
-            padding: '8px 16px',
+            padding: '10px 18px',
             fontSize: '14px',
-            border: '1px solid #dc3545',
-            borderRadius: '4px',
+            fontWeight: '500',
+            border: '1px solid #D1D5DB',
+            borderRadius: '8px',
             cursor: 'pointer',
-            backgroundColor: '#dc3545',
-            color: '#fff',
+            backgroundColor: '#FFFFFF',
+            color: '#EF4444',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#FEF2F2';
+            e.currentTarget.style.borderColor = '#EF4444';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#D1D5DB';
           }}
         >
           リセット

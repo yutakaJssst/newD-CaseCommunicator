@@ -9,7 +9,7 @@ interface LinkProps {
 }
 
 export const Link: React.FC<LinkProps> = ({ link, sourceNode, targetNode, onClick }) => {
-  const color = link.style?.color || '#0000FF';
+  const color = link.style?.color || '#1F2937';
   const width = link.style?.width || 2;
 
   // 線を描画（始点から終点へ）
@@ -45,7 +45,7 @@ export const ArrowMarker: React.FC = () => (
       refY="3"
       orient="auto"
     >
-      <polygon points="0 0, 10 3, 0 6" fill="#0000FF" />
+      <polygon points="0 0, 10 3, 0 6" fill="#1F2937" />
     </marker>
   </defs>
 );

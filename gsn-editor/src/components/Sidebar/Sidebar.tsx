@@ -5,10 +5,10 @@ export const Sidebar: React.FC = () => {
   return (
     <div
       style={{
-        width: '200px',
+        width: '240px',
         height: '100%',
-        borderRight: '1px solid #ddd',
-        backgroundColor: '#f8f9fa',
+        borderRight: '1px solid #E5E7EB',
+        backgroundColor: '#F9FAFB',
         display: 'flex',
         flexDirection: 'column',
       }}

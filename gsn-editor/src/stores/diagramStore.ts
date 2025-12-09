@@ -63,7 +63,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
       content: '',
       style: {
         fillColor: NODE_COLORS[type],
-        borderColor: '#0000FF',
+        borderColor: '#374151',
         borderWidth: 2,
       },
     };
@@ -121,7 +121,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
       target: targetId,
       type,
       style: {
-        color: '#0000FF',
+        color: '#1F2937',
         width: 2,
       },
     };

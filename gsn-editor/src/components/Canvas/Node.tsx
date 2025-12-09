@@ -21,12 +21,12 @@ export const Node: React.FC<NodeProps> = ({
   const renderShape = () => {
     const { width, height } = node.size;
     const fillColor = node.style?.fillColor || '#FFFFFF';
-    const borderColor = node.style?.borderColor || '#0000FF';
+    const borderColor = node.style?.borderColor || '#374151';
     const borderWidth = node.style?.borderWidth || 2;
 
     const shapeProps = {
       fill: fillColor,
-      stroke: isSelected ? '#FF0000' : borderColor,
+      stroke: isSelected ? '#3B82F6' : borderColor,
       strokeWidth: isSelected ? 3 : borderWidth,
     };
 

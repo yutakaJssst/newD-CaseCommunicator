@@ -34,29 +34,35 @@ export const NodeEditor: React.FC<NodeEditorProps> = ({ node, onSave, onClose })
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1000,
+        backdropFilter: 'blur(4px)',
       }}
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          backgroundColor: '#fff',
-          borderRadius: '8px',
-          padding: '20px',
+          backgroundColor: '#FFFFFF',
+          borderRadius: '12px',
+          padding: '28px',
           width: '90%',
-          maxWidth: '600px',
+          maxWidth: '640px',
           maxHeight: '80vh',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
         }}
       >
-        <h2 style={{ margin: '0 0 20px 0', fontSize: '18px', fontWeight: 'bold' }}>
+        <h2 style={{
+          margin: '0 0 24px 0',
+          fontSize: '20px',
+          fontWeight: '600',
+          color: '#111827',
+        }}>
           ノードの編集
         </h2>
 
@@ -67,33 +73,48 @@ export const NodeEditor: React.FC<NodeEditorProps> = ({ node, onSave, onClose })
           autoFocus
           style={{
             flex: 1,
-            minHeight: '200px',
-            padding: '10px',
-            fontSize: '14px',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
+            minHeight: '240px',
+            padding: '14px',
+            fontSize: '15px',
+            border: '1px solid #D1D5DB',
+            borderRadius: '8px',
             resize: 'vertical',
             fontFamily: 'inherit',
+            lineHeight: '1.6',
+            outline: 'none',
           }}
+          onFocus={(e) => (e.target.style.borderColor = '#3B82F6')}
+          onBlur={(e) => (e.target.style.borderColor = '#D1D5DB')}
         />
 
         <div
           style={{
-            marginTop: '20px',
+            marginTop: '24px',
             display: 'flex',
             justifyContent: 'flex-end',
-            gap: '10px',
+            gap: '12px',
           }}
         >
           <button
             onClick={onClose}
             style={{
-              padding: '8px 16px',
+              padding: '10px 20px',
               fontSize: '14px',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
+              fontWeight: '500',
+              border: '1px solid #D1D5DB',
+              borderRadius: '8px',
               cursor: 'pointer',
-              backgroundColor: '#fff',
+              backgroundColor: '#FFFFFF',
+              color: '#374151',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#F3F4F6';
+              e.currentTarget.style.borderColor = '#9CA3AF';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#FFFFFF';
+              e.currentTarget.style.borderColor = '#D1D5DB';
             }}
           >
             キャンセル
@@ -101,14 +122,18 @@ export const NodeEditor: React.FC<NodeEditorProps> = ({ node, onSave, onClose })
           <button
             onClick={handleSave}
             style={{
-              padding: '8px 16px',
+              padding: '10px 20px',
               fontSize: '14px',
-              border: '1px solid #007bff',
-              borderRadius: '4px',
+              fontWeight: '500',
+              border: 'none',
+              borderRadius: '8px',
               cursor: 'pointer',
-              backgroundColor: '#007bff',
-              color: '#fff',
+              backgroundColor: '#3B82F6',
+              color: '#FFFFFF',
+              transition: 'background-color 0.2s',
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2563EB')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#3B82F6')}
           >
             保存
           </button>

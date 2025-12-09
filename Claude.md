@@ -350,4 +350,261 @@ pnpm dev
 ---
 
 **更新日**: 2025-12-09
-**プロジェクト状態**: 仕様策定完了、実装準備中
+**プロジェクト状態**: Phase 1 (MVP) 実装完了
+
+---
+
+## 現在の実装状況（gsn-editorフォルダ）
+
+### 技術スタック（実装済み）
+- **フレームワーク**: React 19.2.0
+- **言語**: TypeScript 5.9.3
+- **状態管理**: Zustand 5.0.9
+- **ビルドツール**: Vite 7.2.4
+- **描画**: SVG (ネイティブ)
+- **パッケージマネージャ**: npm
+
+### アーキテクチャ
+
+#### ディレクトリ構造
+```
+gsn-editor/
+├── src/
+│   ├── App.tsx                    # メインアプリケーション
+│   ├── main.tsx                   # エントリーポイント
+│   ├── components/
+│   │   ├── Canvas/
+│   │   │   ├── Canvas.tsx         # SVGキャンバス（ノード・リンク描画、ユーザー操作）
+│   │   │   ├── Node.tsx           # ノード描画（7種類の形状に対応）
+│   │   │   ├── Link.tsx           # リンク描画（実線・破線対応）
+│   │   │   ├── NodeEditor.tsx    # ノード内容編集モーダル
+│   │   │   └── ContextMenu.tsx   # 右クリックメニュー
+│   │   ├── Header/
+│   │   │   └── Header.tsx         # タイトル編集・ズーム・エクスポート/インポート
+│   │   └── Sidebar/
+│   │       ├── Sidebar.tsx        # サイドバーコンテナ
+│   │       └── NodePalette.tsx   # ノードタイプ選択パレット
+│   ├── stores/
+│   │   └── diagramStore.ts        # Zustandストア（状態管理）
+│   ├── types/
+│   │   └── diagram.ts             # TypeScript型定義・定数
+│   └── utils/                     # （空・将来拡張用）
+```
+
+### 実装済み機能の詳細
+
+#### 1. ノード描画・操作（Node.tsx）
+- **7種類のノードタイプに対応**:
+  - `Goal`: 矩形（デフォルト色: `#CCFFCC`）
+  - `Strategy`: 平行四辺形（`skewX(-15)`変形）
+  - `Context`: 角丸矩形（`rx=10, ry=10`）
+  - `Evidence`: 楕円（デフォルト色: `#FFC5AA`）
+  - `Assumption`: 楕円（デフォルト色: `#FFE699`）
+  - `Justification`: 楕円（デフォルト色: `#BDD7EE`）
+  - `Undeveloped`: ダイヤモンド（polygon）
+- **ノード内容表示**: `foreignObject`要素を使用してHTML表示
+- **選択状態のハイライト**: 選択時は赤枠（`#FF0000`）、strokeWidth=3
+- **ラベル表示**: ノード右上にラベル（茶色背景 `#800000`）
+
+#### 2. キャンバス操作（Canvas.tsx）
+- **ノード追加**:
+  - サイドバーからノードタイプ選択 → キャンバスクリック
+  - SVG座標系への変換（`screenToSvgCoordinates`）
+- **ノード移動**:
+  - ドラッグ&ドロップ（マウス座標の差分計算）
+- **リンク作成**:
+  - 右クリックメニューから「リンク追加」 → 親ノードクリック → 子ノードクリック
+  - 重複リンクチェック機能あり
+- **パン操作**:
+  - 中ボタンドラッグ または Shift+左ドラッグ
+  - `viewport.offsetX/offsetY`の更新
+- **ズーム操作**:
+  - マウスホイール（`handleWheel`）
+  - 範囲: 0.2〜3.0倍
+- **右クリックメニュー**:
+  - リンク追加、ノード削除
+
+#### 3. リンク描画（Link.tsx）
+- **直線リンク**: 親ノード下端 → 子ノード上端
+- **矢印マーカー**: SVG `<marker>` 要素（id="arrowhead"）
+- **破線対応**: `strokeDasharray="8 8"`
+
+#### 4. ノード編集（NodeEditor.tsx）
+- **モーダルダイアログ**:
+  - ノードダブルクリックで起動
+  - テキストエリアでコンテンツ編集
+  - ESCキーで閉じる
+  - 保存 or キャンセル
+
+#### 5. 状態管理（diagramStore.ts）
+- **Zustandストア**:
+  - `title`, `nodes`, `links`, `canvasState`
+- **主要アクション**:
+  - `addNode`, `updateNode`, `deleteNode`, `moveNode`
+  - `addLink`, `deleteLink`
+  - `setViewport`, `selectNode`, `clearSelection`
+  - `exportData`, `importData`, `reset`
+- **ID生成**: タイムスタンプ + ランダム文字列
+
+#### 6. エクスポート/インポート（Header.tsx）
+- **JSONエクスポート**:
+  - `DiagramData`形式（version, title, nodes, links, metadata）
+  - Blobでダウンロード
+- **JSONインポート**:
+  - ファイル選択ダイアログ
+  - JSONパース後、`importData`で状態復元
+
+#### 7. 型定義（diagram.ts）
+- **厳密な型安全性**:
+  - `NodeType`, `LinkType`, `CanvasMode`
+  - `Node`, `Link`, `DiagramData`
+- **定数定義**:
+  - `NODE_COLORS`, `NODE_LABELS`
+  - `DEFAULT_NODE_SIZE` (180x120)
+  - `DEFAULT_CANVAS_STATE`
+
+### 実装の特徴
+
+#### 優れている点
+1. **型安全性**: TypeScript strictモードで完全な型定義
+2. **シンプルなアーキテクチャ**: React + Zustandのみで、外部描画ライブラリ不使用
+3. **SVGネイティブ描画**: パフォーマンスと柔軟性のバランス
+4. **リアクティブな状態管理**: Zustandによる効率的な更新
+5. **右クリックメニュー**: UXの向上（リンク追加、削除）
+
+#### 改善の余地がある点
+1. **パン操作の制御**:
+   - 現在: 中ボタン or Shift+左ドラッグ
+   - CLAUDE.md仕様: 「空白領域を左ドラッグ」が未実装
+2. **リンクの接続点計算**:
+   - 現在: 固定的に上端・下端を使用
+   - 改善案: ノード形状に応じた最適な接続点計算
+3. **ノードサイズ変更**: 未実装（Phase 2予定）
+4. **Undo/Redo**: 未実装（Phase 2予定）
+5. **LocalStorage自動保存**: 未実装（Phase 2予定）
+6. **削除モード**: 右クリックメニューでは可能だが、専用モード未実装
+
+### 次のステップ（Phase 2候補）
+
+#### 優先度高
+1. **ノードサイズ変更機能**:
+   - リサイズハンドル追加
+   - `updateNode`で`size`更新
+2. **破線リンクの適切な使用**:
+   - Contextノード → 他ノードは破線（GSN標準）
+   - リンク作成時の自動判定
+3. **LocalStorage自動保存**:
+   - `useEffect`でストア変更を監視
+   - `localStorage.setItem`で永続化
+4. **Undo/Redo**:
+   - `zustand/middleware`の`temporal`使用
+   - または履歴配列の手動管理
+
+#### 優先度中
+5. **削除モードの改善**:
+   - Sidebarに「削除モード」ボタン追加
+   - `canvasState.mode = 'delete'`の明示的な切り替え
+6. **リッチテキストエディタ**:
+   - `react-quill`導入（HTML形式のコンテンツ）
+7. **複数選択**:
+   - Ctrl+クリックで複数ノード選択
+   - 選択範囲のドラッグ
+
+#### 優先度低（Phase 3）
+8. **グリッドスナップ**
+9. **整列機能**
+10. **PNG/SVGエクスポート**
+
+### GSN標準との対応
+
+#### GSN Community Standard Version 1 準拠状況
+
+**準拠済み**:
+- ✅ 基本要素（Goal, Strategy, Context, Solution/Evidence）の形状
+- ✅ 親子関係の視覚表現（SupportedBy: 矢印付き実線）
+- ✅ ノードの識別子（id）
+- ✅ 内容の記述（content）
+
+**部分準拠**:
+- ⚠️ InContextOf関係: 破線実装済みだが、Context特有の接続が自動化されていない
+- ⚠️ Assumptionノード: 形状は実装済み、楕円+破線の組み合わせが未自動化
+
+**未準拠（将来実装）**:
+- ❌ モジュール拡張（Module, ContractモジュールへのAwayノード）
+- ❌ パターン拡張（多重性 m..n 表記、オプショナリティ {O}）
+- ❌ Undevelopedノードへの自動推奨（証拠不足の検出）
+
+#### GSN標準からの推奨事項（実装候補）
+
+1. **リンクタイプの自動判定**:
+   - Context/Assumption/Justification → 他ノード: 破線（InContextOf）
+   - Goal/Strategy/Evidence: 実線（SupportedBy）
+
+2. **ノードラベルの活用**:
+   - 現在: `label`プロパティは実装済みだが未使用
+   - 推奨: Gnn（Goalの番号）、Snn（Strategyの番号）の自動採番
+
+3. **Undevelopedノードの促進**:
+   - 子ノードのないGoalに対して、Undevelopedノード追加を促すUI
+
+4. **検証機能**:
+   - ルート（最上位Goal）の存在チェック
+   - 循環参照の検出
+   - 孤立ノードの警告
+
+---
+
+## 開発者向けメモ
+
+### コマンド
+```bash
+# 開発サーバー起動
+cd gsn-editor && npm run dev
+
+# ビルド
+npm run build
+
+# Lint
+npm run lint
+```
+
+### デバッグTips
+- **ノードIDの確認**: ブラウザDevToolsでノードをinspect → `data-*`属性
+- **ストア状態の確認**: React DevTools → Components → useDiagramStore
+- **SVG座標デバッグ**: `screenToSvgCoordinates`にconsole.log追加
+
+### 既知の問題
+1. **ノードドラッグ時のちらつき**: 高速移動時に軽微なレンダリング遅延
+   - 対策候補: `requestAnimationFrame`の使用
+2. **ズーム時の座標ずれ**: 極端なズーム（0.2倍未満、3.0倍超）で境界処理が不安定
+   - 対策: ズーム範囲制限の維持（現在0.2〜3.0）
+
+---
+
+## GSN標準ドキュメントの理解
+
+### GSN Community Standard Version 1 (2011) サマリ
+
+#### Part 1: 規範的定義
+- **Goal（ゴール）**: 達成すべき主張（矩形）
+- **Strategy（戦略）**: ゴール分解の推論方針（平行四辺形）
+- **Solution（解決/証拠）**: ゴール達成の直接的根拠（円形）
+  - 実装では「Evidence」として実装
+- **Context（前提）**: 論証の文脈（角丸矩形）
+- **Assumption（仮定）**: 正当化されていない前提（円形、破線InContextOf）
+- **Justification（正当化）**: Strategyの妥当性を説明（円形、破線InContextOf）
+
+#### Part 2: ガイダンス
+- **トップダウン開発**: 6ステップメソッド
+  1. ゴール特定 → 2. 証拠確認 → 3. サブゴール展開 → 4. 戦略明示化 → 5. 前提明示化 → 6. 全サブゴールで繰り返し
+- **ボトムアップ開発**: 既存証拠から論証を構築
+- **よくある誤り**:
+  - Goalが主張ではなく活動になっている
+  - Strategyが欠如（暗黙的な推論）
+  - Contextの乱用（本来はGoalやAssumptionにすべき）
+
+#### 実装への示唆
+- **自動検証ツール候補**:
+  - Goalが疑問文で書かれていないかチェック（文末に「?」）
+  - Strategyの後に必ず複数のGoalがあるかチェック
+  - Solutionが葉ノード（子ノードなし）であるかチェック
