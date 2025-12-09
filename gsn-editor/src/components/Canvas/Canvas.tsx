@@ -1,0 +1,274 @@
+import React, { useRef, useState, useEffect } from 'react';
+import { useDiagramStore } from '../../stores/diagramStore';
+import { Node } from './Node';
+import { Link, ArrowMarker } from './Link';
+import { ContextMenu } from './ContextMenu';
+import { NodeEditor } from './NodeEditor';
+import type { Node as NodeType } from '../../types/diagram';
+
+export const Canvas: React.FC = () => {
+  const {
+    nodes,
+    links,
+    canvasState,
+    addNode,
+    moveNode,
+    updateNode,
+    setViewport,
+    clearSelection,
+    addLink,
+    deleteNode,
+    deleteLink,
+  } = useDiagramStore();
+
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+
+  // 右クリックメニュー関連
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    nodeId: string;
+  } | null>(null);
+
+  // リンク追加モード
+  const [linkSourceId, setLinkSourceId] = useState<string | null>(null);
+
+  // ノード編集モーダル
+  const [editingNode, setEditingNode] = useState<NodeType | null>(null);
+
+  const { viewport, selectedNodeType, mode, selectedNodes } = canvasState;
+
+  // ESCキーでリンクモードをキャンセル
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setLinkSourceId(null);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, []);
+
+  // SVG座標系に変換
+  const screenToSvgCoordinates = (clientX: number, clientY: number) => {
+    if (!svgRef.current) return { x: 0, y: 0 };
+
+    const svg = svgRef.current;
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+
+    const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+    return {
+      x: (svgP.x - viewport.offsetX) / viewport.scale,
+      y: (svgP.y - viewport.offsetY) / viewport.scale,
+    };
+  };
+
+  // キャンバスクリック（ノード追加）
+  const handleCanvasClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (e.target !== svgRef.current && e.target !== e.currentTarget) return;
+
+    if (mode === 'addNode' && selectedNodeType) {
+      const coords = screenToSvgCoordinates(e.clientX, e.clientY);
+      addNode(selectedNodeType, coords.x, coords.y);
+    } else {
+      clearSelection();
+      setLinkSourceId(null); // リンクモードをキャンセル
+    }
+  };
+
+  // ノード右クリック
+  const handleNodeContextMenu = (nodeId: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      nodeId,
+    });
+  };
+
+  // ノードクリック
+  const handleNodeClick = (nodeId: string) => {
+    // リンク追加モード中の場合
+    if (linkSourceId) {
+      if (linkSourceId !== nodeId) {
+        addLink(linkSourceId, nodeId, 'solid');
+      }
+      setLinkSourceId(null);
+      return;
+    }
+
+    // 通常のクリック処理
+    if (mode === 'select') {
+      useDiagramStore.getState().selectNode(nodeId);
+    } else if (mode === 'delete') {
+      deleteNode(nodeId);
+    }
+  };
+
+  // ノードドラッグ開始
+  const handleNodeDragStart = (nodeId: string) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDraggedNodeId(nodeId);
+    setIsDragging(true);
+    const coords = screenToSvgCoordinates(e.clientX, e.clientY);
+    setDragStart(coords);
+  };
+
+  // マウス移動
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (isDragging && draggedNodeId) {
+      const coords = screenToSvgCoordinates(e.clientX, e.clientY);
+      const node = nodes.find((n) => n.id === draggedNodeId);
+      if (node) {
+        const dx = coords.x - dragStart.x;
+        const dy = coords.y - dragStart.y;
+        moveNode(draggedNodeId, node.position.x + dx, node.position.y + dy);
+        setDragStart(coords);
+      }
+    } else if (isPanning) {
+      const dx = e.clientX - panStart.x;
+      const dy = e.clientY - panStart.y;
+      setViewport({ offsetX: viewport.offsetX + dx, offsetY: viewport.offsetY + dy });
+      setPanStart({ x: e.clientX, y: e.clientY });
+    }
+  };
+
+  // マウスアップ
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    setDraggedNodeId(null);
+    setIsPanning(false);
+  };
+
+  // パン開始（中ボタンまたはスペース+左ボタン）
+  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+      e.preventDefault();
+      setIsPanning(true);
+      setPanStart({ x: e.clientX, y: e.clientY });
+    }
+  };
+
+  // ズーム
+  const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    const newScale = Math.max(0.2, Math.min(3.0, viewport.scale + delta));
+    setViewport({ scale: newScale });
+  };
+
+  return (
+    <>
+      <svg
+        ref={svgRef}
+        width="100%"
+        height="100%"
+        style={{
+          border: '1px solid #ddd',
+          backgroundColor: '#fff',
+          cursor: isPanning ? 'grabbing' : mode === 'addNode' ? 'crosshair' : linkSourceId ? 'crosshair' : 'default',
+        }}
+        onClick={handleCanvasClick}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
+      >
+        <ArrowMarker />
+
+        <g transform={`translate(${viewport.offsetX}, ${viewport.offsetY}) scale(${viewport.scale})`}>
+          {/* リンクを先に描画 */}
+          {links.map((link) => {
+            const sourceNode = nodes.find((n) => n.id === link.source);
+            const targetNode = nodes.find((n) => n.id === link.target);
+            if (!sourceNode || !targetNode) return null;
+
+            return (
+              <Link
+                key={link.id}
+                link={link}
+                sourceNode={sourceNode}
+                targetNode={targetNode}
+                onClick={() => {
+                  if (mode === 'delete') {
+                    deleteLink(link.id);
+                  }
+                }}
+              />
+            );
+          })}
+
+          {/* ノードを描画 */}
+          {nodes.map((node) => (
+            <Node
+              key={node.id}
+              node={node}
+              isSelected={selectedNodes.includes(node.id) || linkSourceId === node.id}
+              onSelect={() => handleNodeClick(node.id)}
+              onDoubleClick={() => {
+                setEditingNode(node);
+              }}
+              onDragStart={handleNodeDragStart(node.id)}
+              onContextMenu={handleNodeContextMenu(node.id)}
+            />
+          ))}
+        </g>
+      </svg>
+
+      {/* 右クリックメニュー */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          onAddLink={() => {
+            setLinkSourceId(contextMenu.nodeId);
+          }}
+          onDelete={() => {
+            deleteNode(contextMenu.nodeId);
+          }}
+        />
+      )}
+
+      {/* リンク追加モード中のヘルプテキスト */}
+      {linkSourceId && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '10px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: '#007bff',
+            color: '#fff',
+            padding: '10px 20px',
+            borderRadius: '4px',
+            fontSize: '14px',
+            zIndex: 100,
+          }}
+        >
+          子ノードをクリックしてリンクを作成（ESCでキャンセル）
+        </div>
+      )}
+
+      {/* ノード編集モーダル */}
+      {editingNode && (
+        <NodeEditor
+          node={editingNode}
+          onSave={(content) => {
+            updateNode(editingNode.id, { content });
+          }}
+          onClose={() => setEditingNode(null)}
+        />
+      )}
+    </>
+  );
+};
