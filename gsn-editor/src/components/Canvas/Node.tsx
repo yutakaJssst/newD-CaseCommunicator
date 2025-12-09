@@ -8,6 +8,7 @@ interface NodeProps {
   onDoubleClick: () => void;
   onDragStart: (e: React.MouseEvent) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
+  onResizeStart?: (e: React.MouseEvent, direction: string) => void;
 }
 
 export const Node: React.FC<NodeProps> = ({
@@ -17,6 +18,7 @@ export const Node: React.FC<NodeProps> = ({
   onDoubleClick,
   onDragStart,
   onContextMenu,
+  onResizeStart,
 }) => {
   const renderShape = () => {
     const { width, height } = node.size;
@@ -162,6 +164,68 @@ export const Node: React.FC<NodeProps> = ({
         >
           {node.label}
         </text>
+      )}
+
+      {/* リサイズハンドル（選択時のみ表示） */}
+      {isSelected && onResizeStart && (
+        <>
+          {/* 右下 */}
+          <circle
+            cx={node.size.width / 2}
+            cy={node.size.height / 2}
+            r={6}
+            fill="#3B82F6"
+            stroke="#FFFFFF"
+            strokeWidth={2}
+            style={{ cursor: 'nwse-resize' }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              onResizeStart(e, 'se');
+            }}
+          />
+          {/* 右上 */}
+          <circle
+            cx={node.size.width / 2}
+            cy={-node.size.height / 2}
+            r={6}
+            fill="#3B82F6"
+            stroke="#FFFFFF"
+            strokeWidth={2}
+            style={{ cursor: 'nesw-resize' }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              onResizeStart(e, 'ne');
+            }}
+          />
+          {/* 左下 */}
+          <circle
+            cx={-node.size.width / 2}
+            cy={node.size.height / 2}
+            r={6}
+            fill="#3B82F6"
+            stroke="#FFFFFF"
+            strokeWidth={2}
+            style={{ cursor: 'nesw-resize' }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              onResizeStart(e, 'sw');
+            }}
+          />
+          {/* 左上 */}
+          <circle
+            cx={-node.size.width / 2}
+            cy={-node.size.height / 2}
+            r={6}
+            fill="#3B82F6"
+            stroke="#FFFFFF"
+            strokeWidth={2}
+            style={{ cursor: 'nwse-resize' }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              onResizeStart(e, 'nw');
+            }}
+          />
+        </>
       )}
     </g>
   );

@@ -28,6 +28,12 @@ export const Canvas: React.FC = () => {
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
+  // リサイズ関連
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizingNodeId, setResizingNodeId] = useState<string | null>(null);
+  const [resizeDirection, setResizeDirection] = useState<string | null>(null);
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+
   // 右クリックメニュー関連
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -122,6 +128,24 @@ export const Canvas: React.FC = () => {
     setDragStart(coords);
   };
 
+  // リサイズ開始
+  const handleResizeStart = (nodeId: string, direction: string) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+
+    setIsResizing(true);
+    setResizingNodeId(nodeId);
+    setResizeDirection(direction);
+    const coords = screenToSvgCoordinates(e.clientX, e.clientY);
+    setResizeStart({
+      x: coords.x,
+      y: coords.y,
+      width: node.size.width,
+      height: node.size.height,
+    });
+  };
+
   // マウス移動
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (isDragging && draggedNodeId) {
@@ -133,6 +157,42 @@ export const Canvas: React.FC = () => {
         moveNode(draggedNodeId, node.position.x + dx, node.position.y + dy);
         setDragStart(coords);
       }
+    } else if (isResizing && resizingNodeId && resizeDirection) {
+      const coords = screenToSvgCoordinates(e.clientX, e.clientY);
+      const node = nodes.find((n) => n.id === resizingNodeId);
+      if (!node) return;
+
+      const dx = coords.x - resizeStart.x;
+      const dy = coords.y - resizeStart.y;
+
+      let newWidth = resizeStart.width;
+      let newHeight = resizeStart.height;
+      let newX = node.position.x;
+      let newY = node.position.y;
+
+      // リサイズ方向に応じて計算
+      switch (resizeDirection) {
+        case 'se': // 右下
+          newWidth = Math.max(80, resizeStart.width + dx * 2);
+          newHeight = Math.max(60, resizeStart.height + dy * 2);
+          break;
+        case 'sw': // 左下
+          newWidth = Math.max(80, resizeStart.width - dx * 2);
+          newHeight = Math.max(60, resizeStart.height + dy * 2);
+          break;
+        case 'ne': // 右上
+          newWidth = Math.max(80, resizeStart.width + dx * 2);
+          newHeight = Math.max(60, resizeStart.height - dy * 2);
+          break;
+        case 'nw': // 左上
+          newWidth = Math.max(80, resizeStart.width - dx * 2);
+          newHeight = Math.max(60, resizeStart.height - dy * 2);
+          break;
+      }
+
+      updateNode(resizingNodeId, {
+        size: { width: newWidth, height: newHeight },
+      });
     } else if (isPanning) {
       const dx = e.clientX - panStart.x;
       const dy = e.clientY - panStart.y;
@@ -146,6 +206,9 @@ export const Canvas: React.FC = () => {
     setIsDragging(false);
     setDraggedNodeId(null);
     setIsPanning(false);
+    setIsResizing(false);
+    setResizingNodeId(null);
+    setResizeDirection(null);
   };
 
   // パン開始（中ボタンまたはスペース+左ボタン）
@@ -228,6 +291,7 @@ export const Canvas: React.FC = () => {
               }}
               onDragStart={handleNodeDragStart(node.id)}
               onContextMenu={handleNodeContextMenu(node.id)}
+              onResizeStart={(e, direction) => handleResizeStart(node.id, direction)(e)}
             />
           ))}
         </g>
