@@ -1,7 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDiagramStore } from '../../stores/diagramStore';
 
 export const Header: React.FC = () => {
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
   const {
     title,
     setTitle,
@@ -9,6 +11,7 @@ export const Header: React.FC = () => {
     setViewport,
     exportData,
     importData,
+    exportAsImage,
     reset,
     undo,
     redo,
@@ -17,8 +20,9 @@ export const Header: React.FC = () => {
     currentDiagramId,
     modules,
     switchToParent,
+    toggleGridSnap,
   } = useDiagramStore();
-  const { viewport } = canvasState;
+  const { viewport, gridSnapEnabled } = canvasState;
 
   // パンくずリスト生成
   const getBreadcrumbs = () => {
@@ -63,6 +67,15 @@ export const Header: React.FC = () => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [undo, redo, canUndo, canRedo]);
+
+  // メニューを閉じる
+  useEffect(() => {
+    const handleClick = () => setShowExportMenu(false);
+    if (showExportMenu) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [showExportMenu]);
 
   const handleZoomIn = () => {
     const newScale = Math.min(3.0, viewport.scale + 0.1);
@@ -249,6 +262,42 @@ export const Header: React.FC = () => {
 
         <div style={{ width: '1px', height: '24px', backgroundColor: '#E5E7EB', margin: '0 4px' }} />
 
+        {/* グリッドスナップトグル */}
+        <button
+          onClick={toggleGridSnap}
+          title={gridSnapEnabled ? 'グリッドスナップOFF' : 'グリッドスナップON'}
+          style={{
+            width: '36px',
+            height: '36px',
+            fontSize: '18px',
+            border: '1px solid #D1D5DB',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            backgroundColor: gridSnapEnabled ? '#3B82F6' : '#FFFFFF',
+            color: gridSnapEnabled ? '#FFFFFF' : '#374151',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            if (!gridSnapEnabled) {
+              e.currentTarget.style.backgroundColor = '#F3F4F6';
+              e.currentTarget.style.borderColor = '#9CA3AF';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!gridSnapEnabled) {
+              e.currentTarget.style.backgroundColor = '#FFFFFF';
+              e.currentTarget.style.borderColor = '#D1D5DB';
+            }
+          }}
+        >
+          ⊞
+        </button>
+
+        <div style={{ width: '1px', height: '24px', backgroundColor: '#E5E7EB', margin: '0 4px' }} />
+
         <span style={{ fontSize: '14px', color: '#6B7280', fontWeight: '500' }}>
           {Math.round(viewport.scale * 100)}%
         </span>
@@ -309,24 +358,110 @@ export const Header: React.FC = () => {
       </div>
 
       <div style={{ display: 'flex', gap: '12px', marginLeft: 'auto' }}>
-        <button
-          onClick={handleExport}
-          style={{
-            padding: '10px 18px',
-            fontSize: '14px',
-            fontWeight: '500',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            backgroundColor: '#3B82F6',
-            color: '#FFFFFF',
-            transition: 'background-color 0.2s',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2563EB')}
-          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#3B82F6')}
-        >
-          エクスポート
-        </button>
+        {/* エクスポートドロップダウン */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowExportMenu(!showExportMenu);
+            }}
+            style={{
+              padding: '10px 18px',
+              fontSize: '14px',
+              fontWeight: '500',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              backgroundColor: '#3B82F6',
+              color: '#FFFFFF',
+              transition: 'background-color 0.2s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2563EB')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#3B82F6')}
+          >
+            エクスポート ▾
+          </button>
+
+          {showExportMenu && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: '4px',
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #E5E7EB',
+                borderRadius: '8px',
+                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                zIndex: 1000,
+                minWidth: '160px',
+              }}
+            >
+              <button
+                onClick={() => {
+                  handleExport();
+                  setShowExportMenu(false);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: '#374151',
+                  borderRadius: '8px 8px 0 0',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F3F4F6')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                JSON
+              </button>
+              <button
+                onClick={() => {
+                  exportAsImage('png');
+                  setShowExportMenu(false);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: '#374151',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F3F4F6')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                PNG画像
+              </button>
+              <button
+                onClick={() => {
+                  exportAsImage('svg');
+                  setShowExportMenu(false);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: '#374151',
+                  borderRadius: '0 0 8px 8px',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F3F4F6')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                SVG画像
+              </button>
+            </div>
+          )}
+        </div>
         <button
           onClick={handleImport}
           style={{

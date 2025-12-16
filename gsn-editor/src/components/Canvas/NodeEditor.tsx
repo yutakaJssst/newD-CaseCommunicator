@@ -3,12 +3,13 @@ import type { Node } from '../../types/diagram';
 
 interface NodeEditorProps {
   node: Node;
-  onSave: (content: string) => void;
+  onSave: (content: string, label?: string) => void;
   onClose: () => void;
 }
 
 export const NodeEditor: React.FC<NodeEditorProps> = ({ node, onSave, onClose }) => {
   const editorRef = React.useRef<HTMLDivElement>(null);
+  const [label, setLabel] = React.useState(node.label || '');
 
   // ESCキーで閉じる
   useEffect(() => {
@@ -30,7 +31,7 @@ export const NodeEditor: React.FC<NodeEditorProps> = ({ node, onSave, onClose })
 
   const handleSave = () => {
     const htmlContent = editorRef.current?.innerHTML || '';
-    onSave(htmlContent);
+    onSave(htmlContent, label);
     onClose();
   };
 
@@ -100,6 +101,35 @@ export const NodeEditor: React.FC<NodeEditorProps> = ({ node, onSave, onClose })
         }}>
           ノードの編集
         </h2>
+
+        {/* ラベル入力 */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{
+            display: 'block',
+            marginBottom: '6px',
+            fontSize: '13px',
+            fontWeight: '500',
+            color: '#374151',
+          }}>
+            ラベル（例: G1, S2）
+          </label>
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="G1"
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              fontSize: '14px',
+              border: '1px solid #D1D5DB',
+              borderRadius: '6px',
+              outline: 'none',
+            }}
+            onFocus={(e) => (e.currentTarget.style.borderColor = '#3B82F6')}
+            onBlur={(e) => (e.currentTarget.style.borderColor = '#D1D5DB')}
+          />
+        </div>
 
         {/* ツールバー */}
         <div style={{

@@ -5,6 +5,7 @@ import { Link, ArrowMarker } from './Link';
 import { ContextMenu } from './ContextMenu';
 import { NodeEditor } from './NodeEditor';
 import type { Node as NodeType } from '../../types/diagram';
+import { GRID_SIZE } from '../../types/diagram';
 
 export const Canvas: React.FC = () => {
   const {
@@ -36,11 +37,18 @@ export const Canvas: React.FC = () => {
   const [resizeDirection, setResizeDirection] = useState<string | null>(null);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
-  // 右クリックメニュー関連
+  // 右クリックメニュー関連（ノード用）
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     nodeId: string;
+  } | null>(null);
+
+  // 右クリックメニュー関連（リンク用）
+  const [linkContextMenu, setLinkContextMenu] = useState<{
+    x: number;
+    y: number;
+    linkId: string;
   } | null>(null);
 
   // リンク追加モード
@@ -49,7 +57,13 @@ export const Canvas: React.FC = () => {
   // ノード編集モーダル
   const [editingNode, setEditingNode] = useState<NodeType | null>(null);
 
-  const { viewport, selectedNodeType, mode, selectedNodes } = canvasState;
+  const { viewport, selectedNodeType, mode, selectedNodes, gridSnapEnabled } = canvasState;
+
+  // グリッドスナップ関数
+  const snapToGrid = (value: number): number => {
+    if (!gridSnapEnabled) return value;
+    return Math.round(value / GRID_SIZE) * GRID_SIZE;
+  };
 
   // ESCキーでリンクモードをキャンセル
   useEffect(() => {
@@ -82,9 +96,15 @@ export const Canvas: React.FC = () => {
   const handleCanvasClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (e.target !== svgRef.current && e.target !== e.currentTarget) return;
 
+    // メニューを閉じる
+    setContextMenu(null);
+    setLinkContextMenu(null);
+
     if (mode === 'addNode' && selectedNodeType) {
       const coords = screenToSvgCoordinates(e.clientX, e.clientY);
-      addNode(selectedNodeType, coords.x, coords.y);
+      const snappedX = snapToGrid(coords.x);
+      const snappedY = snapToGrid(coords.y);
+      addNode(selectedNodeType, snappedX, snappedY);
     } else {
       clearSelection();
       setLinkSourceId(null); // リンクモードをキャンセル
@@ -100,6 +120,19 @@ export const Canvas: React.FC = () => {
       y: e.clientY,
       nodeId,
     });
+    setLinkContextMenu(null); // リンクメニューを閉じる
+  };
+
+  // リンク右クリック
+  const handleLinkContextMenu = (linkId: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setLinkContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      linkId,
+    });
+    setContextMenu(null); // ノードメニューを閉じる
   };
 
   // ノードクリック
@@ -175,12 +208,16 @@ export const Canvas: React.FC = () => {
           selectedNodes.forEach((nodeId) => {
             const n = nodes.find((node) => node.id === nodeId);
             if (n) {
-              moveNode(nodeId, n.position.x + dx, n.position.y + dy);
+              const newX = snapToGrid(n.position.x + dx);
+              const newY = snapToGrid(n.position.y + dy);
+              moveNode(nodeId, newX, newY);
             }
           });
         } else {
           // 単一ノードの移動
-          moveNode(draggedNodeId, node.position.x + dx, node.position.y + dy);
+          const newX = snapToGrid(node.position.x + dx);
+          const newY = snapToGrid(node.position.y + dy);
+          moveNode(draggedNodeId, newX, newY);
         }
         setDragStart(coords);
       }
@@ -292,6 +329,32 @@ export const Canvas: React.FC = () => {
         <ArrowMarker />
 
         <g transform={`translate(${viewport.offsetX}, ${viewport.offsetY}) scale(${viewport.scale})`}>
+          {/* グリッド表示 */}
+          {gridSnapEnabled && (
+            <g opacity="0.15">
+              {Array.from({ length: 200 }, (_, i) => i - 100).map((i) => (
+                <React.Fragment key={`grid-${i}`}>
+                  <line
+                    x1={i * GRID_SIZE}
+                    y1={-100 * GRID_SIZE}
+                    x2={i * GRID_SIZE}
+                    y2={100 * GRID_SIZE}
+                    stroke="#9CA3AF"
+                    strokeWidth={1 / viewport.scale}
+                  />
+                  <line
+                    x1={-100 * GRID_SIZE}
+                    y1={i * GRID_SIZE}
+                    x2={100 * GRID_SIZE}
+                    y2={i * GRID_SIZE}
+                    stroke="#9CA3AF"
+                    strokeWidth={1 / viewport.scale}
+                  />
+                </React.Fragment>
+              ))}
+            </g>
+          )}
+
           {/* リンクを先に描画 */}
           {links.map((link) => {
             const sourceNode = nodes.find((n) => n.id === link.source);
@@ -309,6 +372,7 @@ export const Canvas: React.FC = () => {
                     deleteLink(link.id);
                   }
                 }}
+                onContextMenu={handleLinkContextMenu(link.id)}
               />
             );
           })}
@@ -376,12 +440,53 @@ export const Canvas: React.FC = () => {
         </div>
       )}
 
+      {/* リンク右クリックメニュー */}
+      {linkContextMenu && (
+        <div
+          style={{
+            position: 'fixed',
+            left: linkContextMenu.x,
+            top: linkContextMenu.y,
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E5E7EB',
+            borderRadius: '8px',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            zIndex: 1000,
+            minWidth: '160px',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              deleteLink(linkContextMenu.linkId);
+              setLinkContextMenu(null);
+            }}
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              border: 'none',
+              backgroundColor: 'transparent',
+              textAlign: 'left',
+              cursor: 'pointer',
+              fontSize: '14px',
+              color: '#EF4444',
+              fontWeight: '500',
+              borderRadius: '8px',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#FEF2F2')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+          >
+            リンクを削除
+          </button>
+        </div>
+      )}
+
       {/* ノード編集モーダル */}
       {editingNode && (
         <NodeEditor
           node={editingNode}
-          onSave={(content) => {
-            updateNode(editingNode.id, { content });
+          onSave={(content, label) => {
+            updateNode(editingNode.id, { content, label });
           }}
           onClose={() => setEditingNode(null)}
         />

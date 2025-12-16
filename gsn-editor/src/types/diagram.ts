@@ -98,6 +98,7 @@ export interface CanvasState {
   selectedNodes: string[];
   mode: CanvasMode;
   selectedNodeType?: NodeType;
+  gridSnapEnabled: boolean;
 }
 
 /**
@@ -169,4 +170,10 @@ export const DEFAULT_CANVAS_STATE: CanvasState = {
   },
   selectedNodes: [],
   mode: 'select',
+  gridSnapEnabled: false,
 };
+
+/**
+ * グリッド設定
+ */
+export const GRID_SIZE = 20; // グリッドの間隔（px）

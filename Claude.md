@@ -425,7 +425,12 @@ gsn-editor/
   - マウスホイール（`handleWheel`）
   - 範囲: 0.2〜3.0倍
 - **右クリックメニュー**:
-  - リンク追加、ノード削除
+  - ノード: リンク追加、ノード削除、モジュール変換（Goalのみ）
+  - リンク: リンク削除
+- **グリッドスナップ**:
+  - ヘッダーの⊞ボタンでON/OFF切り替え
+  - ONの時、20pxグリッド線を表示
+  - ノード追加・移動時に自動でグリッドに吸着
 
 #### 3. リンク描画（Link.tsx）
 - **スマートな接続点計算**: ノード間の相対位置に基づいて最適な接続点を自動選択
@@ -449,17 +454,19 @@ gsn-editor/
 - **主要アクション**:
   - `addNode`, `updateNode`, `deleteNode`, `moveNode`
   - `addLink`, `deleteLink`
-  - `setViewport`, `selectNode`, `clearSelection`
+  - `setViewport`, `selectNode`, `clearSelection`, `toggleGridSnap`
   - `undo`, `redo`, `canUndo`, `canRedo`
-  - `exportData`, `importData`, `reset`
+  - `convertToModule`, `switchToModule`, `switchToParent`
+  - `exportData`, `importData`, `exportAsImage`, `reset`
 - **ID生成**: タイムスタンプ + ランダム文字列
 - **LocalStorage永続化**: `persist`ミドルウェアで自動保存
 - **履歴管理**: 最大50件の操作履歴を保持
 
 #### 6. エクスポート/インポート（Header.tsx）
-- **JSONエクスポート**:
-  - `DiagramData`形式（version, title, nodes, links, metadata）
-  - Blobでダウンロード
+- **エクスポートドロップダウンメニュー**:
+  - JSONエクスポート: `DiagramData`形式（version, title, nodes, links, metadata）
+  - PNG画像エクスポート: 高解像度2倍、全ノードを含む境界を自動計算
+  - SVG画像エクスポート: ベクター形式、拡大縮小しても綺麗
 - **JSONインポート**:
   - ファイル選択ダイアログ
   - JSONパース後、`importData`で状態復元
@@ -531,12 +538,19 @@ gsn-editor/
 - ✅ **リンク接続点の最適化**: Moduleノードへのリンクは親ノードの下中央から接続
 - ✅ **LocalStorage永続化対応**: MapからRecordへ変更してシリアライズ可能に
 
+#### UX改善機能 ✅ 完了（2025-12-16）
+- ✅ **ノードラベル自動採番**: G1, S1, E1などノードタイプごとに自動採番、手動編集も可能
+- ✅ **グリッドスナップ機能**: ヘッダーの⊞ボタンでON/OFF、20px間隔グリッド、ノード追加・移動時に自動吸着
+- ✅ **リンク右クリック削除**: リンクを右クリックで「リンクを削除」メニュー表示、クリック領域拡大（透明線12px）
+- ✅ **PNG/SVGエクスポート**: エクスポートドロップダウンメニューからJSON/PNG/SVG選択可能
+  - PNG: 高解像度2倍、全ノードを含む境界を自動計算、50pxパディング
+  - SVG: ベクター形式、完全なノード・リンク・ラベル再現
+  - テキスト: HTMLタグ除去、最大5行表示、長い場合は省略記号
+
 #### 次のステップ候補（Phase 3）
-1. **グリッドスナップ**: ノード移動時にグリッドに吸着
-2. **整列機能**: 複数ノードの左揃え、右揃え、上揃え、下揃え、等間隔配置
-3. **PNG/SVGエクスポート**: キャンバスを画像ファイルとしてエクスポート
-4. **検証機能**: ルートノード存在チェック、循環参照検出、孤立ノード警告
-5. **ノードラベル自動採番**: Gnn（Goalの番号）、Snn（Strategyの番号）の自動付与
+1. **検証機能**: ルートノード存在チェック、循環参照検出、孤立ノード警告
+2. **モジュール一括エクスポート/インポート**: 全モジュールをまとめて保存・復元
+3. **テンプレート機能**: よく使うパターンを保存・再利用
 
 ### GSN標準との対応
 

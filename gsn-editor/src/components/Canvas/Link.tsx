@@ -6,9 +6,10 @@ interface LinkProps {
   sourceNode: Node;
   targetNode: Node;
   onClick: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
 }
 
-export const Link: React.FC<LinkProps> = ({ link, sourceNode, targetNode, onClick }) => {
+export const Link: React.FC<LinkProps> = ({ link, sourceNode, targetNode, onClick, onContextMenu }) => {
   const color = link.style?.color || '#1F2937';
   const width = link.style?.width || 2;
 
@@ -65,7 +66,15 @@ export const Link: React.FC<LinkProps> = ({ link, sourceNode, targetNode, onClic
   const pathData = `M ${x1} ${y1} L ${x2} ${y2}`;
 
   return (
-    <g onClick={onClick} style={{ cursor: 'pointer' }}>
+    <g onClick={onClick} onContextMenu={onContextMenu} style={{ cursor: 'pointer' }}>
+      {/* クリック可能な透明な太い線（クリック領域を広げるため） */}
+      <path
+        d={pathData}
+        stroke="transparent"
+        strokeWidth={12}
+        fill="none"
+      />
+      {/* 実際の表示用の線 */}
       <path
         d={pathData}
         stroke={color}
@@ -73,6 +82,7 @@ export const Link: React.FC<LinkProps> = ({ link, sourceNode, targetNode, onClic
         fill="none"
         strokeDasharray={link.type === 'dashed' ? '8 8' : undefined}
         markerEnd={markerEnd}
+        pointerEvents="none"
       />
     </g>
   );

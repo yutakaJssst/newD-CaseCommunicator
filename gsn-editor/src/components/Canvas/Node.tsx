@@ -224,27 +224,30 @@ export const Node: React.FC<NodeProps> = ({
         )}
       </foreignObject>
 
-      {/* ラベル表示 */}
+      {/* ラベル表示（左上） */}
       {node.label && (
-        <rect
-          x={node.size.width / 2 - 80}
-          y={-node.size.height / 2 - 10}
-          width={80}
-          height={20}
-          fill="#800000"
-          stroke="none"
-        />
-      )}
-      {node.label && (
-        <text
-          x={node.size.width / 2 - 40}
-          y={-node.size.height / 2 + 5}
-          fill="#FFFFFF"
-          fontSize={12}
-          textAnchor="middle"
-        >
-          {node.label}
-        </text>
+        <>
+          <rect
+            x={-node.size.width / 2}
+            y={-node.size.height / 2 - 24}
+            width={Math.max(40, node.label.length * 9)}
+            height={20}
+            fill="#1F2937"
+            stroke="none"
+            rx={4}
+            ry={4}
+          />
+          <text
+            x={-node.size.width / 2 + Math.max(40, node.label.length * 9) / 2}
+            y={-node.size.height / 2 - 9}
+            fill="#FFFFFF"
+            fontSize={13}
+            fontWeight="600"
+            textAnchor="middle"
+          >
+            {node.label}
+          </text>
+        </>
       )}
 
       {/* Assumption/Justification添え字 */}
