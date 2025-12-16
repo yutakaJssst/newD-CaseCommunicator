@@ -6,6 +6,8 @@ interface ContextMenuProps {
   onClose: () => void;
   onAddLink: () => void;
   onDelete: () => void;
+  onConvertToModule?: () => void;
+  isGoalNode?: boolean;
 }
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -14,6 +16,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onClose,
   onAddLink,
   onDelete,
+  onConvertToModule,
+  isGoalNode = false,
 }) => {
   useEffect(() => {
     const handleClick = () => onClose();
@@ -70,6 +74,32 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       >
         子ノードにリンク
       </div>
+      {isGoalNode && onConvertToModule && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onConvertToModule();
+            onClose();
+          }}
+          style={{
+            padding: '12px 16px',
+            cursor: 'pointer',
+            borderBottom: '1px solid #F3F4F6',
+            fontSize: '14px',
+            fontWeight: '500',
+            color: '#374151',
+            transition: 'background-color 0.15s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#F9FAFB';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+        >
+          モジュールにする
+        </div>
+      )}
       <div
         onClick={(e) => {
           e.stopPropagation();

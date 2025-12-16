@@ -19,6 +19,8 @@ export const Canvas: React.FC = () => {
     addLink,
     deleteNode,
     deleteLink,
+    convertToModule,
+    switchToModule,
   } = useDiagramStore();
 
   const svgRef = useRef<SVGSVGElement>(null);
@@ -319,7 +321,11 @@ export const Canvas: React.FC = () => {
               isSelected={selectedNodes.includes(node.id) || linkSourceId === node.id}
               onSelect={(e) => handleNodeClick(node.id, e)}
               onDoubleClick={() => {
-                setEditingNode(node);
+                if (node.type === 'Module' && node.moduleId) {
+                  switchToModule(node.moduleId);
+                } else {
+                  setEditingNode(node);
+                }
               }}
               onDragStart={handleNodeDragStart(node.id)}
               onContextMenu={handleNodeContextMenu(node.id)}
@@ -341,6 +347,10 @@ export const Canvas: React.FC = () => {
           onDelete={() => {
             deleteNode(contextMenu.nodeId);
           }}
+          onConvertToModule={() => {
+            convertToModule(contextMenu.nodeId);
+          }}
+          isGoalNode={nodes.find(n => n.id === contextMenu.nodeId)?.type === 'Goal'}
         />
       )}
 

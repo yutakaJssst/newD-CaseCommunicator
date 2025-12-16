@@ -93,6 +93,37 @@ export const Node: React.FC<NodeProps> = ({
         return <polygon points={points} {...shapeProps} />;
       }
 
+      case 'Module': {
+        // フォルダ形状（タブ付き矩形）
+        const tabWidth = 60;
+        const tabHeight = 20;
+        const pathData = `
+          M ${-width / 2} ${-height / 2 + tabHeight}
+          L ${-width / 2} ${-height / 2}
+          L ${-width / 2 + tabWidth} ${-height / 2}
+          L ${-width / 2 + tabWidth + 10} ${-height / 2 + tabHeight}
+          L ${width / 2} ${-height / 2 + tabHeight}
+          L ${width / 2} ${height / 2}
+          L ${-width / 2} ${height / 2}
+          Z
+        `;
+        return (
+          <>
+            <path d={pathData} {...shapeProps} />
+            {/* フォルダアイコン（📁の代わりにテキスト"M"を使用） */}
+            <text
+              x={-width / 2 + 10}
+              y={-height / 2 + 15}
+              fill="#666666"
+              fontSize={14}
+              fontWeight="bold"
+            >
+              M
+            </text>
+          </>
+        );
+      }
+
       default:
         return (
           <rect
@@ -129,7 +160,7 @@ export const Node: React.FC<NodeProps> = ({
             style={{
               width: '100%',
               height: '100%',
-              padding: '10px',
+              padding: node.type === 'Module' ? '30px 10px 10px 10px' : '10px',
               overflow: 'hidden',
               display: 'flex',
               alignItems: 'center',

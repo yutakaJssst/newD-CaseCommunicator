@@ -2,9 +2,47 @@ import React, { useEffect } from 'react';
 import { useDiagramStore } from '../../stores/diagramStore';
 
 export const Header: React.FC = () => {
-  const { title, setTitle, canvasState, setViewport, exportData, importData, reset, undo, redo, canUndo, canRedo } =
-    useDiagramStore();
+  const {
+    title,
+    setTitle,
+    canvasState,
+    setViewport,
+    exportData,
+    importData,
+    reset,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    currentDiagramId,
+    modules,
+    switchToParent,
+  } = useDiagramStore();
   const { viewport } = canvasState;
+
+  // パンくずリスト生成
+  const getBreadcrumbs = () => {
+    const breadcrumbs: Array<{ id: string; title: string }> = [];
+    let currentId = currentDiagramId;
+
+    // ルートから現在のダイアグラムまでの経路を逆順に構築
+    while (currentId) {
+      const moduleData = modules[currentId];
+      if (currentId === 'root') {
+        breadcrumbs.unshift({ id: 'root', title: 'Root' });
+        break;
+      } else if (moduleData) {
+        breadcrumbs.unshift({ id: currentId, title: moduleData.title });
+        currentId = moduleData.metadata.parentModuleId || '';
+      } else {
+        break;
+      }
+    }
+
+    return breadcrumbs;
+  };
+
+  const breadcrumbs = getBreadcrumbs();
 
   // キーボードショートカット（Ctrl+Z / Ctrl+Y）
   useEffect(() => {
@@ -88,6 +126,42 @@ export const Header: React.FC = () => {
         boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
       }}
     >
+      {/* パンくずリスト */}
+      {breadcrumbs.length > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
+          {breadcrumbs.map((crumb, index) => (
+            <React.Fragment key={crumb.id}>
+              {index > 0 && <span style={{ color: '#9CA3AF' }}>›</span>}
+              {index === breadcrumbs.length - 1 ? (
+                <span style={{ color: '#374151', fontWeight: '500' }}>{crumb.title}</span>
+              ) : (
+                <button
+                  onClick={switchToParent}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#3B82F6',
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    transition: 'background-color 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#EFF6FF';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  {crumb.title}
+                </button>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      )}
+
       <input
         type="text"
         value={title}

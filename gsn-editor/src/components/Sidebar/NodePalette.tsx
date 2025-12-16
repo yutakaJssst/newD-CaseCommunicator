@@ -3,7 +3,7 @@ import type { NodeType } from '../../types/diagram';
 import { NODE_LABELS } from '../../types/diagram';
 import { useDiagramStore } from '../../stores/diagramStore';
 
-const nodeTypes: NodeType[] = ['Goal', 'Strategy', 'Context', 'Evidence', 'Assumption', 'Justification', 'Undeveloped'];
+const nodeTypes: NodeType[] = ['Goal', 'Strategy', 'Context', 'Evidence', 'Assumption', 'Justification', 'Undeveloped', 'Module'];
 
 // ノード形状のSVGアイコン
 const NodeIcon: React.FC<{ type: NodeType }> = ({ type }) => {
@@ -54,6 +54,18 @@ const NodeIcon: React.FC<{ type: NodeType }> = ({ type }) => {
       return (
         <svg width={size} height={size} viewBox="0 0 32 32">
           <polygon points="4,16 16,24 28,16 16,8" fill={fillColor} stroke={strokeColor} strokeWidth="1.5" />
+        </svg>
+      );
+    case 'Module':
+      return (
+        <svg width={size} height={size} viewBox="0 0 32 32">
+          <path
+            d="M 4 12 L 4 8 L 14 8 L 16 12 L 28 12 L 28 24 L 4 24 Z"
+            fill="#E0E0E0"
+            stroke={strokeColor}
+            strokeWidth="1.5"
+          />
+          <text x="8" y="19" fontSize="10" fontWeight="bold" fill="#666666">M</text>
         </svg>
       );
     default:

@@ -8,7 +8,8 @@ export type NodeType =
   | 'Evidence'
   | 'Assumption'
   | 'Justification'
-  | 'Undeveloped';
+  | 'Undeveloped'
+  | 'Module';
 
 /**
  * リンクタイプ
@@ -51,6 +52,9 @@ export interface Node {
   content: string;
   style?: NodeStyle;
   label?: string;
+  // モジュール専用プロパティ
+  moduleId?: string;      // 参照先モジュールのID
+  moduleName?: string;    // モジュール名
 }
 
 /**
@@ -102,6 +106,9 @@ export interface CanvasState {
 export interface DiagramMetadata {
   createdAt: string;
   updatedAt: string;
+  id: string;              // ダイアグラムID
+  parentModuleId?: string; // 親ダイアグラムのモジュールID
+  isModule: boolean;       // モジュールとして作成されたか
 }
 
 /**
@@ -126,6 +133,7 @@ export const NODE_COLORS: Record<NodeType, string> = {
   Assumption: '#FFFFFF',
   Justification: '#FFFFFF',
   Undeveloped: '#FFFFFF',
+  Module: '#E0E0E0',
 };
 
 /**
@@ -139,6 +147,7 @@ export const NODE_LABELS: Record<NodeType, string> = {
   Assumption: '仮定',
   Justification: '正当化',
   Undeveloped: '未展開',
+  Module: 'モジュール',
 };
 
 /**
