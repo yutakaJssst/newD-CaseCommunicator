@@ -5,7 +5,7 @@ import { NODE_COLORS } from '../../types/diagram';
 interface NodeProps {
   node: NodeType;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
   onDragStart: (e: React.MouseEvent) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
@@ -123,26 +123,74 @@ export const Node: React.FC<NodeProps> = ({
         y={-node.size.height / 2}
         width={node.size.width}
         height={node.size.height}
-        pointerEvents="none"
       >
-        <div
-          style={{
-            width: '100%',
-            height: '100%',
-            padding: '10px',
-            overflow: 'hidden',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '14px',
-            textAlign: 'center',
-            wordBreak: 'break-word',
-          }}
-        >
-          {node.content || (
+        {node.content ? (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              padding: '10px',
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '14px',
+              textAlign: 'center',
+              wordBreak: 'break-word',
+            }}
+            dangerouslySetInnerHTML={{ __html: node.content }}
+            onMouseDown={(e) => {
+              // リンククリック時はノードのドラッグを防止
+              const target = e.target as HTMLElement;
+              if (target.tagName === 'A') {
+                e.stopPropagation();
+              }
+            }}
+            onClick={(e) => {
+              const target = e.target as HTMLElement;
+              // リンククリック時
+              if (target.tagName === 'A') {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const href = (target as HTMLAnchorElement).href;
+                // URLの検証
+                try {
+                  const url = new URL(href);
+                  if (url.protocol === 'http:' || url.protocol === 'https:') {
+                    window.open(href, '_blank', 'noopener,noreferrer');
+                  } else {
+                    alert('⚠️ セキュリティ上の理由から、http:// または https:// で始まるURLのみ開くことができます。');
+                  }
+                } catch (err) {
+                  alert('⚠️ 無効なURLです。リンクを開けません。\n\nURL: ' + href);
+                }
+              }
+            }}
+            onDoubleClick={(e) => {
+              // ダブルクリックは常に編集モードを開く（リンクがある場合でも）
+              e.stopPropagation();
+              onDoubleClick();
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              padding: '10px',
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '14px',
+              textAlign: 'center',
+              wordBreak: 'break-word',
+            }}
+          >
             <span style={{ color: '#999' }}>ダブルクリックで編集</span>
-          )}
-        </div>
+          </div>
+        )}
       </foreignObject>
 
       {/* ラベル表示 */}

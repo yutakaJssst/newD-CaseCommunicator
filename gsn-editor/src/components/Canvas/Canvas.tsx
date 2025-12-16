@@ -101,7 +101,7 @@ export const Canvas: React.FC = () => {
   };
 
   // ノードクリック
-  const handleNodeClick = (nodeId: string) => {
+  const handleNodeClick = (nodeId: string, e?: React.MouseEvent) => {
     // リンク追加モード中の場合
     if (linkSourceId) {
       if (linkSourceId !== nodeId) {
@@ -113,7 +113,20 @@ export const Canvas: React.FC = () => {
 
     // 通常のクリック処理
     if (mode === 'select') {
-      useDiagramStore.getState().selectNode(nodeId);
+      const store = useDiagramStore.getState();
+
+      // Ctrl/Cmdキーが押されている場合は複数選択
+      if (e && (e.ctrlKey || e.metaKey)) {
+        if (selectedNodes.includes(nodeId)) {
+          store.deselectNode(nodeId);
+        } else {
+          store.selectNode(nodeId);
+        }
+      } else {
+        // 通常のクリックは単一選択（他の選択を解除）
+        store.clearSelection();
+        store.selectNode(nodeId);
+      }
     } else if (mode === 'delete') {
       deleteNode(nodeId);
     }
@@ -154,7 +167,19 @@ export const Canvas: React.FC = () => {
       if (node) {
         const dx = coords.x - dragStart.x;
         const dy = coords.y - dragStart.y;
-        moveNode(draggedNodeId, node.position.x + dx, node.position.y + dy);
+
+        // 複数選択されている場合は、選択されている全ノードを移動
+        if (selectedNodes.includes(draggedNodeId) && selectedNodes.length > 1) {
+          selectedNodes.forEach((nodeId) => {
+            const n = nodes.find((node) => node.id === nodeId);
+            if (n) {
+              moveNode(nodeId, n.position.x + dx, n.position.y + dy);
+            }
+          });
+        } else {
+          // 単一ノードの移動
+          moveNode(draggedNodeId, node.position.x + dx, node.position.y + dy);
+        }
         setDragStart(coords);
       }
     } else if (isResizing && resizingNodeId && resizeDirection) {
@@ -209,9 +234,18 @@ export const Canvas: React.FC = () => {
     setResizeDirection(null);
   };
 
-  // パン開始（中ボタンまたはスペース+左ボタン）
+  // パン開始（中ボタン、Shift+左ボタン、または空白領域で左ボタン）
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    // 中ボタンまたはShift+左ボタン
     if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+      e.preventDefault();
+      setIsPanning(true);
+      setPanStart({ x: e.clientX, y: e.clientY });
+      return;
+    }
+
+    // 空白領域で左ボタン（選択モード以外、またはノード追加モードでない場合）
+    if (e.button === 0 && e.target === svgRef.current && mode !== 'addNode') {
       e.preventDefault();
       setIsPanning(true);
       setPanStart({ x: e.clientX, y: e.clientY });
@@ -283,7 +317,7 @@ export const Canvas: React.FC = () => {
               key={node.id}
               node={node}
               isSelected={selectedNodes.includes(node.id) || linkSourceId === node.id}
-              onSelect={() => handleNodeClick(node.id)}
+              onSelect={(e) => handleNodeClick(node.id, e)}
               onDoubleClick={() => {
                 setEditingNode(node);
               }}

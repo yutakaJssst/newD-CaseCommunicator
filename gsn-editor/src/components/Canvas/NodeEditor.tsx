@@ -8,7 +8,7 @@ interface NodeEditorProps {
 }
 
 export const NodeEditor: React.FC<NodeEditorProps> = ({ node, onSave, onClose }) => {
-  const [content, setContent] = useState(node.content);
+  const editorRef = React.useRef<HTMLDivElement>(null);
 
   // ESCキーで閉じる
   useEffect(() => {
@@ -21,9 +21,44 @@ export const NodeEditor: React.FC<NodeEditorProps> = ({ node, onSave, onClose })
     return () => document.removeEventListener('keydown', handleEscape);
   }, [onClose]);
 
+  // 初期コンテンツをエディタに設定
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.innerHTML = node.content;
+    }
+  }, [node.content]);
+
   const handleSave = () => {
-    onSave(content);
+    const htmlContent = editorRef.current?.innerHTML || '';
+    onSave(htmlContent);
     onClose();
+  };
+
+  // 書式適用
+  const applyFormat = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
+  };
+
+  // リンク挿入
+  const insertLink = () => {
+    const url = prompt('URLを入力してください (例: https://example.com):');
+    if (url) {
+      // URLの検証
+      try {
+        // 相対URLや不正なURLをチェック
+        if (!url.match(/^https?:\/\/.+/)) {
+          alert('⚠️ 無効なURLです。http:// または https:// で始まる完全なURLを入力してください。\n\n例: https://example.com');
+          return;
+        }
+        // URLオブジェクトとして検証
+        new URL(url);
+        document.execCommand('createLink', false, url);
+        editorRef.current?.focus();
+      } catch (e) {
+        alert('⚠️ 無効なURLです。正しい形式で入力してください。\n\n例: https://example.com');
+      }
+    }
   };
 
   return (
@@ -66,25 +101,115 @@ export const NodeEditor: React.FC<NodeEditorProps> = ({ node, onSave, onClose })
           ノードの編集
         </h2>
 
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="ノードの内容を入力してください"
-          autoFocus
+        {/* ツールバー */}
+        <div style={{
+          display: 'flex',
+          gap: '4px',
+          padding: '8px',
+          backgroundColor: '#F9FAFB',
+          borderRadius: '8px 8px 0 0',
+          borderBottom: '1px solid #D1D5DB',
+        }}>
+          <button
+            onClick={() => applyFormat('bold')}
+            style={{
+              padding: '6px 12px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              border: '1px solid #D1D5DB',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              backgroundColor: '#FFFFFF',
+            }}
+            title="太字"
+          >
+            B
+          </button>
+          <button
+            onClick={() => applyFormat('italic')}
+            style={{
+              padding: '6px 12px',
+              fontSize: '14px',
+              fontStyle: 'italic',
+              border: '1px solid #D1D5DB',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              backgroundColor: '#FFFFFF',
+            }}
+            title="斜体"
+          >
+            I
+          </button>
+          <button
+            onClick={() => applyFormat('underline')}
+            style={{
+              padding: '6px 12px',
+              fontSize: '14px',
+              textDecoration: 'underline',
+              border: '1px solid #D1D5DB',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              backgroundColor: '#FFFFFF',
+            }}
+            title="下線"
+          >
+            U
+          </button>
+          <div style={{ width: '1px', backgroundColor: '#D1D5DB', margin: '0 4px' }} />
+          <select
+            onChange={(e) => applyFormat('fontSize', e.target.value)}
+            style={{
+              padding: '6px',
+              fontSize: '14px',
+              border: '1px solid #D1D5DB',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              backgroundColor: '#FFFFFF',
+            }}
+            defaultValue="3"
+          >
+            <option value="1">小</option>
+            <option value="3">中</option>
+            <option value="5">大</option>
+            <option value="7">特大</option>
+          </select>
+          <div style={{ width: '1px', backgroundColor: '#D1D5DB', margin: '0 4px' }} />
+          <button
+            onClick={insertLink}
+            style={{
+              padding: '6px 12px',
+              fontSize: '14px',
+              border: '1px solid #D1D5DB',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              backgroundColor: '#FFFFFF',
+            }}
+            title="リンク挿入"
+          >
+            🔗
+          </button>
+        </div>
+
+        {/* エディタ */}
+        <div
+          ref={editorRef}
+          contentEditable
+          suppressContentEditableWarning
           style={{
             flex: 1,
             minHeight: '240px',
             padding: '14px',
             fontSize: '15px',
             border: '1px solid #D1D5DB',
-            borderRadius: '8px',
-            resize: 'vertical',
+            borderRadius: '0 0 8px 8px',
             fontFamily: 'inherit',
             lineHeight: '1.6',
             outline: 'none',
+            overflowY: 'auto',
+            backgroundColor: '#FFFFFF',
           }}
-          onFocus={(e) => (e.target.style.borderColor = '#3B82F6')}
-          onBlur={(e) => (e.target.style.borderColor = '#D1D5DB')}
+          onFocus={(e) => (e.currentTarget.style.borderColor = '#3B82F6')}
+          onBlur={(e) => (e.currentTarget.style.borderColor = '#D1D5DB')}
         />
 
         <div

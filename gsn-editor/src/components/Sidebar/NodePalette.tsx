@@ -5,6 +5,62 @@ import { useDiagramStore } from '../../stores/diagramStore';
 
 const nodeTypes: NodeType[] = ['Goal', 'Strategy', 'Context', 'Evidence', 'Assumption', 'Justification', 'Undeveloped'];
 
+// ノード形状のSVGアイコン
+const NodeIcon: React.FC<{ type: NodeType }> = ({ type }) => {
+  const size = 32;
+  const strokeColor = '#374151';
+  const fillColor = '#FFFFFF';
+
+  switch (type) {
+    case 'Goal':
+      return (
+        <svg width={size} height={size} viewBox="0 0 32 32">
+          <rect x="4" y="8" width="24" height="16" fill={fillColor} stroke={strokeColor} strokeWidth="1.5" />
+        </svg>
+      );
+    case 'Strategy':
+      return (
+        <svg width={size} height={size} viewBox="0 0 32 32">
+          <path d="M 8 8 L 28 8 L 24 24 L 4 24 Z" fill={fillColor} stroke={strokeColor} strokeWidth="1.5" />
+        </svg>
+      );
+    case 'Context':
+      return (
+        <svg width={size} height={size} viewBox="0 0 32 32">
+          <rect x="4" y="8" width="24" height="16" rx="4" ry="4" fill={fillColor} stroke={strokeColor} strokeWidth="1.5" />
+        </svg>
+      );
+    case 'Evidence':
+      return (
+        <svg width={size} height={size} viewBox="0 0 32 32">
+          <ellipse cx="16" cy="16" rx="12" ry="8" fill={fillColor} stroke={strokeColor} strokeWidth="1.5" />
+        </svg>
+      );
+    case 'Assumption':
+      return (
+        <svg width={size} height={size} viewBox="0 0 32 32">
+          <ellipse cx="16" cy="16" rx="12" ry="8" fill={fillColor} stroke={strokeColor} strokeWidth="1.5" />
+          <text x="24" y="24" fontSize="10" fontWeight="bold" fill={strokeColor}>A</text>
+        </svg>
+      );
+    case 'Justification':
+      return (
+        <svg width={size} height={size} viewBox="0 0 32 32">
+          <ellipse cx="16" cy="16" rx="12" ry="8" fill={fillColor} stroke={strokeColor} strokeWidth="1.5" />
+          <text x="24" y="24" fontSize="10" fontWeight="bold" fill={strokeColor}>J</text>
+        </svg>
+      );
+    case 'Undeveloped':
+      return (
+        <svg width={size} height={size} viewBox="0 0 32 32">
+          <polygon points="4,16 16,24 28,16 16,8" fill={fillColor} stroke={strokeColor} strokeWidth="1.5" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+};
+
 export const NodePalette: React.FC = () => {
   const { canvasState, setSelectedNodeType } = useDiagramStore();
   const { selectedNodeType } = canvasState;
@@ -45,6 +101,9 @@ export const NodePalette: React.FC = () => {
               color: selectedNodeType === type ? '#3B82F6' : '#374151',
               textAlign: 'left',
               transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
             }}
             onMouseEnter={(e) => {
               if (selectedNodeType !== type) {
@@ -59,7 +118,8 @@ export const NodePalette: React.FC = () => {
               }
             }}
           >
-            {NODE_LABELS[type]}
+            <span>{NODE_LABELS[type]}</span>
+            <NodeIcon type={type} />
           </button>
         ))}
       </div>
