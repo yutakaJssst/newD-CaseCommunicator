@@ -22,6 +22,9 @@ export const Canvas: React.FC = () => {
     deleteLink,
     convertToModule,
     switchToModule,
+    switchToParent,
+    currentDiagramId,
+    modules,
   } = useDiagramStore();
 
   const svgRef = useRef<SVGSVGElement>(null);
@@ -309,6 +312,29 @@ export const Canvas: React.FC = () => {
     }
   };
 
+  // ノードがトップゴール（親を持たないGoal）かどうかを判定
+  const isTopGoal = (nodeId: string): boolean => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node || node.type !== 'Goal') return false;
+
+    // このノードがどのリンクのターゲットにもなっていない = トップゴール
+    const hasParent = links.some(link => link.target === nodeId);
+    return !hasParent;
+  };
+
+  // 現在のダイアグラムに親モジュールがあるかどうか
+  const hasParentModule = (() => {
+    if (currentDiagramId === 'root') return false;
+
+    // modulesに保存されているメタデータをチェック
+    const savedMetadata = modules[currentDiagramId]?.metadata?.parentModuleId;
+    if (savedMetadata) return true;
+
+    // 保存されていない場合でも、rootでなければ親がいる可能性がある
+    // （モジュール作成直後など）
+    return currentDiagramId !== 'root';
+  })();
+
   return (
     <>
       <svg
@@ -414,7 +440,13 @@ export const Canvas: React.FC = () => {
           onConvertToModule={() => {
             convertToModule(contextMenu.nodeId);
           }}
+          onOpenParentModule={
+            hasParentModule && isTopGoal(contextMenu.nodeId)
+              ? () => switchToParent()
+              : undefined
+          }
           isGoalNode={nodes.find(n => n.id === contextMenu.nodeId)?.type === 'Goal'}
+          isTopGoal={isTopGoal(contextMenu.nodeId) && hasParentModule}
         />
       )}
 

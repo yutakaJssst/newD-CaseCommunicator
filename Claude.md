@@ -351,7 +351,7 @@ pnpm dev
 ---
 
 **更新日**: 2025-12-16
-**プロジェクト状態**: Phase 1 (MVP) 完了 / Phase 2 完了 / 推奨実装順序 完了 / **モジュール機能実装完了**
+**プロジェクト状態**: Phase 1 (MVP) 完了 / Phase 2 完了 / 推奨実装順序 完了 / **モジュール機能実装完了** / **プロジェクトエクスポート/インポート完了**
 
 ---
 
@@ -376,8 +376,8 @@ gsn-editor/
 │   ├── components/
 │   │   ├── Canvas/
 │   │   │   ├── Canvas.tsx         # SVGキャンバス（ノード・リンク描画、ユーザー操作）
-│   │   │   ├── Node.tsx           # ノード描画（7種類の形状に対応）
-│   │   │   ├── Link.tsx           # リンク描画（実線・破線対応）
+│   │   │   ├── Node.tsx           # ノード描画（8種類の形状に対応、Moduleノード含む）
+│   │   │   ├── Link.tsx           # リンク描画（実線・破線対応、GSN標準準拠）
 │   │   │   ├── NodeEditor.tsx    # ノード内容編集モーダル
 │   │   │   └── ContextMenu.tsx   # 右クリックメニュー
 │   │   ├── Header/
@@ -464,12 +464,15 @@ gsn-editor/
 
 #### 6. エクスポート/インポート（Header.tsx）
 - **エクスポートドロップダウンメニュー**:
-  - JSONエクスポート: `DiagramData`形式（version, title, nodes, links, metadata）
+  - JSON（現在のダイアグラム）: `DiagramData`形式（version, title, nodes, links, metadata）
+  - **プロジェクト全体（全モジュール）**: `ProjectData`形式（全モジュール、ラベルカウンター含む）
   - PNG画像エクスポート: 高解像度2倍、全ノードを含む境界を自動計算
   - SVG画像エクスポート: ベクター形式、拡大縮小しても綺麗
-- **JSONインポート**:
+- **インポート機能**:
   - ファイル選択ダイアログ
-  - JSONパース後、`importData`で状態復元
+  - **自動判定**: プロジェクトデータ（`modules`と`labelCounters`を含む）か単一ダイアグラムかを自動認識
+  - プロジェクトデータの場合は確認ダイアログを表示
+  - JSONパース後、`importData`または`importProjectData`で状態復元
 - **Undo/Redoボタン**:
   - ヘッダーに配置
   - キーボードショートカット（Ctrl+Z / Ctrl+Y）対応
@@ -478,11 +481,14 @@ gsn-editor/
 #### 7. 型定義（diagram.ts）
 - **厳密な型安全性**:
   - `NodeType`, `LinkType`, `CanvasMode`
-  - `Node`, `Link`, `DiagramData`
+  - `Node`, `Link`, `DiagramData`, `ProjectData`
 - **定数定義**:
   - `NODE_COLORS`, `NODE_LABELS`
   - `DEFAULT_NODE_SIZE` (180x120)
   - `DEFAULT_CANVAS_STATE`
+- **プロジェクトデータ型**:
+  - `ProjectData`: 全モジュール、現在のダイアグラムID、ラベルカウンターを含む
+  - エクスポート日時を記録
 
 ### 実装の特徴
 
@@ -509,7 +515,7 @@ gsn-editor/
 
 #### Phase 1 (MVP) ✅ 完了
 - ✅ プロジェクトセットアップ（Vite + React + TypeScript）
-- ✅ 7種類のノード描画（Goal, Strategy, Context, Evidence, Assumption, Justification, Undeveloped）
+- ✅ 8種類のノード描画（Goal, Strategy, Context, Evidence, Assumption, Justification, Undeveloped, Module）
 - ✅ ノードの配置・移動
 - ✅ リンクの作成・描画
 - ✅ キャンバスのパン・ズーム操作
@@ -547,10 +553,19 @@ gsn-editor/
   - SVG: ベクター形式、完全なノード・リンク・ラベル再現
   - テキスト: HTMLタグ除去、最大5行表示、長い場合は省略記号
 
+#### プロジェクトエクスポート/インポート機能 ✅ 完了（2025-12-16）
+- ✅ **プロジェクト全体のエクスポート**: 全モジュール、ラベルカウンター、現在のダイアグラムIDを含む`ProjectData`形式でエクスポート
+- ✅ **ファイル形式自動判定**: インポート時に`modules`と`labelCounters`プロパティの有無でプロジェクトデータか単一ダイアグラムかを自動認識
+- ✅ **確認ダイアログ**: プロジェクトデータのインポート時は上書き警告を表示
+- ✅ **ファイル命名規則**: 単一ダイアグラムは`{タイトル}.json`、プロジェクトは`{タイトル}-project.json`
+- ✅ **UI視覚的区別**: プロジェクトエクスポートオプションを緑色で強調表示
+
 #### 次のステップ候補（Phase 3）
 1. **検証機能**: ルートノード存在チェック、循環参照検出、孤立ノード警告
-2. **モジュール一括エクスポート/インポート**: 全モジュールをまとめて保存・復元
+2. **Assumption/Justificationの視覚的区別の強化**: 右下の添え字に加えて、枠線を破線にするなどのオプション
 3. **テンプレート機能**: よく使うパターンを保存・再利用
+4. **自動レイアウト機能**: ツリー構造の自動整列
+5. **キーボードショートカットの拡張**: Delete、Ctrl+A（全選択）など
 
 ### GSN標準との対応
 
@@ -577,9 +592,9 @@ gsn-editor/
    - Context/Assumption/Justification → 他ノード: 破線（InContextOf）
    - Goal/Strategy/Evidence: 実線（SupportedBy）
 
-2. **ノードラベルの活用**:
-   - 現在: `label`プロパティは実装済みだが未使用
-   - 推奨: Gnn（Goalの番号）、Snn（Strategyの番号）の自動採番
+2. **ノードラベルの活用**: ✅ 実装済み
+   - Gnn（Goalの番号）、Snn（Strategyの番号）などの自動採番機能を実装済み
+   - 手動編集も可能（ノードエディタから編集）
 
 3. **Undevelopedノードの促進**:
    - 子ノードのないGoalに対して、Undevelopedノード追加を促すUI

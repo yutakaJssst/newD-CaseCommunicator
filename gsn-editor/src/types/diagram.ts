@@ -124,6 +124,17 @@ export interface DiagramData {
 }
 
 /**
+ * プロジェクト全体のデータ（全モジュール含む）
+ */
+export interface ProjectData {
+  version: string;
+  currentDiagramId: string;
+  modules: Record<string, DiagramData>;
+  labelCounters: Record<NodeType, number>;
+  exportedAt: string;
+}
+
+/**
  * ノードタイプごとのデフォルト色設定（モダンなカラーパレット）
  */
 export const NODE_COLORS: Record<NodeType, string> = {

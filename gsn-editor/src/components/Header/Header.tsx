@@ -11,6 +11,8 @@ export const Header: React.FC = () => {
     setViewport,
     exportData,
     importData,
+    exportProjectData,
+    importProjectData,
     exportAsImage,
     reset,
     undo,
@@ -20,6 +22,7 @@ export const Header: React.FC = () => {
     currentDiagramId,
     modules,
     switchToParent,
+    switchToDiagram,
     toggleGridSnap,
   } = useDiagramStore();
   const { viewport, gridSnapEnabled } = canvasState;
@@ -28,19 +31,46 @@ export const Header: React.FC = () => {
   const getBreadcrumbs = () => {
     const breadcrumbs: Array<{ id: string; title: string }> = [];
     let currentId = currentDiagramId;
+    const visited = new Set<string>(); // 無限ループ防止
 
-    // ルートから現在のダイアグラムまでの経路を逆順に構築
-    while (currentId) {
-      const moduleData = modules[currentId];
+    // 現在のダイアグラムから親方向に辿る
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId);
+
       if (currentId === 'root') {
-        breadcrumbs.unshift({ id: 'root', title: 'Root' });
+        // rootダイアグラムに到達
+        const rootData = modules['root'];
+        breadcrumbs.unshift({ id: 'root', title: rootData?.title || 'Root' });
         break;
-      } else if (moduleData) {
-        breadcrumbs.unshift({ id: currentId, title: moduleData.title });
-        currentId = moduleData.metadata.parentModuleId || '';
       } else {
-        break;
+        const moduleData = modules[currentId];
+        if (moduleData) {
+          breadcrumbs.unshift({ id: currentId, title: moduleData.title });
+          const parentId = moduleData.metadata.parentModuleId;
+
+          if (!parentId || parentId === '') {
+            // 親がない場合はrootを追加して終了
+            const rootData = modules['root'];
+            breadcrumbs.unshift({ id: 'root', title: rootData?.title || 'Root' });
+            break;
+          }
+
+          currentId = parentId;
+        } else {
+          // 現在のダイアグラム（まだmodulesに保存されていない）
+          breadcrumbs.unshift({ id: currentId, title: title });
+          // rootを追加
+          const rootData = modules['root'];
+          breadcrumbs.unshift({ id: 'root', title: rootData?.title || 'Root' });
+          break;
+        }
       }
+    }
+
+    // rootが含まれていない場合は先頭に追加
+    if (breadcrumbs.length === 0 || breadcrumbs[0].id !== 'root') {
+      const rootData = modules['root'];
+      breadcrumbs.unshift({ id: 'root', title: rootData?.title || 'Root' });
     }
 
     return breadcrumbs;
@@ -98,6 +128,18 @@ export const Header: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportProject = () => {
+    const data = exportProjectData();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title || 'gsn-project'}-project.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShowExportMenu(false);
+  };
+
   const handleImport = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -109,7 +151,17 @@ export const Header: React.FC = () => {
         reader.onload = (event) => {
           try {
             const data = JSON.parse(event.target?.result as string);
-            importData(data);
+
+            // プロジェクトデータかダイアグラムデータかを判定
+            if (data.modules && data.labelCounters) {
+              // プロジェクトデータ
+              if (confirm('プロジェクト全体をインポートしますか？現在のデータは上書きされます。')) {
+                importProjectData(data);
+              }
+            } else {
+              // 単一ダイアグラムデータ
+              importData(data);
+            }
           } catch {
             alert('JSONファイルの読み込みに失敗しました');
           }
@@ -149,7 +201,7 @@ export const Header: React.FC = () => {
                 <span style={{ color: '#374151', fontWeight: '500' }}>{crumb.title}</span>
               ) : (
                 <button
-                  onClick={switchToParent}
+                  onClick={() => switchToDiagram(crumb.id)}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -416,7 +468,26 @@ export const Header: React.FC = () => {
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F3F4F6')}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
               >
-                JSON
+                JSON（現在のダイアグラム）
+              </button>
+              <button
+                onClick={handleExportProject}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: '#059669',
+                  fontWeight: '600',
+                  borderBottom: '1px solid #E5E7EB',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#ECFDF5')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                プロジェクト全体（全モジュール）
               </button>
               <button
                 onClick={() => {

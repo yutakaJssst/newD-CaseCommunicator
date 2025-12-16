@@ -7,7 +7,9 @@ interface ContextMenuProps {
   onAddLink: () => void;
   onDelete: () => void;
   onConvertToModule?: () => void;
+  onOpenParentModule?: () => void;
   isGoalNode?: boolean;
+  isTopGoal?: boolean;
 }
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -17,7 +19,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onAddLink,
   onDelete,
   onConvertToModule,
+  onOpenParentModule,
   isGoalNode = false,
+  isTopGoal = false,
 }) => {
   useEffect(() => {
     const handleClick = () => onClose();
@@ -98,6 +102,32 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           }}
         >
           モジュールにする
+        </div>
+      )}
+      {isTopGoal && onOpenParentModule && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenParentModule();
+            onClose();
+          }}
+          style={{
+            padding: '12px 16px',
+            cursor: 'pointer',
+            borderBottom: '1px solid #F3F4F6',
+            fontSize: '14px',
+            fontWeight: '500',
+            color: '#3B82F6',
+            transition: 'background-color 0.15s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#EFF6FF';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+        >
+          親モジュールを開く
         </div>
       )}
       <div

@@ -20,9 +20,9 @@ export const Link: React.FC<LinkProps> = ({ link, sourceNode, targetNode, onClic
   const markerEnd = isInContextOf ? 'url(#arrowhead-hollow)' : 'url(#arrowhead)';
 
   // GSN標準に基づく接続点の決定
-  // ゴール・戦略の下につくノード: Strategy, Evidence, Undeveloped, Module
+  // ゴール・戦略の下につくノード: Goal, Strategy, Evidence, Undeveloped, Module
   // それ以外のノード（Context, Assumption, Justification）は横につく
-  const verticalTargets = ['Strategy', 'Evidence', 'Undeveloped', 'Module'];
+  const verticalTargets = ['Goal', 'Strategy', 'Evidence', 'Undeveloped', 'Module'];
   const shouldConnectVertically = verticalTargets.includes(targetNode.type);
 
   let x1: number, y1: number, x2: number, y2: number;

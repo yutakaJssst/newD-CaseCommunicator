@@ -4,6 +4,7 @@ import type {
   Node,
   Link,
   DiagramData,
+  ProjectData,
   CanvasState,
   NodeType,
 } from '../types/diagram';
@@ -51,9 +52,12 @@ interface DiagramStore {
   convertToModule: (goalId: string) => void;
   switchToModule: (moduleId: string) => void;
   switchToParent: () => void;
+  switchToDiagram: (diagramId: string) => void;
 
   exportData: () => DiagramData;
   importData: (data: DiagramData) => void;
+  exportProjectData: () => ProjectData;
+  importProjectData: (data: ProjectData) => void;
   exportAsImage: (format: 'png' | 'svg') => void;
   reset: () => void;
 }
@@ -523,6 +527,8 @@ export const useDiagramStore = create<DiagramStore>()(
             updatedAt: new Date().toISOString(),
             id: state.currentDiagramId,
             isModule: state.currentDiagramId !== 'root',
+            // 既存のparentModuleIdを保持（存在する場合）
+            parentModuleId: state.modules[state.currentDiagramId]?.metadata?.parentModuleId,
           },
         };
 
@@ -542,14 +548,16 @@ export const useDiagramStore = create<DiagramStore>()(
 
       switchToParent: () => {
         const state = get();
-        const currentMetadata = state.modules[state.currentDiagramId]?.metadata;
 
-        if (!currentMetadata?.parentModuleId) {
+        // 現在のダイアグラムの親IDを取得
+        // modulesに保存されているメタデータから取得
+        const parentId = state.modules[state.currentDiagramId]?.metadata?.parentModuleId;
+
+        if (!parentId) {
           console.error('No parent module found');
           return;
         }
 
-        const parentId = currentMetadata.parentModuleId;
         const parentData = state.modules[parentId];
 
         if (!parentData) {
@@ -568,7 +576,7 @@ export const useDiagramStore = create<DiagramStore>()(
             updatedAt: new Date().toISOString(),
             id: state.currentDiagramId,
             isModule: true,
-            parentModuleId: currentMetadata.parentModuleId,
+            parentModuleId: parentId,
           },
         };
 
@@ -599,6 +607,86 @@ export const useDiagramStore = create<DiagramStore>()(
         });
       },
 
+      switchToDiagram: (diagramId) => {
+        const state = get();
+
+        // 既にそのダイアグラムにいる場合は何もしない
+        if (state.currentDiagramId === diagramId) {
+          return;
+        }
+
+        // rootダイアグラムへの切り替えの場合
+        if (diagramId === 'root') {
+          const rootData = state.modules['root'];
+
+          // 現在のダイアグラムを保存
+          if (state.currentDiagramId !== 'root') {
+            const currentData: DiagramData = {
+              version: '1.0.0',
+              title: state.title,
+              nodes: state.nodes,
+              links: state.links,
+              metadata: {
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                id: state.currentDiagramId,
+                isModule: true,
+                parentModuleId: state.modules[state.currentDiagramId]?.metadata.parentModuleId,
+              },
+            };
+
+            set({
+              title: rootData?.title || '新しいGSN図',
+              nodes: rootData?.nodes || [],
+              links: rootData?.links || [],
+              currentDiagramId: 'root',
+              modules: {
+                ...state.modules,
+                [state.currentDiagramId]: currentData,
+              },
+              canvasState: DEFAULT_CANVAS_STATE,
+            });
+          }
+          return;
+        }
+
+        // 通常のモジュールへの切り替え
+        const targetData = state.modules[diagramId];
+
+        if (!targetData) {
+          console.error('Target diagram not found:', diagramId);
+          return;
+        }
+
+        // 現在のダイアグラムを保存
+        const currentData: DiagramData = {
+          version: '1.0.0',
+          title: state.title,
+          nodes: state.nodes,
+          links: state.links,
+          metadata: {
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            id: state.currentDiagramId,
+            isModule: state.currentDiagramId !== 'root',
+            parentModuleId: state.modules[state.currentDiagramId]?.metadata.parentModuleId,
+          },
+        };
+
+        // ターゲットダイアグラムに切り替え
+        set({
+          title: targetData.title,
+          nodes: targetData.nodes,
+          links: targetData.links,
+          currentDiagramId: diagramId,
+          modules: {
+            ...state.modules,
+            [state.currentDiagramId]: currentData,
+          },
+          canvasState: DEFAULT_CANVAS_STATE,
+        });
+      },
+
       exportData: () => {
         const state = get();
         return {
@@ -621,6 +709,73 @@ export const useDiagramStore = create<DiagramStore>()(
           title: data.title,
           nodes: data.nodes,
           links: data.links,
+          canvasState: DEFAULT_CANVAS_STATE,
+        });
+      },
+
+      exportProjectData: () => {
+        const state = get();
+
+        // 現在のダイアグラムを保存
+        const currentData: DiagramData = {
+          version: '1.0.0',
+          title: state.title,
+          nodes: state.nodes,
+          links: state.links,
+          metadata: {
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            id: state.currentDiagramId,
+            isModule: state.currentDiagramId !== 'root',
+            parentModuleId: state.modules[state.currentDiagramId]?.metadata?.parentModuleId,
+          },
+        };
+
+        // 全モジュールをマージ（現在のダイアグラム含む）
+        const allModules = {
+          ...state.modules,
+          [state.currentDiagramId]: currentData,
+        };
+
+        const projectData: ProjectData = {
+          version: '1.0.0',
+          currentDiagramId: state.currentDiagramId,
+          modules: allModules,
+          labelCounters: state.labelCounters,
+          exportedAt: new Date().toISOString(),
+        };
+
+        return projectData;
+      },
+
+      importProjectData: (data) => {
+        saveToHistory(get, set);
+
+        // インポートするダイアグラムを取得（rootまたは指定されたcurrentDiagramId）
+        const targetDiagramId = data.currentDiagramId || 'root';
+        const targetDiagram = data.modules[targetDiagramId];
+
+        if (!targetDiagram) {
+          console.error('Target diagram not found in imported data');
+          return;
+        }
+
+        set({
+          title: targetDiagram.title,
+          nodes: targetDiagram.nodes,
+          links: targetDiagram.links,
+          currentDiagramId: targetDiagramId,
+          modules: data.modules,
+          labelCounters: data.labelCounters || {
+            Goal: 0,
+            Strategy: 0,
+            Context: 0,
+            Evidence: 0,
+            Assumption: 0,
+            Justification: 0,
+            Undeveloped: 0,
+            Module: 0,
+          },
           canvasState: DEFAULT_CANVAS_STATE,
         });
       },
@@ -719,7 +874,7 @@ export const useDiagramStore = create<DiagramStore>()(
 
           const isInContextOf = ['Context', 'Assumption', 'Justification'].includes(targetNode.type);
           const markerEnd = isInContextOf ? 'url(#arrowhead-hollow)' : 'url(#arrowhead)';
-          const verticalTargets = ['Strategy', 'Evidence', 'Undeveloped', 'Module'];
+          const verticalTargets = ['Goal', 'Strategy', 'Evidence', 'Undeveloped', 'Module'];
           const shouldConnectVertically = verticalTargets.includes(targetNode.type);
 
           let x1, y1, x2, y2;
