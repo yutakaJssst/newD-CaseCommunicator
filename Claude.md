@@ -349,8 +349,8 @@ pnpm dev
 
 ---
 
-**更新日**: 2025-12-09
-**プロジェクト状態**: Phase 1 (MVP) 完了 / Phase 2 一部完了（ノードリサイズ、GSN標準準拠リンク）
+**更新日**: 2025-12-16
+**プロジェクト状態**: Phase 1 (MVP) 完了 / Phase 2 完了（ノードリサイズ、GSN標準準拠リンク、LocalStorage自動保存、Undo/Redo）
 
 ---
 
@@ -442,13 +442,16 @@ gsn-editor/
 
 #### 5. 状態管理（diagramStore.ts）
 - **Zustandストア**:
-  - `title`, `nodes`, `links`, `canvasState`
+  - `title`, `nodes`, `links`, `canvasState`, `history`, `historyIndex`
 - **主要アクション**:
   - `addNode`, `updateNode`, `deleteNode`, `moveNode`
   - `addLink`, `deleteLink`
   - `setViewport`, `selectNode`, `clearSelection`
+  - `undo`, `redo`, `canUndo`, `canRedo`
   - `exportData`, `importData`, `reset`
 - **ID生成**: タイムスタンプ + ランダム文字列
+- **LocalStorage永続化**: `persist`ミドルウェアで自動保存
+- **履歴管理**: 最大50件の操作履歴を保持
 
 #### 6. エクスポート/インポート（Header.tsx）
 - **JSONエクスポート**:
@@ -457,6 +460,10 @@ gsn-editor/
 - **JSONインポート**:
   - ファイル選択ダイアログ
   - JSONパース後、`importData`で状態復元
+- **Undo/Redoボタン**:
+  - ヘッダーに配置
+  - キーボードショートカット（Ctrl+Z / Ctrl+Y）対応
+  - 無効状態の視覚的フィードバック
 
 #### 7. 型定義（diagram.ts）
 - **厳密な型安全性**:
@@ -484,25 +491,18 @@ gsn-editor/
 1. **パン操作の制御**:
    - 現在: 中ボタン or Shift+左ドラッグ
    - CLAUDE.md仕様: 「空白領域を左ドラッグ」が未実装
-2. **Undo/Redo**: 未実装（Phase 2予定）
-3. **LocalStorage自動保存**: 未実装（Phase 2予定）
-4. **削除モード**: 右クリックメニューでは可能だが、専用モード未実装
+2. **削除モード**: 右クリックメニューでは可能だが、専用モード未実装
+3. **移動操作の履歴**: ノード移動は履歴に保存されない（頻繁すぎるため意図的に除外）
 
-### 次のステップ（Phase 2候補）
+### 次のステップ（Phase 2/3候補）
 
-#### 完了済み
+#### Phase 2 完了済み ✅
 - ✅ **ノードサイズ変更機能**: 4方向のリサイズハンドル実装済み
 - ✅ **GSN標準準拠のリンク描画**: Context系ノードへの白抜き矢印、相対位置に基づく接続点計算
+- ✅ **LocalStorage自動保存**: `zustand/middleware`の`persist`使用
+- ✅ **Undo/Redo**: 履歴配列管理（最大50件）、Ctrl+Z/Ctrl+Y対応
 
-#### 優先度高
-1. **LocalStorage自動保存**:
-   - `useEffect`でストア変更を監視
-   - `localStorage.setItem`で永続化
-2. **Undo/Redo**:
-   - `zustand/middleware`の`temporal`使用
-   - または履歴配列の手動管理
-
-#### 優先度中
+#### 優先度中（Phase 2残り）
 3. **削除モードの改善**:
    - Sidebarに「削除モード」ボタン追加
    - `canvasState.mode = 'delete'`の明示的な切り替え

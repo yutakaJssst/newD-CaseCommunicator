@@ -167,8 +167,6 @@ export const Canvas: React.FC = () => {
 
       let newWidth = resizeStart.width;
       let newHeight = resizeStart.height;
-      let newX = node.position.x;
-      let newY = node.position.y;
 
       // リサイズ方向に応じて計算
       switch (resizeDirection) {

@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Node as NodeType } from '../../types/diagram';
+import { NODE_COLORS } from '../../types/diagram';
 
 interface NodeProps {
   node: NodeType;
@@ -22,7 +23,7 @@ export const Node: React.FC<NodeProps> = ({
 }) => {
   const renderShape = () => {
     const { width, height } = node.size;
-    const fillColor = node.style?.fillColor || '#FFFFFF';
+    const fillColor = node.style?.fillColor || NODE_COLORS[node.type];
     const borderColor = node.style?.borderColor || '#374151';
     const borderWidth = node.style?.borderWidth || 2;
 
@@ -82,7 +83,7 @@ export const Node: React.FC<NodeProps> = ({
           />
         );
 
-      case 'Undeveloped':
+      case 'Undeveloped': {
         const points = [
           `${-width / 2},0`,
           `0,${height / 2}`,
@@ -90,6 +91,7 @@ export const Node: React.FC<NodeProps> = ({
           `0,${-height / 2}`,
         ].join(' ');
         return <polygon points={points} {...shapeProps} />;
+      }
 
       default:
         return (
@@ -163,6 +165,20 @@ export const Node: React.FC<NodeProps> = ({
           textAnchor="middle"
         >
           {node.label}
+        </text>
+      )}
+
+      {/* Assumption/Justification添え字 */}
+      {(node.type === 'Assumption' || node.type === 'Justification') && (
+        <text
+          x={node.size.width / 2 - 10}
+          y={node.size.height / 2 - 5}
+          fill="#000000"
+          fontSize={16}
+          fontWeight="bold"
+          textAnchor="middle"
+        >
+          {node.type === 'Assumption' ? 'A' : 'J'}
         </text>
       )}
 

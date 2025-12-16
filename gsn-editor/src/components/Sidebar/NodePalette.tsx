@@ -3,7 +3,7 @@ import type { NodeType } from '../../types/diagram';
 import { NODE_LABELS } from '../../types/diagram';
 import { useDiagramStore } from '../../stores/diagramStore';
 
-const nodeTypes: NodeType[] = ['Goal', 'Strategy', 'Context', 'Evidence'];
+const nodeTypes: NodeType[] = ['Goal', 'Strategy', 'Context', 'Evidence', 'Assumption', 'Justification', 'Undeveloped'];
 
 export const NodePalette: React.FC = () => {
   const { canvasState, setSelectedNodeType } = useDiagramStore();

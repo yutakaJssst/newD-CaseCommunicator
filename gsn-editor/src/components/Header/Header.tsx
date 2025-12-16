@@ -1,10 +1,30 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useDiagramStore } from '../../stores/diagramStore';
 
 export const Header: React.FC = () => {
-  const { title, setTitle, canvasState, setViewport, exportData, importData, reset } =
+  const { title, setTitle, canvasState, setViewport, exportData, importData, reset, undo, redo, canUndo, canRedo } =
     useDiagramStore();
   const { viewport } = canvasState;
+
+  // キーボードショートカット（Ctrl+Z / Ctrl+Y）
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (canUndo()) {
+          undo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        if (canRedo()) {
+          redo();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo, canUndo, canRedo]);
 
   const handleZoomIn = () => {
     const newScale = Math.min(3.0, viewport.scale + 0.1);
@@ -39,7 +59,7 @@ export const Header: React.FC = () => {
           try {
             const data = JSON.parse(event.target?.result as string);
             importData(data);
-          } catch (error) {
+          } catch {
             alert('JSONファイルの読み込みに失敗しました');
           }
         };
@@ -89,6 +109,72 @@ export const Header: React.FC = () => {
       />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {/* Undo/Redoボタン */}
+        <button
+          onClick={undo}
+          disabled={!canUndo()}
+          title="元に戻す (Ctrl+Z)"
+          style={{
+            width: '36px',
+            height: '36px',
+            fontSize: '18px',
+            border: '1px solid #D1D5DB',
+            borderRadius: '8px',
+            cursor: canUndo() ? 'pointer' : 'not-allowed',
+            backgroundColor: '#FFFFFF',
+            color: canUndo() ? '#374151' : '#D1D5DB',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            if (canUndo()) {
+              e.currentTarget.style.backgroundColor = '#F3F4F6';
+              e.currentTarget.style.borderColor = '#9CA3AF';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#D1D5DB';
+          }}
+        >
+          ↶
+        </button>
+        <button
+          onClick={redo}
+          disabled={!canRedo()}
+          title="やり直す (Ctrl+Y)"
+          style={{
+            width: '36px',
+            height: '36px',
+            fontSize: '18px',
+            border: '1px solid #D1D5DB',
+            borderRadius: '8px',
+            cursor: canRedo() ? 'pointer' : 'not-allowed',
+            backgroundColor: '#FFFFFF',
+            color: canRedo() ? '#374151' : '#D1D5DB',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            if (canRedo()) {
+              e.currentTarget.style.backgroundColor = '#F3F4F6';
+              e.currentTarget.style.borderColor = '#9CA3AF';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#D1D5DB';
+          }}
+        >
+          ↷
+        </button>
+
+        <div style={{ width: '1px', height: '24px', backgroundColor: '#E5E7EB', margin: '0 4px' }} />
+
         <span style={{ fontSize: '14px', color: '#6B7280', fontWeight: '500' }}>
           {Math.round(viewport.scale * 100)}%
         </span>

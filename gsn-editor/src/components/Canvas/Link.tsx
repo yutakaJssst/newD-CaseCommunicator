@@ -18,14 +18,35 @@ export const Link: React.FC<LinkProps> = ({ link, sourceNode, targetNode, onClic
   // Context系ノードへのリンクは白抜き矢印、通常のリンクは塗りつぶし矢印
   const markerEnd = isInContextOf ? 'url(#arrowhead-hollow)' : 'url(#arrowhead)';
 
-  // ノード間の相対位置を計算して最適な接続点を決定
-  const dx = targetNode.position.x - sourceNode.position.x;
-  const dy = targetNode.position.y - sourceNode.position.y;
+  // GSN標準に基づく接続点の決定
+  // ゴール・戦略の下につくノード: Strategy, Evidence, Undeveloped
+  // それ以外のノード（Context, Assumption, Justification）は横につく
+  const verticalTargets = ['Strategy', 'Evidence', 'Undeveloped'];
+  const shouldConnectVertically = verticalTargets.includes(targetNode.type);
 
   let x1: number, y1: number, x2: number, y2: number;
 
-  // 横方向の距離が縦方向より大きい場合（横並び）
-  if (Math.abs(dx) > Math.abs(dy)) {
+  if (shouldConnectVertically) {
+    // 縦方向の接続（親ノードの下端 → 子ノードの上端）
+    const dy = targetNode.position.y - sourceNode.position.y;
+
+    if (dy > 0) {
+      // ターゲットが下側（通常のケース）
+      x1 = sourceNode.position.x;
+      y1 = sourceNode.position.y + sourceNode.size.height / 2; // ソースの下端
+      x2 = targetNode.position.x;
+      y2 = targetNode.position.y - targetNode.size.height / 2; // ターゲットの上端
+    } else {
+      // ターゲットが上側（逆方向）
+      x1 = sourceNode.position.x;
+      y1 = sourceNode.position.y - sourceNode.size.height / 2; // ソースの上端
+      x2 = targetNode.position.x;
+      y2 = targetNode.position.y + targetNode.size.height / 2; // ターゲットの下端
+    }
+  } else {
+    // 横方向の接続（Context, Assumption, Justification）
+    const dx = targetNode.position.x - sourceNode.position.x;
+
     if (dx > 0) {
       // ターゲットが右側
       x1 = sourceNode.position.x + sourceNode.size.width / 2; // ソースの右端
@@ -38,21 +59,6 @@ export const Link: React.FC<LinkProps> = ({ link, sourceNode, targetNode, onClic
       y1 = sourceNode.position.y;
       x2 = targetNode.position.x + targetNode.size.width / 2; // ターゲットの右端
       y2 = targetNode.position.y;
-    }
-  } else {
-    // 縦方向の距離が大きい場合（縦並び）
-    if (dy > 0) {
-      // ターゲットが下側
-      x1 = sourceNode.position.x;
-      y1 = sourceNode.position.y + sourceNode.size.height / 2; // ソースの下端
-      x2 = targetNode.position.x;
-      y2 = targetNode.position.y - targetNode.size.height / 2; // ターゲットの上端
-    } else {
-      // ターゲットが上側
-      x1 = sourceNode.position.x;
-      y1 = sourceNode.position.y - sourceNode.size.height / 2; // ソースの上端
-      x2 = targetNode.position.x;
-      y2 = targetNode.position.y + targetNode.size.height / 2; // ターゲットの下端
     }
   }
 
