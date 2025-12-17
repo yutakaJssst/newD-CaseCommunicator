@@ -13,7 +13,7 @@ interface OnlineUser {
   joinedAt: string;
 }
 
-// Track online users per project
+// Track online users per project (Map key is socketId, not userId)
 const onlineUsers = new Map<string, Map<string, OnlineUser>>();
 
 // Get online users for a project
@@ -22,19 +22,19 @@ const getOnlineUsers = (projectId: string): OnlineUser[] => {
   return projectUsers ? Array.from(projectUsers.values()) : [];
 };
 
-// Add user to online users
+// Add user to online users (use socketId as key to allow multiple connections per user)
 const addOnlineUser = (projectId: string, user: OnlineUser) => {
   if (!onlineUsers.has(projectId)) {
     onlineUsers.set(projectId, new Map());
   }
-  onlineUsers.get(projectId)!.set(user.userId, user);
+  onlineUsers.get(projectId)!.set(user.socketId, user);
 };
 
-// Remove user from online users
-const removeOnlineUser = (projectId: string, userId: string) => {
+// Remove user from online users (use socketId as key)
+const removeOnlineUser = (projectId: string, socketId: string) => {
   const projectUsers = onlineUsers.get(projectId);
   if (projectUsers) {
-    projectUsers.delete(userId);
+    projectUsers.delete(socketId);
     if (projectUsers.size === 0) {
       onlineUsers.delete(projectId);
     }
@@ -84,9 +84,7 @@ export const setupWebSocket = (io: Server) => {
     socket.on('leave_project', ({ projectId }) => {
       console.log(`[WebSocket] User ${socket.userName} left project ${projectId}`);
 
-      if (socket.userId) {
-        removeOnlineUser(projectId, socket.userId);
-      }
+      removeOnlineUser(projectId, socket.id);
 
       socket.leave(projectId);
 
@@ -127,12 +125,18 @@ export const setupWebSocket = (io: Server) => {
       socket.to(data.projectId).emit('link_deleted', data);
     });
 
+    // Handle module operations
+    socket.on('module_created', (data) => {
+      console.log(`[WebSocket] Module created in project ${data.projectId}`);
+      socket.to(data.projectId).emit('module_created', data);
+    });
+
     // Handle disconnect
     socket.on('disconnect', () => {
       console.log(`[WebSocket] Client disconnected: ${socket.id}`);
 
-      if (socket.currentProjectId && socket.userId) {
-        removeOnlineUser(socket.currentProjectId, socket.userId);
+      if (socket.currentProjectId) {
+        removeOnlineUser(socket.currentProjectId, socket.id);
 
         socket.to(socket.currentProjectId).emit('user_left', {
           userId: socket.userId,
