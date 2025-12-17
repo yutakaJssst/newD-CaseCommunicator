@@ -26,6 +26,7 @@ interface DiagramStore {
   currentDiagramId: string;
   modules: Record<string, DiagramData>;
   labelCounters: Record<NodeType, number>;
+  clipboard: Node[]; // コピーしたノードを保存
 
   // Actions
   setTitle: (title: string) => void;
@@ -43,7 +44,16 @@ interface DiagramStore {
   selectNode: (id: string) => void;
   deselectNode: (id: string) => void;
   clearSelection: () => void;
+  selectAll: () => void;
+  deleteSelectedNodes: () => void;
+  moveSelectedNodes: (dx: number, dy: number) => void;
+  copySelectedNodes: () => void;
+  copyNodeTree: (nodeId: string) => void;
+  pasteNodes: () => void;
   toggleGridSnap: () => void;
+  fitToScreen: () => void;
+  zoomToSelection: () => void;
+  resetZoom: () => void;
 
   undo: () => void;
   redo: () => void;
@@ -184,6 +194,7 @@ export const useDiagramStore = create<DiagramStore>()(
         Undeveloped: 0,
         Module: 0,
       },
+      clipboard: [],
 
       // Actions
       setTitle: (title) => {
@@ -390,11 +401,264 @@ export const useDiagramStore = create<DiagramStore>()(
         }));
       },
 
+      selectAll: () => {
+        const state = get();
+        set({
+          canvasState: {
+            ...state.canvasState,
+            selectedNodes: state.nodes.map(n => n.id),
+          },
+        });
+      },
+
+      deleteSelectedNodes: () => {
+        const state = get();
+        if (state.canvasState.selectedNodes.length === 0) return;
+
+        saveToHistory(get, set);
+        const selectedIds = new Set(state.canvasState.selectedNodes);
+
+        set({
+          nodes: state.nodes.filter(n => !selectedIds.has(n.id)),
+          links: state.links.filter(l => !selectedIds.has(l.source) && !selectedIds.has(l.target)),
+          canvasState: {
+            ...state.canvasState,
+            selectedNodes: [],
+          },
+        });
+      },
+
+      moveSelectedNodes: (dx: number, dy: number) => {
+        const state = get();
+        if (state.canvasState.selectedNodes.length === 0) return;
+
+        const selectedIds = new Set(state.canvasState.selectedNodes);
+
+        set({
+          nodes: state.nodes.map(node =>
+            selectedIds.has(node.id)
+              ? { ...node, position: { x: node.position.x + dx, y: node.position.y + dy } }
+              : node
+          ),
+        });
+      },
+
+      copySelectedNodes: () => {
+        const state = get();
+        if (state.canvasState.selectedNodes.length === 0) return;
+
+        const selectedIds = new Set(state.canvasState.selectedNodes);
+        const nodesToCopy = state.nodes.filter(n => selectedIds.has(n.id));
+
+        set({
+          clipboard: nodesToCopy,
+        });
+      },
+
+      copyNodeTree: (nodeId: string) => {
+        const state = get();
+        // サブツリーを取得（ノードIDをルートとする全ての子孫ノードとリンク）
+        const subtree = getSubtree(nodeId, state.nodes, state.links);
+
+        set({
+          clipboard: subtree.nodes,
+        });
+      },
+
+      pasteNodes: () => {
+        const state = get();
+        if (state.clipboard.length === 0) return;
+
+        saveToHistory(get, set);
+
+        // クリップボードのノードをコピーして新しいIDを割り当てる
+        const idMap = new Map<string, string>(); // 古いID → 新しいIDのマッピング
+        const newNodes: Node[] = state.clipboard.map(node => {
+          const newId = generateId();
+          idMap.set(node.id, newId);
+
+          // ペースト位置をずらす（右下に50pxずつオフセット）
+          return {
+            ...node,
+            id: newId,
+            position: {
+              x: node.position.x + 50,
+              y: node.position.y + 50,
+            },
+            // ラベルカウンターをインクリメント
+            label: `${getLabelPrefix(node.type)}${state.labelCounters[node.type] + 1}`,
+          };
+        });
+
+        // ラベルカウンターを更新
+        const updatedCounters = { ...state.labelCounters };
+        newNodes.forEach(node => {
+          updatedCounters[node.type]++;
+        });
+
+        // クリップボード内のノード間のリンクもコピー
+        const clipboardNodeIds = new Set(state.clipboard.map(n => n.id));
+        const newLinks: Link[] = state.links
+          .filter(link => clipboardNodeIds.has(link.source) && clipboardNodeIds.has(link.target))
+          .map(link => ({
+            ...link,
+            id: generateLinkId(),
+            source: idMap.get(link.source)!,
+            target: idMap.get(link.target)!,
+          }));
+
+        // 新しいノードを選択状態にする
+        const newNodeIds = newNodes.map(n => n.id);
+
+        set({
+          nodes: [...state.nodes, ...newNodes],
+          links: [...state.links, ...newLinks],
+          labelCounters: updatedCounters,
+          canvasState: {
+            ...state.canvasState,
+            selectedNodes: newNodeIds,
+          },
+        });
+      },
+
       toggleGridSnap: () => {
         set((state) => ({
           canvasState: {
             ...state.canvasState,
             gridSnapEnabled: !state.canvasState.gridSnapEnabled,
+          },
+        }));
+      },
+
+      fitToScreen: () => {
+        const state = get();
+        if (state.nodes.length === 0) return;
+
+        // すべてのノードの境界を計算
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        state.nodes.forEach(node => {
+          const left = node.position.x - node.size.width / 2;
+          const right = node.position.x + node.size.width / 2;
+          const top = node.position.y - node.size.height / 2;
+          const bottom = node.position.y + node.size.height / 2;
+
+          minX = Math.min(minX, left);
+          maxX = Math.max(maxX, right);
+          minY = Math.min(minY, top);
+          maxY = Math.max(maxY, bottom);
+        });
+
+        // パディングを追加
+        const padding = 100;
+        minX -= padding;
+        minY -= padding;
+        maxX += padding;
+        maxY += padding;
+
+        const width = maxX - minX;
+        const height = maxY - minY;
+
+        // キャンバスサイズを取得（固定値または推定）
+        const canvasWidth = window.innerWidth - 240; // サイドバー幅を引く
+        const canvasHeight = window.innerHeight - 64; // ヘッダー高さを引く
+
+        // 適切なズームレベルを計算
+        const scaleX = canvasWidth / width;
+        const scaleY = canvasHeight / height;
+        const scale = Math.min(scaleX, scaleY, 3.0); // 最大3.0倍
+        const finalScale = Math.max(scale, 0.2); // 最小0.2倍
+
+        // 中心座標を計算
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+
+        // オフセットを計算（キャンバス中央にノード群の中央を配置）
+        const offsetX = canvasWidth / 2 - centerX * finalScale;
+        const offsetY = canvasHeight / 2 - centerY * finalScale;
+
+        set({
+          canvasState: {
+            ...state.canvasState,
+            viewport: {
+              scale: finalScale,
+              offsetX,
+              offsetY,
+            },
+          },
+        });
+      },
+
+      zoomToSelection: () => {
+        const state = get();
+        if (state.canvasState.selectedNodes.length === 0) return;
+
+        const selectedNodes = state.nodes.filter(n =>
+          state.canvasState.selectedNodes.includes(n.id)
+        );
+
+        if (selectedNodes.length === 0) return;
+
+        // 選択ノードの境界を計算
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        selectedNodes.forEach(node => {
+          const left = node.position.x - node.size.width / 2;
+          const right = node.position.x + node.size.width / 2;
+          const top = node.position.y - node.size.height / 2;
+          const bottom = node.position.y + node.size.height / 2;
+
+          minX = Math.min(minX, left);
+          maxX = Math.max(maxX, right);
+          minY = Math.min(minY, top);
+          maxY = Math.max(maxY, bottom);
+        });
+
+        // パディングを追加
+        const padding = 100;
+        minX -= padding;
+        minY -= padding;
+        maxX += padding;
+        maxY += padding;
+
+        const width = maxX - minX;
+        const height = maxY - minY;
+
+        // キャンバスサイズ
+        const canvasWidth = window.innerWidth - 240;
+        const canvasHeight = window.innerHeight - 64;
+
+        // ズームレベル計算
+        const scaleX = canvasWidth / width;
+        const scaleY = canvasHeight / height;
+        const scale = Math.min(scaleX, scaleY, 3.0);
+        const finalScale = Math.max(scale, 0.2);
+
+        // 中心座標
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+
+        const offsetX = canvasWidth / 2 - centerX * finalScale;
+        const offsetY = canvasHeight / 2 - centerY * finalScale;
+
+        set({
+          canvasState: {
+            ...state.canvasState,
+            viewport: {
+              scale: finalScale,
+              offsetX,
+              offsetY,
+            },
+          },
+        });
+      },
+
+      resetZoom: () => {
+        set((state) => ({
+          canvasState: {
+            ...state.canvasState,
+            viewport: {
+              ...state.canvasState.viewport,
+              scale: 1.0,
+            },
           },
         }));
       },

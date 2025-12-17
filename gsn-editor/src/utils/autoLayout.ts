@@ -19,7 +19,7 @@ interface TreeNode {
 
 const HORIZONTAL_SPACING = 250; // ノード間の水平間隔
 const VERTICAL_SPACING = 180;   // レベル間の垂直間隔
-const CONTEXT_HORIZONTAL_OFFSET = 200; // Contextノードの横オフセット
+const CONTEXT_HORIZONTAL_OFFSET = 280; // Contextノードの横オフセット（親ノードから離す）
 const CONTEXT_VERTICAL_SPACING = 140;  // Contextノード間の垂直間隔
 
 /**
@@ -151,12 +151,30 @@ function calculateTreeLayout(root: TreeNode): void {
       secondWalk(child, modSum + node.mod, level + 1);
     });
 
-    // Context系ノードの配置
+    // Context系ノードの配置（左右に振り分け）
     node.contextNodes.forEach((contextNode, index) => {
-      // 親ノードの右側に配置
-      contextNode.x = node.x + CONTEXT_HORIZONTAL_OFFSET;
-      // 複数ある場合は縦にずらす
-      contextNode.y = node.y + (index - (node.contextNodes.length - 1) / 2) * CONTEXT_VERTICAL_SPACING;
+      const totalContextNodes = node.contextNodes.length;
+
+      if (totalContextNodes <= 2) {
+        // 2個以下の場合は右側のみに配置
+        contextNode.x = node.x + CONTEXT_HORIZONTAL_OFFSET;
+        contextNode.y = node.y + (index - (totalContextNodes - 1) / 2) * CONTEXT_VERTICAL_SPACING;
+      } else {
+        // 3個以上の場合は左右に振り分け
+        const halfCount = Math.ceil(totalContextNodes / 2);
+
+        if (index < halfCount) {
+          // 前半は右側
+          contextNode.x = node.x + CONTEXT_HORIZONTAL_OFFSET;
+          contextNode.y = node.y + (index - (halfCount - 1) / 2) * CONTEXT_VERTICAL_SPACING;
+        } else {
+          // 後半は左側
+          const leftIndex = index - halfCount;
+          const leftCount = totalContextNodes - halfCount;
+          contextNode.x = node.x - CONTEXT_HORIZONTAL_OFFSET;
+          contextNode.y = node.y + (leftIndex - (leftCount - 1) / 2) * CONTEXT_VERTICAL_SPACING;
+        }
+      }
     });
   }
 

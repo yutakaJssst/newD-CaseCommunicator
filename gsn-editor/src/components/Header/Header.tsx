@@ -24,6 +24,8 @@ export const Header: React.FC = () => {
     switchToDiagram,
     toggleGridSnap,
     applyAutoLayout,
+    fitToScreen,
+    resetZoom,
   } = useDiagramStore();
   const { viewport, gridSnapEnabled } = canvasState;
 
@@ -381,7 +383,51 @@ export const Header: React.FC = () => {
 
         <div style={{ width: '1px', height: '24px', backgroundColor: '#E5E7EB', margin: '0 4px' }} />
 
-        <span style={{ fontSize: '14px', color: '#6B7280', fontWeight: '500' }}>
+        {/* フィット・リセットボタン */}
+        <button
+          onClick={fitToScreen}
+          title="全体表示 (Fit to Screen)"
+          style={{
+            width: '36px',
+            height: '36px',
+            fontSize: '16px',
+            border: '1px solid #D1D5DB',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            backgroundColor: '#FFFFFF',
+            color: '#374151',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#F3F4F6';
+            e.currentTarget.style.borderColor = '#9CA3AF';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#D1D5DB';
+          }}
+        >
+          ⊡
+        </button>
+
+        <span
+          onClick={resetZoom}
+          title="100%にリセット"
+          style={{
+            fontSize: '14px',
+            color: '#6B7280',
+            fontWeight: '500',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            transition: 'background-color 0.2s',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F3F4F6')}
+          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+        >
           {Math.round(viewport.scale * 100)}%
         </span>
         <button

@@ -6,6 +6,7 @@ interface ContextMenuProps {
   onClose: () => void;
   onAddLink: () => void;
   onDelete: () => void;
+  onCopyTree?: () => void;
   onConvertToModule?: () => void;
   onOpenParentModule?: () => void;
   isGoalNode?: boolean;
@@ -18,6 +19,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onClose,
   onAddLink,
   onDelete,
+  onCopyTree,
   onConvertToModule,
   onOpenParentModule,
   isGoalNode = false,
@@ -78,6 +80,32 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       >
         子ノードにリンク
       </div>
+      {onCopyTree && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onCopyTree();
+            onClose();
+          }}
+          style={{
+            padding: '12px 16px',
+            cursor: 'pointer',
+            borderBottom: '1px solid #F3F4F6',
+            fontSize: '14px',
+            fontWeight: '500',
+            color: '#374151',
+            transition: 'background-color 0.15s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#F9FAFB';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+        >
+          ツリーをコピー
+        </div>
+      )}
       {isGoalNode && onConvertToModule && (
         <div
           onClick={(e) => {

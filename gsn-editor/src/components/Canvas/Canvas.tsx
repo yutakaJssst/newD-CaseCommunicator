@@ -17,6 +17,12 @@ export const Canvas: React.FC = () => {
     updateNode,
     setViewport,
     clearSelection,
+    selectAll,
+    deleteSelectedNodes,
+    moveSelectedNodes,
+    copySelectedNodes,
+    copyNodeTree,
+    pasteNodes,
     addLink,
     deleteNode,
     deleteLink,
@@ -68,16 +74,66 @@ export const Canvas: React.FC = () => {
     return Math.round(value / GRID_SIZE) * GRID_SIZE;
   };
 
-  // ESCキーでリンクモードをキャンセル
+  // キーボードショートカット
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // ノード編集中は無効化
+      if (editingNode) return;
+
+      // ESC: リンクモードをキャンセル
       if (e.key === 'Escape') {
         setLinkSourceId(null);
+        clearSelection();
+        return;
+      }
+
+      // Delete: 選択ノードを削除
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        deleteSelectedNodes();
+        return;
+      }
+
+      // Ctrl+A: 全選択
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        selectAll();
+        return;
+      }
+
+      // Ctrl+C: コピー
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        e.preventDefault();
+        copySelectedNodes();
+        return;
+      }
+
+      // Ctrl+V: ペースト
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        e.preventDefault();
+        pasteNodes();
+        return;
+      }
+
+      // 矢印キー: 選択ノードを移動
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+        const moveDistance = e.shiftKey ? 10 : 1;
+        let dx = 0, dy = 0;
+
+        if (e.key === 'ArrowUp') dy = -moveDistance;
+        if (e.key === 'ArrowDown') dy = moveDistance;
+        if (e.key === 'ArrowLeft') dx = -moveDistance;
+        if (e.key === 'ArrowRight') dx = moveDistance;
+
+        moveSelectedNodes(dx, dy);
+        return;
       }
     };
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, []);
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [editingNode, deleteSelectedNodes, selectAll, clearSelection, moveSelectedNodes, copySelectedNodes, pasteNodes]);
 
   // SVG座標系に変換
   const screenToSvgCoordinates = (clientX: number, clientY: number) => {
@@ -433,6 +489,9 @@ export const Canvas: React.FC = () => {
           onClose={() => setContextMenu(null)}
           onAddLink={() => {
             setLinkSourceId(contextMenu.nodeId);
+          }}
+          onCopyTree={() => {
+            copyNodeTree(contextMenu.nodeId);
           }}
           onDelete={() => {
             deleteNode(contextMenu.nodeId);
