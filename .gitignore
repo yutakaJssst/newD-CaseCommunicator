@@ -1,5 +1,6 @@
+# OS
 .DS_Store
-backend/prisma/dev.db
+Thumbs.db
 
 # Dependencies
 node_modules/
@@ -42,8 +43,3 @@ lerna-debug.log*
 *.db-journal
 backend/prisma/dev.db
 backend/prisma/dev.db-journal
-
-# OS
-.DS_Store
-Thumbs.db
-backend/prisma/dev.db
