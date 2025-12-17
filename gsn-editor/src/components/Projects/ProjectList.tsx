@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { projectAPI } from '../../services/api';
 import type { Project } from '../../services/api';
+import ProjectMembers from './ProjectMembers';
 
 interface ProjectListProps {
   onSelectProject: (projectId: string) => void;
-  user?: { firstName: string | null; lastName: string | null; email: string } | null;
+  user?: { firstName: string | null; lastName: string | null; email: string; id: string } | null;
   onLogout?: () => void;
 }
 
@@ -16,6 +17,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
   const [newProjectTitle, setNewProjectTitle] = useState('');
   const [newProjectDescription, setNewProjectDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [selectedProjectForMembers, setSelectedProjectForMembers] = useState<{ id: string; isOwner: boolean } | null>(null);
 
   useEffect(() => {
     loadProjects();
@@ -286,30 +288,59 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
                   }}>
                     ダイアグラム数: {project._count?.diagrams || 0}
                   </span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteProject(project.id, project.title);
-                    }}
-                    style={{
-                      padding: '6px 12px',
-                      fontSize: '13px',
-                      color: '#EF4444',
-                      backgroundColor: 'transparent',
-                      border: '1px solid #EF4444',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#FEF2F2';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    削除
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedProjectForMembers({
+                          id: project.id,
+                          isOwner: user?.id === project.ownerId,
+                        });
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '13px',
+                        color: '#3B82F6',
+                        backgroundColor: 'transparent',
+                        border: '1px solid #3B82F6',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#EFF6FF';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      メンバー
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteProject(project.id, project.title);
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '13px',
+                        color: '#EF4444',
+                        backgroundColor: 'transparent',
+                        border: '1px solid #EF4444',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#FEF2F2';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      削除
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -449,6 +480,15 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
               </form>
             </div>
           </div>
+        )}
+
+        {/* プロジェクトメンバー管理モーダル */}
+        {selectedProjectForMembers && (
+          <ProjectMembers
+            projectId={selectedProjectForMembers.id}
+            isOwner={selectedProjectForMembers.isOwner}
+            onClose={() => setSelectedProjectForMembers(null)}
+          />
         )}
       </div>
     </div>

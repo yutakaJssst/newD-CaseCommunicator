@@ -14,10 +14,14 @@ import {
   NODE_COLORS,
 } from '../types/diagram';
 import { autoLayout } from '../utils/autoLayout';
+import { diagramsApi } from '../api/diagrams';
 
 interface DiagramStore {
   // State
   currentProjectId: string | null;
+  currentDiagramDbId: string | null; // DBに保存されているダイアグラムのID
+  isSyncing: boolean; // DB同期中フラグ
+  lastSyncedAt: string | null; // 最後の同期日時
   title: string;
   nodes: Node[];
   links: Link[];
@@ -31,6 +35,10 @@ interface DiagramStore {
 
   // Actions
   setCurrentProject: (projectId: string | null) => void;
+  loadDiagramFromDB: (projectId: string, diagramId?: string) => Promise<void>;
+  saveDiagramToDB: () => Promise<void>;
+  createDiagramInDB: (title: string) => Promise<void>;
+  migrateLocalStorageToDB: (projectId: string) => Promise<boolean>; // 移行が成功したらtrue
   setTitle: (title: string) => void;
   addNode: (type: NodeType, x: number, y: number) => void;
   updateNode: (id: string, updates: Partial<Node>) => void;
@@ -79,6 +87,19 @@ interface DiagramStore {
 const generateId = () => `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 const generateLinkId = () => `link_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 const generateModuleId = () => `module_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+// デバウンス用のタイマー
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+// デバウンスされたDB保存
+const debouncedSaveToDB = (saveFn: () => Promise<void>) => {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+  }
+  saveTimer = setTimeout(() => {
+    saveFn();
+  }, 2000); // 2秒後に保存
+};
 
 // サブツリー抽出用のヘルパー関数（子孫ノードとリンクを再帰的に取得）
 const getSubtree = (rootId: string, nodes: Node[], links: Link[]): { nodes: Node[], links: Link[] } => {
@@ -179,6 +200,9 @@ export const useDiagramStore = create<DiagramStore>()(
     (set, get) => ({
       // Initial state
       currentProjectId: null,
+      currentDiagramDbId: null,
+      isSyncing: false,
+      lastSyncedAt: null,
       title: '新しいGSN図',
       nodes: [],
       links: [],
@@ -200,46 +224,54 @@ export const useDiagramStore = create<DiagramStore>()(
       clipboard: [],
 
       // Actions
-      setCurrentProject: (projectId) => {
-        const currentProjectId = get().currentProjectId;
-        if (currentProjectId === projectId) return;
+      loadDiagramFromDB: async (projectId: string, diagramId?: string) => {
+        try {
+          set({ isSyncing: true });
 
-        // 現在のプロジェクトのデータを保存
-        if (currentProjectId) {
-          const currentState = get();
-          const storageKey = `gsn-diagram-storage-project-${currentProjectId}`;
-          const data = {
-            state: {
-              currentProjectId,
-              title: currentState.title,
-              nodes: currentState.nodes,
-              links: currentState.links,
-              currentDiagramId: currentState.currentDiagramId,
-              modules: currentState.modules,
-              labelCounters: currentState.labelCounters,
-            },
-            version: 0,
-          };
-          localStorage.setItem(storageKey, JSON.stringify(data));
-        }
+          if (diagramId) {
+            // 特定のダイアグラムを読み込む
+            const diagram = await diagramsApi.getDiagram(projectId, diagramId);
+            const data = diagram.data as DiagramData;
 
-        // 新しいプロジェクトのデータを読み込む
-        if (projectId) {
-          const storageKey = `gsn-diagram-storage-project-${projectId}`;
-          const stored = localStorage.getItem(storageKey);
+            set({
+              currentDiagramDbId: diagram.id,
+              title: diagram.title,
+              nodes: data.nodes || [],
+              links: data.links || [],
+              currentDiagramId: 'root',
+              modules: {},
+              labelCounters: {
+                Goal: 0,
+                Strategy: 0,
+                Context: 0,
+                Evidence: 0,
+                Assumption: 0,
+                Justification: 0,
+                Undeveloped: 0,
+                Module: 0,
+              },
+              history: [],
+              historyIndex: -1,
+              lastSyncedAt: new Date().toISOString(),
+              isSyncing: false,
+            });
+          } else {
+            // プロジェクトの最初のダイアグラムを読み込む（存在する場合）
+            const diagrams = await diagramsApi.getDiagrams(projectId);
 
-          if (stored) {
-            try {
-              const data = JSON.parse(stored);
-              const state = data.state;
+            if (diagrams.length > 0) {
+              // 最新のダイアグラムを取得
+              const diagram = await diagramsApi.getDiagram(projectId, diagrams[0].id);
+              const data = diagram.data as DiagramData;
+
               set({
-                currentProjectId: projectId,
-                title: state.title || '新しいGSN図',
-                nodes: state.nodes || [],
-                links: state.links || [],
-                currentDiagramId: state.currentDiagramId || 'root',
-                modules: state.modules || {},
-                labelCounters: state.labelCounters || {
+                currentDiagramDbId: diagram.id,
+                title: diagram.title,
+                nodes: data.nodes || [],
+                links: data.links || [],
+                currentDiagramId: 'root',
+                modules: {},
+                labelCounters: {
                   Goal: 0,
                   Strategy: 0,
                   Context: 0,
@@ -251,12 +283,13 @@ export const useDiagramStore = create<DiagramStore>()(
                 },
                 history: [],
                 historyIndex: -1,
+                lastSyncedAt: new Date().toISOString(),
+                isSyncing: false,
               });
-            } catch (e) {
-              console.error('Failed to load project data:', e);
-              // 読み込み失敗時は空の状態で開始
+            } else {
+              // ダイアグラムがない場合は空の状態
               set({
-                currentProjectId: projectId,
+                currentDiagramDbId: null,
                 title: '新しいGSN図',
                 nodes: [],
                 links: [],
@@ -274,40 +307,339 @@ export const useDiagramStore = create<DiagramStore>()(
                 },
                 history: [],
                 historyIndex: -1,
+                lastSyncedAt: null,
+                isSyncing: false,
               });
             }
+          }
+        } catch (error) {
+          console.error('Failed to load diagram from DB:', error);
+          set({ isSyncing: false });
+          // LocalStorageからの読み込みにフォールバック
+          const state = get();
+          if (state.currentProjectId) {
+            const storageKey = `gsn-diagram-storage-project-${state.currentProjectId}`;
+            const stored = localStorage.getItem(storageKey);
+
+            if (stored) {
+              try {
+                const data = JSON.parse(stored);
+                const stateData = data.state;
+                set({
+                  title: stateData.title || '新しいGSN図',
+                  nodes: stateData.nodes || [],
+                  links: stateData.links || [],
+                  currentDiagramId: stateData.currentDiagramId || 'root',
+                  modules: stateData.modules || {},
+                  labelCounters: stateData.labelCounters || {
+                    Goal: 0,
+                    Strategy: 0,
+                    Context: 0,
+                    Evidence: 0,
+                    Assumption: 0,
+                    Justification: 0,
+                    Undeveloped: 0,
+                    Module: 0,
+                  },
+                });
+              } catch (e) {
+                console.error('Failed to load from LocalStorage:', e);
+              }
+            }
+          }
+        }
+      },
+
+      saveDiagramToDB: async () => {
+        const state = get();
+        if (!state.currentProjectId) {
+          console.warn('No current project, skipping DB save');
+          return;
+        }
+
+        try {
+          set({ isSyncing: true });
+
+          // 現在のダイアグラムデータを準備
+          const diagramData: DiagramData = {
+            version: '1.0.0',
+            title: state.title,
+            nodes: state.nodes,
+            links: state.links,
+            metadata: {
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              id: state.currentDiagramId,
+              isModule: false,
+            },
+          };
+
+          if (state.currentDiagramDbId) {
+            // 既存のダイアグラムを更新
+            await diagramsApi.updateDiagram(
+              state.currentProjectId,
+              state.currentDiagramDbId,
+              {
+                title: state.title,
+                data: diagramData,
+              }
+            );
           } else {
-            // 新規プロジェクト（データがない）
-            set({
-              currentProjectId: projectId,
-              title: '新しいGSN図',
-              nodes: [],
-              links: [],
-              currentDiagramId: 'root',
-              modules: {},
-              labelCounters: {
-                Goal: 0,
-                Strategy: 0,
-                Context: 0,
-                Evidence: 0,
-                Assumption: 0,
-                Justification: 0,
-                Undeveloped: 0,
-                Module: 0,
-              },
-              history: [],
-              historyIndex: -1,
-            });
+            // 新規作成
+            const created = await diagramsApi.createDiagram(
+              state.currentProjectId,
+              {
+                title: state.title,
+                data: diagramData,
+              }
+            );
+            set({ currentDiagramDbId: created.id });
+          }
+
+          set({
+            lastSyncedAt: new Date().toISOString(),
+            isSyncing: false,
+          });
+        } catch (error) {
+          console.error('Failed to save diagram to DB:', error);
+          set({ isSyncing: false });
+          // LocalStorageには常に保存（フォールバック）
+        }
+      },
+
+      createDiagramInDB: async (title: string) => {
+        const state = get();
+        if (!state.currentProjectId) {
+          console.warn('No current project, cannot create diagram');
+          return;
+        }
+
+        try {
+          set({ isSyncing: true });
+
+          const diagramData: DiagramData = {
+            version: '1.0.0',
+            title,
+            nodes: [],
+            links: [],
+            metadata: {
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              id: 'root',
+              isModule: false,
+            },
+          };
+
+          const created = await diagramsApi.createDiagram(
+            state.currentProjectId,
+            {
+              title,
+              data: diagramData,
+            }
+          );
+
+          set({
+            currentDiagramDbId: created.id,
+            title: created.title,
+            nodes: [],
+            links: [],
+            currentDiagramId: 'root',
+            modules: {},
+            labelCounters: {
+              Goal: 0,
+              Strategy: 0,
+              Context: 0,
+              Evidence: 0,
+              Assumption: 0,
+              Justification: 0,
+              Undeveloped: 0,
+              Module: 0,
+            },
+            history: [],
+            historyIndex: -1,
+            lastSyncedAt: new Date().toISOString(),
+            isSyncing: false,
+          });
+        } catch (error) {
+          console.error('Failed to create diagram in DB:', error);
+          set({ isSyncing: false });
+        }
+      },
+
+      migrateLocalStorageToDB: async (projectId: string) => {
+        try {
+          set({ isSyncing: true });
+
+          // LocalStorageからプロジェクトデータを取得
+          const storageKey = `gsn-diagram-storage-project-${projectId}`;
+          const stored = localStorage.getItem(storageKey);
+
+          if (!stored) {
+            console.log('No LocalStorage data to migrate');
+            set({ isSyncing: false });
+            return false;
+          }
+
+          const data = JSON.parse(stored);
+          const stateData = data.state;
+
+          if (!stateData.nodes || stateData.nodes.length === 0) {
+            console.log('LocalStorage data is empty, skipping migration');
+            set({ isSyncing: false });
+            return false;
+          }
+
+          // ダイアグラムデータを準備
+          const diagramData: DiagramData = {
+            version: '1.0.0',
+            title: stateData.title || '移行されたGSN図',
+            nodes: stateData.nodes,
+            links: stateData.links,
+            metadata: {
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              id: stateData.currentDiagramId || 'root',
+              isModule: false,
+            },
+          };
+
+          // DBに保存
+          const created = await diagramsApi.createDiagram(projectId, {
+            title: diagramData.title,
+            data: diagramData,
+          });
+
+          console.log('Successfully migrated LocalStorage data to DB:', created.id);
+
+          // 現在の状態を更新
+          set({
+            currentDiagramDbId: created.id,
+            title: diagramData.title,
+            nodes: diagramData.nodes,
+            links: diagramData.links,
+            currentDiagramId: stateData.currentDiagramId || 'root',
+            modules: stateData.modules || {},
+            labelCounters: stateData.labelCounters || {
+              Goal: 0,
+              Strategy: 0,
+              Context: 0,
+              Evidence: 0,
+              Assumption: 0,
+              Justification: 0,
+              Undeveloped: 0,
+              Module: 0,
+            },
+            lastSyncedAt: new Date().toISOString(),
+            isSyncing: false,
+          });
+
+          // 移行成功後、LocalStorageのデータを削除（オプション）
+          // localStorage.removeItem(storageKey);
+
+          return true;
+        } catch (error) {
+          console.error('Failed to migrate LocalStorage to DB:', error);
+          set({ isSyncing: false });
+          return false;
+        }
+      },
+
+      setCurrentProject: async (projectId) => {
+        const currentProjectId = get().currentProjectId;
+        if (currentProjectId === projectId) return;
+
+        // 現在のプロジェクトのデータをDBに保存
+        if (currentProjectId) {
+          await get().saveDiagramToDB();
+        }
+
+        // 新しいプロジェクトに切り替え
+        if (projectId) {
+          set({ currentProjectId: projectId });
+
+          // DBからダイアグラムを読み込む
+          try {
+            const diagrams = await diagramsApi.getDiagrams(projectId);
+
+            if (diagrams.length === 0) {
+              // DBにダイアグラムがない場合、LocalStorageからの移行を試みる
+              console.log('No diagrams in DB, checking LocalStorage for migration...');
+              const migrated = await get().migrateLocalStorageToDB(projectId);
+
+              if (!migrated) {
+                // 移行するデータもない場合は空の状態で開始
+                set({
+                  currentDiagramDbId: null,
+                  title: '新しいGSN図',
+                  nodes: [],
+                  links: [],
+                  currentDiagramId: 'root',
+                  modules: {},
+                  labelCounters: {
+                    Goal: 0,
+                    Strategy: 0,
+                    Context: 0,
+                    Evidence: 0,
+                    Assumption: 0,
+                    Justification: 0,
+                    Undeveloped: 0,
+                    Module: 0,
+                  },
+                });
+              }
+            } else {
+              // DBにダイアグラムがある場合は通常の読み込み
+              await get().loadDiagramFromDB(projectId);
+            }
+          } catch (error) {
+            console.error('Error loading diagram:', error);
+            // エラー時はLocalStorageからフォールバック
+            const storageKey = `gsn-diagram-storage-project-${projectId}`;
+            const stored = localStorage.getItem(storageKey);
+
+            if (stored) {
+              try {
+                const data = JSON.parse(stored);
+                const stateData = data.state;
+                set({
+                  title: stateData.title || '新しいGSN図',
+                  nodes: stateData.nodes || [],
+                  links: stateData.links || [],
+                  currentDiagramId: stateData.currentDiagramId || 'root',
+                  modules: stateData.modules || {},
+                  labelCounters: stateData.labelCounters || {
+                    Goal: 0,
+                    Strategy: 0,
+                    Context: 0,
+                    Evidence: 0,
+                    Assumption: 0,
+                    Justification: 0,
+                    Undeveloped: 0,
+                    Module: 0,
+                  },
+                });
+              } catch (e) {
+                console.error('Failed to load from LocalStorage:', e);
+              }
+            }
           }
         } else {
           // プロジェクトなし（nullに戻す）
-          set({ currentProjectId: null });
+          set({
+            currentProjectId: null,
+            currentDiagramDbId: null,
+            title: '新しいGSN図',
+            nodes: [],
+            links: [],
+          });
         }
       },
 
       setTitle: (title) => {
         saveToHistory(get, set);
         set({ title });
+        // DB保存をデバウンス
+        debouncedSaveToDB(() => get().saveDiagramToDB());
       },
 
       addNode: (type, x, y) => {
@@ -383,6 +715,8 @@ export const useDiagramStore = create<DiagramStore>()(
             },
           }));
         }
+        // DB保存をデバウンス
+        debouncedSaveToDB(() => get().saveDiagramToDB());
       },
 
       updateNode: (id, updates) => {
@@ -392,6 +726,8 @@ export const useDiagramStore = create<DiagramStore>()(
             node.id === id ? { ...node, ...updates } : node
           ),
         }));
+        // DB保存をデバウンス
+        debouncedSaveToDB(() => get().saveDiagramToDB());
       },
 
       deleteNode: (id) => {
@@ -404,6 +740,8 @@ export const useDiagramStore = create<DiagramStore>()(
             selectedNodes: state.canvasState.selectedNodes.filter((nodeId) => nodeId !== id),
           },
         }));
+        // DB保存をデバウンス
+        debouncedSaveToDB(() => get().saveDiagramToDB());
       },
 
       moveNode: (id, x, y) => {
@@ -441,6 +779,8 @@ export const useDiagramStore = create<DiagramStore>()(
         set((state) => ({
           links: [...state.links, newLink],
         }));
+        // DB保存をデバウンス
+        debouncedSaveToDB(() => get().saveDiagramToDB());
       },
 
       deleteLink: (id) => {
@@ -448,6 +788,8 @@ export const useDiagramStore = create<DiagramStore>()(
         set((state) => ({
           links: state.links.filter((link) => link.id !== id),
         }));
+        // DB保存をデバウンス
+        debouncedSaveToDB(() => get().saveDiagramToDB());
       },
 
       setCanvasMode: (mode) => {
@@ -1530,58 +1872,7 @@ export const useDiagramStore = create<DiagramStore>()(
     }),
     {
       name: 'gsn-diagram-storage',
-      partialize: (state) => ({
-        currentProjectId: state.currentProjectId,
-        title: state.title,
-        nodes: state.nodes,
-        links: state.links,
-        currentDiagramId: state.currentDiagramId,
-        modules: state.modules,
-        labelCounters: state.labelCounters,
-      }),
-      storage: {
-        getItem: (name) => {
-          try {
-            const str = localStorage.getItem(name);
-            if (!str) return null;
-
-            const data = JSON.parse(str);
-            const projectId = data?.state?.currentProjectId;
-
-            if (!projectId) return str;
-
-            // プロジェクトIDごとのデータを取得
-            const projectKey = `${name}-project-${projectId}`;
-            const projectStr = localStorage.getItem(projectKey);
-
-            return projectStr || str;
-          } catch (e) {
-            console.error('Error reading from storage:', e);
-            return null;
-          }
-        },
-        setItem: (name, value) => {
-          try {
-            const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
-            const data = JSON.parse(valueStr);
-            const projectId = data?.state?.currentProjectId;
-
-            // グローバルにcurrentProjectIdを保存
-            localStorage.setItem(name, valueStr);
-
-            if (projectId) {
-              // プロジェクトIDごとのデータも保存
-              const projectKey = `${name}-project-${projectId}`;
-              localStorage.setItem(projectKey, valueStr);
-            }
-          } catch (e) {
-            console.error('Error writing to storage:', e);
-          }
-        },
-        removeItem: (name) => {
-          localStorage.removeItem(name);
-        },
-      },
+      // LocalStorageはデフォルトで使用される（プロジェクトIDベースの保存は setCurrentProject 内で処理）
     }
   )
 );

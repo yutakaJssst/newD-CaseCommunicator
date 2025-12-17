@@ -5,7 +5,6 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import authRoutes from './routes/auth';
 import projectRoutes from './routes/projects';
-import diagramRoutes from './routes/diagrams';
 import { errorHandler } from './middleware/errorHandler';
 import { setupWebSocket } from './websocket/handlers';
 
@@ -39,7 +38,6 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
-app.use('/api/diagrams', diagramRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);
