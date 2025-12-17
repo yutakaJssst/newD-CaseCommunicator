@@ -105,14 +105,19 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">プロジェクトメンバー</h2>
+        <div className="px-6 py-5 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">プロジェクトメンバー</h2>
+            <p className="text-sm text-gray-500 mt-1">プロジェクトに参加しているメンバーを管理</p>
+          </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full p-2 transition-all"
             aria-label="閉じる"
           >
-            ✕
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
           </button>
         </div>
 
@@ -129,9 +134,12 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
           {isOwner && !showInviteForm && (
             <button
               onClick={() => setShowInviteForm(true)}
-              className="mb-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              className="mb-6 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-sm hover:shadow-md flex items-center gap-2 font-medium"
             >
-              + メンバーを招待
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 2a.5.5 0 01.5.5v5h5a.5.5 0 010 1h-5v5a.5.5 0 01-1 0v-5h-5a.5.5 0 010-1h5v-5A.5.5 0 018 2z"/>
+              </svg>
+              メンバーを招待
             </button>
           )}
 
@@ -195,67 +203,182 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
 
           {/* Members list */}
           {!loading && (
-            <div className="space-y-3">
-              {/* Owner */}
-              {owner && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-gray-900">{getUserName(owner)}</div>
-                      <div className="text-sm text-gray-600">{owner.email}</div>
-                    </div>
-                    <span className="px-3 py-1 bg-blue-600 text-white text-sm rounded-full">
-                      オーナー
-                    </span>
-                  </div>
-                </div>
-              )}
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#374151' }}>ユーザー</th>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#374151', width: '150px' }}>参加日</th>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#374151', width: '120px' }}>ロール</th>
+                    <th style={{ padding: '12px 24px', textAlign: 'right', fontSize: '14px', fontWeight: '600', color: '#374151', width: '100px' }}>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Owner row */}
+                  {owner && (
+                    <tr style={{ backgroundColor: '#EFF6FF', borderBottom: '1px solid #DBEAFE' }}>
+                      <td style={{ padding: '16px 24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{
+                            width: '40px',
+                            height: '40px',
+                            backgroundColor: '#2563EB',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'white',
+                            fontWeight: 'bold',
+                            flexShrink: 0
+                          }}>
+                            {owner.email.charAt(0).toUpperCase()}
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: '500', color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {owner.email}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#1D4ED8' }}>プロジェクトの作成者</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: '16px 24px', fontSize: '14px', color: '#4B5563' }}>—</td>
+                      <td style={{ padding: '16px 24px' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '4px 12px',
+                          backgroundColor: '#2563EB',
+                          color: 'white',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          borderRadius: '9999px'
+                        }}>
+                          オーナー
+                        </span>
+                      </td>
+                      <td style={{ padding: '16px 24px', textAlign: 'right', fontSize: '14px', color: '#6B7280' }}>—</td>
+                    </tr>
+                  )}
 
-              {/* Team members */}
-              {members.map((member) => (
-                <div key={member.id} className="p-4 bg-white border border-gray-200 rounded-md hover:border-gray-300 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">{getUserName(member.user)}</div>
-                      <div className="text-sm text-gray-600">{member.user.email}</div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        参加日: {new Date(member.createdAt).toLocaleDateString('ja-JP')}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {isOwner ? (
-                        <>
+                  {/* Member rows */}
+                  {members.map((member, index) => (
+                    <tr
+                      key={member.id}
+                      style={{
+                        backgroundColor: 'white',
+                        borderBottom: index !== members.length - 1 ? '1px solid #E5E7EB' : 'none'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F9FAFB'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                    >
+                      <td style={{ padding: '16px 24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{
+                            width: '40px',
+                            height: '40px',
+                            backgroundColor: '#9CA3AF',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'white',
+                            fontWeight: 'bold',
+                            flexShrink: 0
+                          }}>
+                            {member.user.email.charAt(0).toUpperCase()}
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: '500', color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {member.user.email}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: '16px 24px', fontSize: '14px', color: '#4B5563' }}>
+                        {new Date(member.createdAt).toLocaleDateString('ja-JP', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit'
+                        })}
+                      </td>
+                      <td style={{ padding: '16px 24px' }}>
+                        {isOwner ? (
                           <select
                             value={member.role}
                             onChange={(e) => handleRoleChange(member.id, e.target.value as 'editor' | 'viewer')}
-                            className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            style={{
+                              width: '100%',
+                              padding: '6px 8px',
+                              border: '1px solid #D1D5DB',
+                              borderRadius: '6px',
+                              fontSize: '14px',
+                              backgroundColor: 'white',
+                              outline: 'none'
+                            }}
                           >
                             <option value="editor">編集者</option>
                             <option value="viewer">閲覧者</option>
                           </select>
+                        ) : (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '4px 12px',
+                            backgroundColor: member.role === 'editor' ? '#D1FAE5' : '#F3F4F6',
+                            color: member.role === 'editor' ? '#065F46' : '#374151',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            borderRadius: '9999px'
+                          }}>
+                            {getRoleName(member.role)}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                        {isOwner && (
                           <button
                             onClick={() => handleRemoveMember(member.id)}
-                            className="px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors text-sm"
+                            style={{
+                              padding: '6px 12px',
+                              color: '#DC2626',
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '14px',
+                              fontWeight: '500',
+                              cursor: 'pointer',
+                              transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEF2F2'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                           >
                             削除
                           </button>
-                        </>
-                      ) : (
-                        <span className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full">
-                          {getRoleName(member.role)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                        )}
+                      </td>
+                    </tr>
+                  ))}
 
-              {/* Empty state */}
-              {members.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  {isOwner ? 'まだメンバーがいません。メンバーを招待してください。' : 'メンバーはあなただけです。'}
-                </div>
-              )}
+                  {/* Empty state */}
+                  {members.length === 0 && (
+                    <tr>
+                      <td colSpan={4} style={{ padding: '48px 16px', textAlign: 'center' }}>
+                        <div style={{ width: '64px', height: '64px', backgroundColor: '#F3F4F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                          <svg width="32" height="32" viewBox="0 0 16 16" fill="currentColor" style={{ color: '#9CA3AF' }}>
+                            <path d="M8 8a3 3 0 100-6 3 3 0 000 6zm2.735.5a3.5 3.5 0 10-5.47 0A6.01 6.01 0 001 14.5a.5.5 0 001 0 5 5 0 0110 0 .5.5 0 001 0 6.01 6.01 0 00-4.265-5.5z"/>
+                          </svg>
+                        </div>
+                        <p style={{ color: '#4B5563', fontWeight: '500', marginBottom: '8px' }}>
+                          {isOwner ? 'まだメンバーがいません' : 'メンバーはあなただけです'}
+                        </p>
+                        <p style={{ fontSize: '14px', color: '#6B7280' }}>
+                          {isOwner ? '「メンバーを招待」ボタンから他のユーザーを招待できます' : 'オーナーが他のメンバーを招待するまでお待ちください'}
+                        </p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -264,7 +387,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
         <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
           <button
             onClick={onClose}
-            className="w-full px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+            className="w-full px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-medium shadow-sm hover:shadow-md"
           >
             閉じる
           </button>

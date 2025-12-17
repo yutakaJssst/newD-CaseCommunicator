@@ -106,12 +106,16 @@ Goal Structuring Notation (GSN) を描画・編集するためのWebアプリケ
 #### マルチユーザー共有機能（Phase 4）
 - ✅ **プロジェクトメンバー管理**
   - メンバー招待（メールアドレス指定）
-  - メンバー一覧表示
+  - **テーブル形式のメンバー一覧表示**
+    - オーナー行（青背景で強調表示）
+    - メンバー行（ホバーエフェクト付き）
+    - 4列構造：ユーザー、参加日、ロール、操作
   - ロール管理（owner/editor/viewer）
   - メンバー削除
 - ✅ **権限ベースUI**
   - オーナーのみ編集可能な操作を制限
   - メンバーは読み取り専用表示
+  - アバターアイコン表示（イニシャル）
 - ✅ **アクティビティログ**
   - メンバー操作の記録（招待、ロール変更、削除）
 
@@ -352,16 +356,52 @@ gsn-editor/
 │   │   │   └── ContextMenu.tsx   # 右クリックメニュー
 │   │   ├── Header/
 │   │   │   └── Header.tsx         # ヘッダー（エクスポート/インポート、Undo/Redo）
-│   │   └── Sidebar/
-│   │       ├── Sidebar.tsx        # サイドバー
-│   │       └── NodePalette.tsx   # ノードパレット
+│   │   ├── Sidebar/
+│   │   │   ├── Sidebar.tsx        # サイドバー
+│   │   │   └── NodePalette.tsx   # ノードパレット
+│   │   ├── Auth/
+│   │   │   ├── LoginForm.tsx      # ログインフォーム
+│   │   │   └── RegisterForm.tsx   # 新規登録フォーム
+│   │   └── Projects/
+│   │       ├── ProjectList.tsx    # プロジェクト一覧
+│   │       └── ProjectMembers.tsx # メンバー管理（テーブル形式）
 │   ├── stores/
-│   │   └── diagramStore.ts        # Zustand状態管理
+│   │   ├── diagramStore.ts        # Zustand状態管理（ダイアグラム）
+│   │   └── authStore.ts           # Zustand状態管理（認証）
+│   ├── api/
+│   │   ├── diagrams.ts            # ダイアグラムAPI
+│   │   └── projectMembers.ts      # メンバー管理API
+│   ├── services/
+│   │   └── websocket.ts           # WebSocketクライアント
 │   ├── types/
 │   │   └── diagram.ts             # TypeScript型定義
 │   └── utils/
 ├── public/
 └── index.html
+
+backend/
+├── src/
+│   ├── server.ts                  # メインサーバー
+│   ├── controllers/
+│   │   ├── authController.ts      # 認証ロジック
+│   │   ├── projectController.ts   # プロジェクト管理
+│   │   ├── diagramController.ts   # ダイアグラム管理
+│   │   └── projectMemberController.ts # メンバー管理
+│   ├── routes/
+│   │   ├── auth.ts                # 認証ルート
+│   │   ├── projects.ts            # プロジェクトルート
+│   │   └── diagrams.ts            # ダイアグラムルート
+│   ├── middleware/
+│   │   ├── auth.ts                # JWT認証ミドルウェア
+│   │   └── errorHandler.ts       # エラーハンドリング
+│   ├── websocket/
+│   │   └── handlers.ts            # WebSocketイベントハンドラー
+│   └── db/
+│       └── prisma.ts              # Prisma Client
+├── prisma/
+│   ├── schema.prisma              # データベーススキーマ
+│   └── dev.db                     # SQLite データベース
+└── .env                           # 環境変数
 ```
 
 ## 開発ガイド
