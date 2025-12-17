@@ -1,4 +1,5 @@
 .DS_Store
+backend/prisma/dev.db
 
 # Dependencies
 node_modules/
