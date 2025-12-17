@@ -1,0 +1,65 @@
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import authRoutes from './routes/auth';
+import projectRoutes from './routes/projects';
+import diagramRoutes from './routes/diagrams';
+import { errorHandler } from './middleware/errorHandler';
+import { setupWebSocket } from './websocket/handlers';
+
+// Load environment variables
+dotenv.config();
+
+const app = express();
+const httpServer = createServer(app);
+
+// Socket.IO setup
+const io = new Server(httpServer, {
+  cors: {
+    origin: ['http://localhost:5173', 'http://localhost:5174'],
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+});
+
+// Middleware
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:5174'],
+  credentials: true,
+}));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Routes
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/diagrams', diagramRoutes);
+
+// Error handler (must be last)
+app.use(errorHandler);
+
+// Setup WebSocket handlers
+setupWebSocket(io);
+
+// Start server
+const PORT = process.env.PORT || 3001;
+
+httpServer.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🔌 WebSocket server ready`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  httpServer.close(() => {
+    console.log('HTTP server closed');
+  });
+});

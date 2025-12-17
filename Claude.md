@@ -689,3 +689,185 @@ npm run lint
   - Goalが疑問文で書かれていないかチェック（文末に「?」）
   - Strategyの後に必ず複数のGoalがあるかチェック
   - Solutionが葉ノード（子ノードなし）であるかチェック
+
+---
+
+## マルチユーザー機能の実装（2025-12-17）
+
+D-Case Communicatorの主要機能であるマルチユーザー対応を実装開始。
+
+### 実装済み機能 ✅
+
+#### バックエンド（Node.js + Express + TypeScript）
+
+**技術スタック**:
+- **フレームワーク**: Express.js
+- **言語**: TypeScript
+- **データベース**: SQLite（開発環境）/ Prisma ORM
+- **認証**: JWT (JSON Web Token) + bcrypt
+- **リアルタイム通信**: Socket.IO v4
+- **ポート**: 3001 (HTTP), 3002 (WebSocket)
+
+**実装済みAPI**:
+1. **認証エンドポイント** (`/api/auth/*`)
+   - `POST /api/auth/register` - ユーザー登録（自動ログイン）
+   - `POST /api/auth/login` - ログイン（JWT発行）
+   - `POST /api/auth/logout` - ログアウト（セッション削除）
+   - `GET /api/auth/me` - 現在のユーザー情報取得
+
+2. **データベーススキーマ** (Prisma)
+   - `User`: ユーザー情報（email, passwordHash, firstName, lastName）
+   - `Session`: 認証セッション（token, expiresAt）
+   - `Project`: プロジェクト情報（title, description, ownerId, isPublic）
+   - `ProjectMember`: プロジェクトメンバー（role: owner/editor/viewer）
+   - `Diagram`: GSNダイアグラムデータ（JSON形式）
+   - `ActivityLog`: ユーザーアクティビティログ
+
+3. **WebSocketハンドラー** (基本構造)
+   - `join_project`, `leave_project` - プロジェクト参加/離脱
+   - `node_created`, `node_updated`, `node_deleted`, `node_moved` - ノード操作
+   - `link_created`, `link_deleted` - リンク操作
+   - `user_joined`, `user_left` - ユーザー通知
+
+**セキュリティ**:
+- bcrypt によるパスワードハッシュ化（SALT_ROUNDS=10）
+- JWT による認証（有効期限6時間）
+- CORS 設定（localhost:5173, localhost:5174 許可）
+
+**ファイル構成**:
+```
+backend/
+├── src/
+│   ├── server.ts                  # メインサーバー
+│   ├── controllers/
+│   │   └── authController.ts      # 認証ロジック
+│   ├── middleware/
+│   │   ├── auth.ts                # JWT認証ミドルウェア
+│   │   └── errorHandler.ts       # エラーハンドリング
+│   ├── routes/
+│   │   ├── auth.ts                # 認証ルート
+│   │   ├── projects.ts            # プロジェクトルート（TODO）
+│   │   └── diagrams.ts            # ダイアグラムルート（TODO）
+│   ├── websocket/
+│   │   └── handlers.ts            # WebSocketイベントハンドラー
+│   └── db/
+│       └── prisma.ts              # Prisma Client
+├── prisma/
+│   ├── schema.prisma              # データベーススキーマ
+│   └── dev.db                     # SQLite データベース
+└── .env                           # 環境変数
+```
+
+#### フロントエンド（React + TypeScript）
+
+**新規追加コンポーネント**:
+1. **認証UI**
+   - `LoginForm.tsx` - ログインフォーム
+   - `RegisterForm.tsx` - 新規登録フォーム
+
+2. **状態管理**
+   - `authStore.ts` - 認証状態管理（Zustand）
+     - `login`, `register`, `logout`, `checkAuth` アクション
+     - LocalStorage 永続化
+     - エラーハンドリング
+
+3. **APIクライアント**
+   - `api.ts` - axios ベースのHTTPクライアント
+     - JWT トークン自動付与（interceptor）
+     - 401エラー時の自動ログアウト
+     - 型安全なAPI呼び出し
+
+**認証フロー**:
+1. アプリ起動時に `checkAuth()` で認証状態確認
+2. 未認証時はログイン/登録画面表示
+3. 認証成功後はGSNエディタ表示
+4. ヘッダー右側にユーザー名とログアウトボタン表示
+
+**UI統合**:
+- `App.tsx` - 認証状態に応じた画面切り替え
+- `Header.tsx` - ユーザー情報とログアウトボタンを統合
+
+### 未実装機能（次のステップ）
+
+#### Phase 1: プロジェクト管理
+1. **プロジェクトCRUD API** (`projectController.ts`)
+   - プロジェクト作成、一覧取得、更新、削除
+   - ユーザーごとのプロジェクト管理
+
+2. **プロジェクト一覧画面** (フロントエンド)
+   - マイプロジェクト一覧
+   - 新規プロジェクト作成
+   - プロジェクト選択→エディタ表示
+
+#### Phase 2: マルチユーザー共有
+1. **プロジェクトメンバー管理API**
+   - メンバー招待、削除
+   - 権限変更（owner/editor/viewer）
+
+2. **権限チェック**
+   - `requireProjectAccess` ミドルウェア実装済み
+   - 各APIエンドポイントに適用
+
+3. **共有UI**
+   - プロジェクト設定画面
+   - メンバー管理画面
+
+#### Phase 3: リアルタイム同時編集
+1. **WebSocket統合** (フロントエンド)
+   - Socket.IO クライアント接続
+   - イベント送受信
+
+2. **オンラインユーザー表示**
+   - 現在編集中のユーザー一覧
+   - ユーザーカーソル表示（オプション）
+
+3. **競合解決**
+   - 楽観的ロック
+   - 最終書き込み優先（LWW）
+
+### 開発環境セットアップ
+
+**バックエンド起動**:
+```bash
+cd backend
+npm install
+npx prisma migrate dev
+npm run dev
+# → http://localhost:3001
+```
+
+**フロントエンド起動**:
+```bash
+cd gsn-editor
+npm install
+npm run dev
+# → http://localhost:5173 または 5174
+```
+
+**動作確認**:
+1. ブラウザで http://localhost:5173 を開く
+2. 新規登録からユーザー作成
+3. 自動ログインでGSNエディタ表示
+4. ヘッダー右側のログアウトボタンで終了
+
+### 技術的な課題と解決策
+
+**課題1**: CORS エラー
+- **原因**: フロントエンドポート（5173/5174）とバックエンドの許可設定不一致
+- **解決**: `server.ts` で両ポートを許可する配列に変更
+
+**課題2**: TypeScript型エラー（JWT）
+- **原因**: `jwt.sign()` の `expiresIn` パラメータ型不一致
+- **解決**: 文字列（'6h'）から秒数（21600）に変更
+
+**課題3**: 登録時のトークン未発行
+- **原因**: `register` エンドポイントでJWT生成処理が欠落
+- **解決**: `login` と同じトークン生成・セッション作成ロジックを追加
+
+---
+
+**更新日**: 2025-12-17
+**プロジェクト状態**:
+- フロントエンド: Phase 3 完了（キーボードショートカット & ズーム拡張）
+- バックエンド: 認証機能完了、プロジェクト管理API未実装
+- マルチユーザー: Phase 1 (認証) 完了、Phase 2-3 未実装

@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useDiagramStore } from '../../stores/diagramStore';
+import type { User } from '../../services/api';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  user?: User | null;
+  onLogout?: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   const {
@@ -486,7 +492,47 @@ export const Header: React.FC = () => {
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '12px', marginLeft: 'auto' }}>
+      <div style={{ display: 'flex', gap: '12px', marginLeft: 'auto', alignItems: 'center' }}>
+        {/* ユーザー情報 */}
+        {user && onLogout && (
+          <>
+            <span style={{
+              fontSize: '14px',
+              color: '#374151',
+              fontWeight: '500',
+            }}>
+              {user.firstName || user.lastName
+                ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
+                : user.email}
+            </span>
+            <button
+              onClick={onLogout}
+              style={{
+                padding: '8px 16px',
+                fontSize: '14px',
+                fontWeight: '500',
+                border: '1px solid #D1D5DB',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                backgroundColor: '#FFFFFF',
+                color: '#EF4444',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#FEF2F2';
+                e.currentTarget.style.borderColor = '#EF4444';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#FFFFFF';
+                e.currentTarget.style.borderColor = '#D1D5DB';
+              }}
+            >
+              ログアウト
+            </button>
+            <div style={{ width: '1px', height: '24px', backgroundColor: '#E5E7EB', margin: '0 4px' }} />
+          </>
+        )}
+
         {/* エクスポートドロップダウン */}
         <div style={{ position: 'relative' }}>
           <button
