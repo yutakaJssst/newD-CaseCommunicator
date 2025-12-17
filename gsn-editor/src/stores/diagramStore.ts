@@ -17,6 +17,7 @@ import { autoLayout } from '../utils/autoLayout';
 
 interface DiagramStore {
   // State
+  currentProjectId: string | null;
   title: string;
   nodes: Node[];
   links: Link[];
@@ -29,6 +30,7 @@ interface DiagramStore {
   clipboard: Node[]; // コピーしたノードを保存
 
   // Actions
+  setCurrentProject: (projectId: string | null) => void;
   setTitle: (title: string) => void;
   addNode: (type: NodeType, x: number, y: number) => void;
   updateNode: (id: string, updates: Partial<Node>) => void;
@@ -176,6 +178,7 @@ export const useDiagramStore = create<DiagramStore>()(
   persist(
     (set, get) => ({
       // Initial state
+      currentProjectId: null,
       title: '新しいGSN図',
       nodes: [],
       links: [],
@@ -197,6 +200,111 @@ export const useDiagramStore = create<DiagramStore>()(
       clipboard: [],
 
       // Actions
+      setCurrentProject: (projectId) => {
+        const currentProjectId = get().currentProjectId;
+        if (currentProjectId === projectId) return;
+
+        // 現在のプロジェクトのデータを保存
+        if (currentProjectId) {
+          const currentState = get();
+          const storageKey = `gsn-diagram-storage-project-${currentProjectId}`;
+          const data = {
+            state: {
+              currentProjectId,
+              title: currentState.title,
+              nodes: currentState.nodes,
+              links: currentState.links,
+              currentDiagramId: currentState.currentDiagramId,
+              modules: currentState.modules,
+              labelCounters: currentState.labelCounters,
+            },
+            version: 0,
+          };
+          localStorage.setItem(storageKey, JSON.stringify(data));
+        }
+
+        // 新しいプロジェクトのデータを読み込む
+        if (projectId) {
+          const storageKey = `gsn-diagram-storage-project-${projectId}`;
+          const stored = localStorage.getItem(storageKey);
+
+          if (stored) {
+            try {
+              const data = JSON.parse(stored);
+              const state = data.state;
+              set({
+                currentProjectId: projectId,
+                title: state.title || '新しいGSN図',
+                nodes: state.nodes || [],
+                links: state.links || [],
+                currentDiagramId: state.currentDiagramId || 'root',
+                modules: state.modules || {},
+                labelCounters: state.labelCounters || {
+                  Goal: 0,
+                  Strategy: 0,
+                  Context: 0,
+                  Evidence: 0,
+                  Assumption: 0,
+                  Justification: 0,
+                  Undeveloped: 0,
+                  Module: 0,
+                },
+                history: [],
+                historyIndex: -1,
+              });
+            } catch (e) {
+              console.error('Failed to load project data:', e);
+              // 読み込み失敗時は空の状態で開始
+              set({
+                currentProjectId: projectId,
+                title: '新しいGSN図',
+                nodes: [],
+                links: [],
+                currentDiagramId: 'root',
+                modules: {},
+                labelCounters: {
+                  Goal: 0,
+                  Strategy: 0,
+                  Context: 0,
+                  Evidence: 0,
+                  Assumption: 0,
+                  Justification: 0,
+                  Undeveloped: 0,
+                  Module: 0,
+                },
+                history: [],
+                historyIndex: -1,
+              });
+            }
+          } else {
+            // 新規プロジェクト（データがない）
+            set({
+              currentProjectId: projectId,
+              title: '新しいGSN図',
+              nodes: [],
+              links: [],
+              currentDiagramId: 'root',
+              modules: {},
+              labelCounters: {
+                Goal: 0,
+                Strategy: 0,
+                Context: 0,
+                Evidence: 0,
+                Assumption: 0,
+                Justification: 0,
+                Undeveloped: 0,
+                Module: 0,
+              },
+              history: [],
+              historyIndex: -1,
+            });
+          }
+        } else {
+          // プロジェクトなし（nullに戻す）
+          set({ currentProjectId: null });
+        }
+      },
+
       setTitle: (title) => {
         saveToHistory(get, set);
         set({ title });
@@ -1423,6 +1531,7 @@ export const useDiagramStore = create<DiagramStore>()(
     {
       name: 'gsn-diagram-storage',
       partialize: (state) => ({
+        currentProjectId: state.currentProjectId,
         title: state.title,
         nodes: state.nodes,
         links: state.links,
@@ -1430,6 +1539,49 @@ export const useDiagramStore = create<DiagramStore>()(
         modules: state.modules,
         labelCounters: state.labelCounters,
       }),
+      storage: {
+        getItem: (name) => {
+          try {
+            const str = localStorage.getItem(name);
+            if (!str) return null;
+
+            const data = JSON.parse(str);
+            const projectId = data?.state?.currentProjectId;
+
+            if (!projectId) return str;
+
+            // プロジェクトIDごとのデータを取得
+            const projectKey = `${name}-project-${projectId}`;
+            const projectStr = localStorage.getItem(projectKey);
+
+            return projectStr || str;
+          } catch (e) {
+            console.error('Error reading from storage:', e);
+            return null;
+          }
+        },
+        setItem: (name, value) => {
+          try {
+            const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
+            const data = JSON.parse(valueStr);
+            const projectId = data?.state?.currentProjectId;
+
+            // グローバルにcurrentProjectIdを保存
+            localStorage.setItem(name, valueStr);
+
+            if (projectId) {
+              // プロジェクトIDごとのデータも保存
+              const projectKey = `${name}-project-${projectId}`;
+              localStorage.setItem(projectKey, valueStr);
+            }
+          } catch (e) {
+            console.error('Error writing to storage:', e);
+          }
+        },
+        removeItem: (name) => {
+          localStorage.removeItem(name);
+        },
+      },
     }
   )
 );

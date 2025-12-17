@@ -5,9 +5,10 @@ import type { User } from '../../services/api';
 interface HeaderProps {
   user?: User | null;
   onLogout?: () => void;
+  onBackToProjects?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
+export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects }) => {
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   const {
@@ -199,6 +200,41 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
         boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
       }}
     >
+      {/* プロジェクト一覧に戻るボタン */}
+      {onBackToProjects && (
+        <>
+          <button
+            onClick={onBackToProjects}
+            style={{
+              padding: '8px 16px',
+              fontSize: '14px',
+              fontWeight: '500',
+              border: '1px solid #D1D5DB',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              backgroundColor: '#FFFFFF',
+              color: '#374151',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#F3F4F6';
+              e.currentTarget.style.borderColor = '#9CA3AF';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#FFFFFF';
+              e.currentTarget.style.borderColor = '#D1D5DB';
+            }}
+          >
+            <span>←</span>
+            <span>プロジェクト一覧</span>
+          </button>
+          <div style={{ width: '1px', height: '24px', backgroundColor: '#E5E7EB', margin: '0 4px' }} />
+        </>
+      )}
+
       {/* パンくずリスト */}
       {breadcrumbs.length > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
@@ -241,8 +277,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
         onChange={(e) => setTitle(e.target.value)}
         placeholder="タイトル"
         style={{
-          flex: 1,
-          maxWidth: '320px',
+          width: '200px',
           padding: '10px 14px',
           fontSize: '15px',
           border: '1px solid #D1D5DB',
@@ -492,14 +527,18 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '12px', marginLeft: 'auto', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', alignItems: 'center' }}>
         {/* ユーザー情報 */}
         {user && onLogout && (
           <>
             <span style={{
-              fontSize: '14px',
-              color: '#374151',
+              fontSize: '13px',
+              color: '#6B7280',
               fontWeight: '500',
+              maxWidth: '150px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}>
               {user.firstName || user.lastName
                 ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
@@ -508,11 +547,11 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
             <button
               onClick={onLogout}
               style={{
-                padding: '8px 16px',
-                fontSize: '14px',
+                padding: '6px 12px',
+                fontSize: '13px',
                 fontWeight: '500',
                 border: '1px solid #D1D5DB',
-                borderRadius: '8px',
+                borderRadius: '6px',
                 cursor: 'pointer',
                 backgroundColor: '#FFFFFF',
                 color: '#EF4444',
@@ -529,7 +568,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
             >
               ログアウト
             </button>
-            <div style={{ width: '1px', height: '24px', backgroundColor: '#E5E7EB', margin: '0 4px' }} />
+            <div style={{ width: '1px', height: '20px', backgroundColor: '#E5E7EB', margin: '0 2px' }} />
           </>
         )}
 
@@ -541,11 +580,11 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
               setShowExportMenu(!showExportMenu);
             }}
             style={{
-              padding: '10px 18px',
-              fontSize: '14px',
+              padding: '7px 14px',
+              fontSize: '13px',
               fontWeight: '500',
               border: 'none',
-              borderRadius: '8px',
+              borderRadius: '6px',
               cursor: 'pointer',
               backgroundColor: '#3B82F6',
               color: '#FFFFFF',
@@ -659,11 +698,11 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
         <button
           onClick={handleImport}
           style={{
-            padding: '10px 18px',
-            fontSize: '14px',
+            padding: '7px 14px',
+            fontSize: '13px',
             fontWeight: '500',
             border: '1px solid #D1D5DB',
-            borderRadius: '8px',
+            borderRadius: '6px',
             cursor: 'pointer',
             backgroundColor: '#FFFFFF',
             color: '#374151',
@@ -683,11 +722,11 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
         <button
           onClick={handleReset}
           style={{
-            padding: '10px 18px',
-            fontSize: '14px',
+            padding: '7px 14px',
+            fontSize: '13px',
             fontWeight: '500',
             border: '1px solid #D1D5DB',
-            borderRadius: '8px',
+            borderRadius: '6px',
             cursor: 'pointer',
             backgroundColor: '#FFFFFF',
             color: '#EF4444',

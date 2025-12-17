@@ -1,18 +1,23 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
+import {
+  getProjects,
+  getProject,
+  createProject,
+  updateProject,
+  deleteProject,
+} from '../controllers/projectController';
 
 const router = Router();
 
 // All project routes require authentication
 router.use(authenticate);
 
-// TODO: Implement project controllers
-router.get('/', (_req, res) => {
-  res.json({ result: 'OK', projects: [] });
-});
-
-router.post('/', (_req, res) => {
-  res.json({ result: 'OK', message: 'Project creation not yet implemented' });
-});
+// Project CRUD operations
+router.get('/', getProjects);
+router.get('/:projectId', getProject);
+router.post('/', createProject);
+router.put('/:projectId', updateProject);
+router.delete('/:projectId', deleteProject);
 
 export default router;

@@ -4,19 +4,40 @@ import { Sidebar } from './components/Sidebar/Sidebar';
 import { Canvas } from './components/Canvas/Canvas';
 import { LoginForm } from './components/Auth/LoginForm';
 import { RegisterForm } from './components/Auth/RegisterForm';
+import { ProjectList } from './components/Projects/ProjectList';
 import { useAuthStore } from './stores/authStore';
+import { useDiagramStore } from './stores/diagramStore';
 
 function App() {
   const { isAuthenticated, checkAuth, logout, user, isLoading } = useAuthStore();
+  const { setCurrentProject } = useDiagramStore();
   const [showRegister, setShowRegister] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   useEffect(() => {
     console.log('App mounted, checking auth...');
     checkAuth();
+    // Load selected project from localStorage if exists
+    const savedProjectId = localStorage.getItem('selectedProjectId');
+    if (savedProjectId) {
+      setSelectedProjectId(savedProjectId);
+      setCurrentProject(savedProjectId);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  console.log('App render:', { isAuthenticated, isLoading, user });
+  // Save selected project to localStorage and update diagram store
+  useEffect(() => {
+    if (selectedProjectId) {
+      localStorage.setItem('selectedProjectId', selectedProjectId);
+      setCurrentProject(selectedProjectId);
+    } else {
+      localStorage.removeItem('selectedProjectId');
+      setCurrentProject(null);
+    }
+  }, [selectedProjectId, setCurrentProject]);
+
+  console.log('App render:', { isAuthenticated, isLoading, user, selectedProjectId });
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -53,7 +74,12 @@ function App() {
     );
   }
 
-  // Show main app if authenticated
+  // Show project list if authenticated but no project selected
+  if (!selectedProjectId) {
+    return <ProjectList onSelectProject={setSelectedProjectId} user={user} onLogout={logout} />;
+  }
+
+  // Show main app if authenticated and project selected
   return (
     <div
       style={{
@@ -64,7 +90,11 @@ function App() {
         overflow: 'hidden',
       }}
     >
-      <Header user={user} onLogout={logout} />
+      <Header
+        user={user}
+        onLogout={logout}
+        onBackToProjects={() => setSelectedProjectId(null)}
+      />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar />
         <div style={{ flex: 1, overflow: 'hidden' }}>

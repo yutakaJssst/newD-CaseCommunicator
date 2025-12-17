@@ -787,19 +787,99 @@ backend/
 - `App.tsx` - 認証状態に応じた画面切り替え
 - `Header.tsx` - ユーザー情報とログアウトボタンを統合
 
+### Phase 2: プロジェクト管理機能 ✅ 完了（2025-12-17）
+
+#### バックエンド実装
+
+1. **プロジェクトCRUD API** (`backend/src/controllers/projectController.ts`)
+   - `getProjects`: ユーザーがオーナーまたはメンバーのプロジェクト一覧取得
+   - `getProject`: プロジェクト詳細取得（ダイアグラム含む）
+   - `createProject`: 新規プロジェクト作成
+   - `updateProject`: プロジェクト更新（オーナーのみ）
+   - `deleteProject`: プロジェクト削除（オーナーのみ）
+
+2. **APIルート** (`backend/src/routes/projects.ts`)
+   - 全エンドポイントに認証必須
+   - RESTful設計（GET/POST/PUT/DELETE）
+
+3. **権限チェック**
+   - オーナーのみ更新・削除可能
+   - メンバーは閲覧・編集可能（基盤実装済み）
+
+#### フロントエンド実装
+
+1. **プロジェクト一覧画面** (`gsn-editor/src/components/Projects/ProjectList.tsx`)
+   - グリッドレイアウトでプロジェクトカード表示
+   - 各カードに以下を表示：
+     - タイトル、説明
+     - 更新日時（日本語フォーマット）
+     - ダイアグラム数
+   - 新規プロジェクト作成モーダル（タイトル・説明入力）
+   - 削除ボタン（確認ダイアログ付き）
+   - ユーザー情報とログアウトボタン（右上）
+   - レスポンシブデザイン（ホバー時のビジュアルフィードバック）
+
+2. **API型定義とクライアント** (`gsn-editor/src/services/api.ts`)
+   - `Project`, `CreateProjectRequest`, `UpdateProjectRequest`型
+   - `projectAPI`オブジェクト（getAll, getById, create, update, delete）
+
+3. **App.tsx統合**
+   - プロジェクト選択状態管理（`selectedProjectId`）
+   - LocalStorageに選択中プロジェクトIDを永続化
+   - 画面フロー: ログイン → プロジェクト一覧 → GSNエディタ
+
+4. **ヘッダー更新** (`gsn-editor/src/components/Header/Header.tsx`)
+   - 「←プロジェクト一覧」ボタン追加（左側）
+   - ユーザー情報の表示サイズ最適化（重ならないよう調整）
+   - ボタンサイズ縮小（13px、padding調整）
+
+5. **プロジェクトごとのデータ分離** (`gsn-editor/src/stores/diagramStore.ts`)
+   - LocalStorageにプロジェクトIDごとに独立してGSNデータを保存
+   - ストレージキー形式: `gsn-diagram-storage-project-{projectId}`
+   - `currentProjectId` 状態を追加
+   - `setCurrentProject(projectId)` アクションで以下を実装:
+     - 現在のプロジェクトのデータをLocalStorageに保存
+     - 新しいプロジェクトのデータをLocalStorageから読み込み
+     - 新規プロジェクトの場合は空の状態で初期化
+   - カスタムストレージハンドラー実装（persist middleware）
+   - App.tsx から `setCurrentProject()` を呼び出してプロジェクト切り替え時にデータを保存・読み込み
+
+#### 画面フロー
+
+```
+ログイン/登録画面
+    ↓ 認証成功
+プロジェクト一覧画面
+    ├─ 新規プロジェクト作成
+    ├─ プロジェクト削除
+    ├─ ログアウト
+    └─ プロジェクト選択
+        ↓
+    GSNエディタ
+        ├─ ←プロジェクト一覧（戻る）
+        ├─ ログアウト
+        └─ GSN編集機能（既存）
+```
+
 ### 未実装機能（次のステップ）
 
-#### Phase 1: プロジェクト管理
-1. **プロジェクトCRUD API** (`projectController.ts`)
-   - プロジェクト作成、一覧取得、更新、削除
-   - ユーザーごとのプロジェクト管理
+#### Phase 3: ダイアグラムのDB保存
+1. **ダイアグラムCRUD API**
+   - ダイアグラム作成、更新、削除
+   - プロジェクトIDとの紐付け
+   - ダイアグラムデータのJSON保存（`Diagram.data`フィールド）
 
-2. **プロジェクト一覧画面** (フロントエンド)
-   - マイプロジェクト一覧
-   - 新規プロジェクト作成
-   - プロジェクト選択→エディタ表示
+2. **フロントエンド統合**
+   - プロジェクト選択時にダイアグラム一覧取得
+   - ダイアグラム選択・作成UI
+   - 編集内容の自動保存（LocalStorage → DB）
 
-#### Phase 2: マルチユーザー共有
+3. **現状の課題**
+   - 現在はLocalStorageに全データ保存
+   - プロジェクトとダイアグラムの紐付けなし
+   - 複数ユーザー間でのデータ共有不可
+
+#### Phase 4: マルチユーザー共有
 1. **プロジェクトメンバー管理API**
    - メンバー招待、削除
    - 権限変更（owner/editor/viewer）
@@ -812,7 +892,7 @@ backend/
    - プロジェクト設定画面
    - メンバー管理画面
 
-#### Phase 3: リアルタイム同時編集
+#### Phase 5: リアルタイム同時編集
 1. **WebSocket統合** (フロントエンド)
    - Socket.IO クライアント接続
    - イベント送受信
@@ -869,5 +949,6 @@ npm run dev
 **更新日**: 2025-12-17
 **プロジェクト状態**:
 - フロントエンド: Phase 3 完了（キーボードショートカット & ズーム拡張）
-- バックエンド: 認証機能完了、プロジェクト管理API未実装
-- マルチユーザー: Phase 1 (認証) 完了、Phase 2-3 未実装
+- バックエンド: 認証機能完了、プロジェクト管理完了
+- マルチユーザー: Phase 1 (認証) 完了、Phase 2 (プロジェクト管理) 完了、Phase 3-5 未実装
+- 次のステップ: ダイアグラムのDB保存（Phase 3）
