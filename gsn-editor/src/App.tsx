@@ -43,7 +43,7 @@ function App() {
       };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user]); // Zustand actions are stable, no need in deps
+  }, [isAuthenticated, user?.id]); // Only re-run when authentication status or user ID changes
 
   // Join/leave project room when selectedProjectId changes
   useEffect(() => {
@@ -62,7 +62,7 @@ function App() {
         }
       };
     }
-  }, [isAuthenticated, user, selectedProjectId]);
+  }, [isAuthenticated, user?.id, selectedProjectId]);
 
   // Save selected project to localStorage and update diagram store
   useEffect(() => {
