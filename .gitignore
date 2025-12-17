@@ -45,3 +45,4 @@ backend/prisma/dev.db-journal
 # OS
 .DS_Store
 Thumbs.db
+backend/prisma/dev.db
