@@ -70,6 +70,7 @@ export const useAuthStore = create<AuthState>()(
           console.error('Logout error:', error);
         } finally {
           localStorage.removeItem('authToken');
+          localStorage.removeItem('selectedProjectId'); // Clear selected project on logout
           set({
             user: null,
             token: null,
@@ -81,6 +82,7 @@ export const useAuthStore = create<AuthState>()(
       checkAuth: async () => {
         const token = localStorage.getItem('authToken');
         if (!token) {
+          localStorage.removeItem('selectedProjectId'); // Clear if not authenticated
           set({ isAuthenticated: false, user: null });
           return;
         }
@@ -96,6 +98,7 @@ export const useAuthStore = create<AuthState>()(
           });
         } catch (error) {
           localStorage.removeItem('authToken');
+          localStorage.removeItem('selectedProjectId'); // Clear on auth failure
           set({
             user: null,
             token: null,

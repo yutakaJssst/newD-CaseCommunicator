@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Header } from './components/Header/Header';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import { Canvas } from './components/Canvas/Canvas';
@@ -10,10 +10,22 @@ import { useDiagramStore } from './stores/diagramStore';
 import { websocketService } from './services/websocket';
 
 function App() {
-  const { isAuthenticated, checkAuth, logout, user, isLoading } = useAuthStore();
-  const { setCurrentProject, initializeWebSocket, disconnectWebSocket } = useDiagramStore();
+  // Use individual selectors to avoid unnecessary re-renders
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const user = useAuthStore((state) => state.user);
+  const checkAuth = useAuthStore((state) => state.checkAuth);
+  const logout = useAuthStore((state) => state.logout);
+
+  const setCurrentProject = useDiagramStore((state) => state.setCurrentProject);
+  const initializeWebSocket = useDiagramStore((state) => state.initializeWebSocket);
+  const disconnectWebSocket = useDiagramStore((state) => state.disconnectWebSocket);
+
   const [showRegister, setShowRegister] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+
+  // Memoize user ID to prevent infinite loops
+  const userId = useMemo(() => user?.id, [user?.id]);
 
   useEffect(() => {
     console.log('App mounted, checking auth...');
@@ -29,12 +41,12 @@ function App() {
 
   // Initialize WebSocket when user is authenticated
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (isAuthenticated && user && userId) {
       const userName = user.firstName || user.lastName
         ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
         : user.email;
 
-      initializeWebSocket(user.id, userName);
+      initializeWebSocket(userId, userName);
       console.log('[App] WebSocket initialized for user:', userName);
 
       return () => {
@@ -42,16 +54,17 @@ function App() {
         console.log('[App] WebSocket disconnected');
       };
     }
-  }, [isAuthenticated, user, initializeWebSocket, disconnectWebSocket]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, userId]); // Only re-run when authentication status or user ID changes
 
   // Join/leave project room when selectedProjectId changes
   useEffect(() => {
-    if (isAuthenticated && user && selectedProjectId) {
+    if (isAuthenticated && user && userId && selectedProjectId) {
       const userName = user.firstName || user.lastName
         ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
         : user.email;
 
-      websocketService.joinProject(selectedProjectId, user.id, userName);
+      websocketService.joinProject(selectedProjectId, userId, userName);
       console.log('[App] Joined project room:', selectedProjectId);
 
       return () => {
@@ -61,7 +74,8 @@ function App() {
         }
       };
     }
-  }, [isAuthenticated, user, selectedProjectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, userId, selectedProjectId]); // user is only used to get userName, safe to omit
 
   // Save selected project to localStorage and update diagram store
   useEffect(() => {
@@ -72,7 +86,8 @@ function App() {
       localStorage.removeItem('selectedProjectId');
       setCurrentProject(null);
     }
-  }, [selectedProjectId, setCurrentProject]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId]); // setCurrentProject は Zustand の安定したアクションなので依存配列に含めない
 
   console.log('App render:', { isAuthenticated, isLoading, user, selectedProjectId });
 

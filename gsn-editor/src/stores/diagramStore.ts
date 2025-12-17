@@ -244,44 +244,158 @@ export const useDiagramStore = create<DiagramStore>()(
 
         // Set up callbacks
         websocketService.setCallbacks({
-          onNodeCreated: (node) => {
+          onNodeCreated: (node, diagramId) => {
             const state = get();
-            // 自分が作成したノードでない場合のみ追加
-            if (!state.nodes.find(n => n.id === node.id)) {
-              set({ nodes: [...state.nodes, node] });
+
+            // 現在のダイアグラムと同じ場合のみ更新
+            if (state.currentDiagramId === diagramId) {
+              // 自分が作成したノードでない場合のみ追加
+              if (!state.nodes.find(n => n.id === node.id)) {
+                set({ nodes: [...state.nodes, node] });
+              }
+            } else {
+              // 別のダイアグラムの変更は、modulesに保存されたデータを更新
+              const targetModule = state.modules[diagramId];
+              if (targetModule && !targetModule.nodes.find(n => n.id === node.id)) {
+                set({
+                  modules: {
+                    ...state.modules,
+                    [diagramId]: {
+                      ...targetModule,
+                      nodes: [...targetModule.nodes, node],
+                    },
+                  },
+                });
+              }
             }
           },
-          onNodeUpdated: (node) => {
+          onNodeUpdated: (node, diagramId) => {
             const state = get();
-            set({
-              nodes: state.nodes.map(n => n.id === node.id ? node : n),
-            });
-          },
-          onNodeDeleted: (nodeId) => {
-            const state = get();
-            set({
-              nodes: state.nodes.filter(n => n.id !== nodeId),
-              links: state.links.filter(l => l.source !== nodeId && l.target !== nodeId),
-            });
-          },
-          onNodeMoved: (nodeId, position) => {
-            const state = get();
-            set({
-              nodes: state.nodes.map(n =>
-                n.id === nodeId ? { ...n, position } : n
-              ),
-            });
-          },
-          onLinkCreated: (link) => {
-            const state = get();
-            if (!state.links.find(l => l.id === link.id)) {
-              set({ links: [...state.links, link] });
+
+            if (state.currentDiagramId === diagramId) {
+              set({
+                nodes: state.nodes.map(n => n.id === node.id ? node : n),
+              });
+            } else {
+              const targetModule = state.modules[diagramId];
+              if (targetModule) {
+                set({
+                  modules: {
+                    ...state.modules,
+                    [diagramId]: {
+                      ...targetModule,
+                      nodes: targetModule.nodes.map(n => n.id === node.id ? node : n),
+                    },
+                  },
+                });
+              }
             }
           },
-          onLinkDeleted: (linkId) => {
+          onNodeDeleted: (nodeId, diagramId) => {
             const state = get();
+
+            if (state.currentDiagramId === diagramId) {
+              set({
+                nodes: state.nodes.filter(n => n.id !== nodeId),
+                links: state.links.filter(l => l.source !== nodeId && l.target !== nodeId),
+              });
+            } else {
+              const targetModule = state.modules[diagramId];
+              if (targetModule) {
+                set({
+                  modules: {
+                    ...state.modules,
+                    [diagramId]: {
+                      ...targetModule,
+                      nodes: targetModule.nodes.filter(n => n.id !== nodeId),
+                      links: targetModule.links.filter(l => l.source !== nodeId && l.target !== nodeId),
+                    },
+                  },
+                });
+              }
+            }
+          },
+          onNodeMoved: (nodeId, position, diagramId) => {
+            const state = get();
+
+            if (state.currentDiagramId === diagramId) {
+              set({
+                nodes: state.nodes.map(n =>
+                  n.id === nodeId ? { ...n, position } : n
+                ),
+              });
+            } else {
+              const targetModule = state.modules[diagramId];
+              if (targetModule) {
+                set({
+                  modules: {
+                    ...state.modules,
+                    [diagramId]: {
+                      ...targetModule,
+                      nodes: targetModule.nodes.map(n =>
+                        n.id === nodeId ? { ...n, position } : n
+                      ),
+                    },
+                  },
+                });
+              }
+            }
+          },
+          onLinkCreated: (link, diagramId) => {
+            const state = get();
+
+            if (state.currentDiagramId === diagramId) {
+              if (!state.links.find(l => l.id === link.id)) {
+                set({ links: [...state.links, link] });
+              }
+            } else {
+              const targetModule = state.modules[diagramId];
+              if (targetModule && !targetModule.links.find(l => l.id === link.id)) {
+                set({
+                  modules: {
+                    ...state.modules,
+                    [diagramId]: {
+                      ...targetModule,
+                      links: [...targetModule.links, link],
+                    },
+                  },
+                });
+              }
+            }
+          },
+          onLinkDeleted: (linkId, diagramId) => {
+            const state = get();
+
+            if (state.currentDiagramId === diagramId) {
+              set({
+                links: state.links.filter(l => l.id !== linkId),
+              });
+            } else {
+              const targetModule = state.modules[diagramId];
+              if (targetModule) {
+                set({
+                  modules: {
+                    ...state.modules,
+                    [diagramId]: {
+                      ...targetModule,
+                      links: targetModule.links.filter(l => l.id !== linkId),
+                    },
+                  },
+                });
+              }
+            }
+          },
+          onModuleCreated: (moduleId, moduleData, parentDiagramId) => {
+            const state = get();
+            console.log('Module created:', moduleId, parentDiagramId);
+
+            // 自分のcurrentDiagramIdと一致する場合は何もしない（自分が作成したモジュール）
+            // modulesに追加するだけでOK（既にローカルで追加済み）
             set({
-              links: state.links.filter(l => l.id !== linkId),
+              modules: {
+                ...state.modules,
+                [moduleId]: moduleData,
+              },
             });
           },
           onUserJoined: (user) => {
@@ -808,9 +922,10 @@ export const useDiagramStore = create<DiagramStore>()(
         }
 
         // WebSocketでブロードキャスト
-        const projectId = get().currentProjectId;
+        const projectId = state.currentProjectId;
+        const diagramId = state.currentDiagramId;
         if (projectId && websocketService.isConnected()) {
-          websocketService.emitNodeCreated(projectId, newNode);
+          websocketService.emitNodeCreated(projectId, newNode, diagramId);
         }
 
         // DB保存をデバウンス
@@ -829,7 +944,7 @@ export const useDiagramStore = create<DiagramStore>()(
         // WebSocketでブロードキャスト
         const projectId = get().currentProjectId;
         if (projectId && websocketService.isConnected() && updatedNode) {
-          websocketService.emitNodeUpdated(projectId, { ...updatedNode, ...updates });
+          websocketService.emitNodeUpdated(projectId, { ...updatedNode, ...updates }, get().currentDiagramId);
         }
 
         // DB保存をデバウンス
@@ -850,7 +965,7 @@ export const useDiagramStore = create<DiagramStore>()(
         // WebSocketでブロードキャスト
         const projectId = get().currentProjectId;
         if (projectId && websocketService.isConnected()) {
-          websocketService.emitNodeDeleted(projectId, id);
+          websocketService.emitNodeDeleted(projectId, id, get().currentDiagramId);
         }
 
         // DB保存をデバウンス
@@ -868,7 +983,7 @@ export const useDiagramStore = create<DiagramStore>()(
         // WebSocketでブロードキャスト
         const projectId = get().currentProjectId;
         if (projectId && websocketService.isConnected()) {
-          websocketService.emitNodeMoved(projectId, id, { x, y });
+          websocketService.emitNodeMoved(projectId, id, { x, y }, get().currentDiagramId);
         }
       },
 
@@ -902,7 +1017,7 @@ export const useDiagramStore = create<DiagramStore>()(
         // WebSocketでブロードキャスト
         const projectId = get().currentProjectId;
         if (projectId && websocketService.isConnected()) {
-          websocketService.emitLinkCreated(projectId, newLink);
+          websocketService.emitLinkCreated(projectId, newLink, get().currentDiagramId);
         }
 
         // DB保存をデバウンス
@@ -918,7 +1033,7 @@ export const useDiagramStore = create<DiagramStore>()(
         // WebSocketでブロードキャスト
         const projectId = get().currentProjectId;
         if (projectId && websocketService.isConnected()) {
-          websocketService.emitLinkDeleted(projectId, id);
+          websocketService.emitLinkDeleted(projectId, id, get().currentDiagramId);
         }
 
         // DB保存をデバウンス
@@ -1032,7 +1147,7 @@ export const useDiagramStore = create<DiagramStore>()(
             const node = state.nodes.find(n => n.id === nodeId);
             if (node) {
               const newPosition = { x: node.position.x + dx, y: node.position.y + dy };
-              websocketService.emitNodeMoved(projectId, nodeId, newPosition);
+              websocketService.emitNodeMoved(projectId, nodeId, newPosition, get().currentDiagramId);
             }
           });
         }
@@ -1366,6 +1481,41 @@ export const useDiagramStore = create<DiagramStore>()(
             [moduleId]: moduleData,
           },
         });
+
+        // WebSocketでブロードキャスト
+        const projectId = state.currentProjectId;
+        const currentDiagramId = state.currentDiagramId;
+        console.log('[convertToModule] Broadcasting:', { projectId, isConnected: websocketService.isConnected(), currentDiagramId });
+        if (projectId && websocketService.isConnected()) {
+          // 1. サブツリーのノードを削除
+          subtreeNodes.forEach(node => {
+            websocketService.emitNodeDeleted(projectId, node.id, currentDiagramId);
+          });
+
+          // 2. サブツリーのリンクを削除
+          subtreeLinks.forEach(link => {
+            websocketService.emitLinkDeleted(projectId, link.id, currentDiagramId);
+          });
+
+          // 3. 親リンクを削除
+          parentLinks.forEach(link => {
+            websocketService.emitLinkDeleted(projectId, link.id, currentDiagramId);
+          });
+
+          // 4. Moduleノードを作成
+          websocketService.emitNodeCreated(projectId, moduleNode, currentDiagramId);
+
+          // 5. 新しいリンクを作成
+          newLinks.forEach(link => {
+            websocketService.emitLinkCreated(projectId, link, currentDiagramId);
+          });
+
+          // 6. モジュールデータを作成（カスタムイベント）
+          websocketService.emitModuleCreated(projectId, moduleId, moduleData, currentDiagramId);
+        }
+
+        // DB保存をデバウンス
+        debouncedSaveToDB(() => get().saveDiagramToDB());
       },
 
       switchToModule: (moduleId) => {
@@ -1654,6 +1804,14 @@ export const useDiagramStore = create<DiagramStore>()(
         set({
           nodes: layoutedNodes,
         });
+
+        // WebSocketで各ノードの移動を他のユーザーにブロードキャスト
+        const projectId = state.currentProjectId;
+        if (projectId && websocketService.isConnected()) {
+          layoutedNodes.forEach((node) => {
+            websocketService.emitNodeMoved(projectId, node.id, node.position, get().currentDiagramId);
+          });
+        }
       },
 
       exportAsImage: (format) => {

@@ -9,12 +9,13 @@ interface OnlineUser {
 }
 
 interface WebSocketCallbacks {
-  onNodeCreated?: (node: Node) => void;
-  onNodeUpdated?: (node: Node) => void;
-  onNodeDeleted?: (nodeId: string) => void;
-  onNodeMoved?: (nodeId: string, position: { x: number; y: number }) => void;
-  onLinkCreated?: (link: Link) => void;
-  onLinkDeleted?: (linkId: string) => void;
+  onNodeCreated?: (node: Node, diagramId: string) => void;
+  onNodeUpdated?: (node: Node, diagramId: string) => void;
+  onNodeDeleted?: (nodeId: string, diagramId: string) => void;
+  onNodeMoved?: (nodeId: string, position: { x: number; y: number }, diagramId: string) => void;
+  onLinkCreated?: (link: Link, diagramId: string) => void;
+  onLinkDeleted?: (linkId: string, diagramId: string) => void;
+  onModuleCreated?: (moduleId: string, moduleData: any, parentDiagramId: string) => void;
   onUserJoined?: (user: { userId: string; userName: string; timestamp: string }) => void;
   onUserLeft?: (user: { userId: string; userName: string; timestamp: string }) => void;
   onOnlineUsers?: (users: OnlineUser[]) => void;
@@ -53,32 +54,37 @@ class WebSocketService {
     // Listen to events
     this.socket.on('node_created', (data) => {
       console.log('[WebSocket] Node created:', data);
-      this.callbacks.onNodeCreated?.(data.node);
+      this.callbacks.onNodeCreated?.(data.node, data.diagramId || 'root');
     });
 
     this.socket.on('node_updated', (data) => {
       console.log('[WebSocket] Node updated:', data);
-      this.callbacks.onNodeUpdated?.(data.node);
+      this.callbacks.onNodeUpdated?.(data.node, data.diagramId || 'root');
     });
 
     this.socket.on('node_deleted', (data) => {
       console.log('[WebSocket] Node deleted:', data);
-      this.callbacks.onNodeDeleted?.(data.nodeId);
+      this.callbacks.onNodeDeleted?.(data.nodeId, data.diagramId || 'root');
     });
 
     this.socket.on('node_moved', (data) => {
       console.log('[WebSocket] Node moved:', data);
-      this.callbacks.onNodeMoved?.(data.nodeId, data.position);
+      this.callbacks.onNodeMoved?.(data.nodeId, data.position, data.diagramId || 'root');
     });
 
     this.socket.on('link_created', (data) => {
       console.log('[WebSocket] Link created:', data);
-      this.callbacks.onLinkCreated?.(data.link);
+      this.callbacks.onLinkCreated?.(data.link, data.diagramId || 'root');
     });
 
     this.socket.on('link_deleted', (data) => {
       console.log('[WebSocket] Link deleted:', data);
-      this.callbacks.onLinkDeleted?.(data.linkId);
+      this.callbacks.onLinkDeleted?.(data.linkId, data.diagramId || 'root');
+    });
+
+    this.socket.on('module_created', (data) => {
+      console.log('[WebSocket] Module created:', data);
+      this.callbacks.onModuleCreated?.(data.moduleId, data.moduleData, data.parentDiagramId);
     });
 
     this.socket.on('user_joined', (data) => {
@@ -144,29 +150,35 @@ class WebSocketService {
   }
 
   // Emit node operations
-  emitNodeCreated(projectId: string, node: Node) {
-    this.socket?.emit('node_created', { projectId, node });
+  emitNodeCreated(projectId: string, node: Node, diagramId: string) {
+    this.socket?.emit('node_created', { projectId, node, diagramId });
   }
 
-  emitNodeUpdated(projectId: string, node: Node) {
-    this.socket?.emit('node_updated', { projectId, node });
+  emitNodeUpdated(projectId: string, node: Node, diagramId: string) {
+    this.socket?.emit('node_updated', { projectId, node, diagramId });
   }
 
-  emitNodeDeleted(projectId: string, nodeId: string) {
-    this.socket?.emit('node_deleted', { projectId, nodeId });
+  emitNodeDeleted(projectId: string, nodeId: string, diagramId: string) {
+    this.socket?.emit('node_deleted', { projectId, nodeId, diagramId });
   }
 
-  emitNodeMoved(projectId: string, nodeId: string, position: { x: number; y: number }) {
-    this.socket?.emit('node_moved', { projectId, nodeId, position });
+  emitNodeMoved(projectId: string, nodeId: string, position: { x: number; y: number }, diagramId: string) {
+    this.socket?.emit('node_moved', { projectId, nodeId, position, diagramId });
   }
 
   // Emit link operations
-  emitLinkCreated(projectId: string, link: Link) {
-    this.socket?.emit('link_created', { projectId, link });
+  emitLinkCreated(projectId: string, link: Link, diagramId: string) {
+    this.socket?.emit('link_created', { projectId, link, diagramId });
   }
 
-  emitLinkDeleted(projectId: string, linkId: string) {
-    this.socket?.emit('link_deleted', { projectId, linkId });
+  emitLinkDeleted(projectId: string, linkId: string, diagramId: string) {
+    this.socket?.emit('link_deleted', { projectId, linkId, diagramId });
+  }
+
+  // Emit module operations
+  emitModuleCreated(projectId: string, moduleId: string, moduleData: any, parentDiagramId: string) {
+    console.log('[WebSocket Client] Emitting module_created:', { projectId, moduleId, parentDiagramId });
+    this.socket?.emit('module_created', { projectId, moduleId, moduleData, parentDiagramId });
   }
 
   // Register callbacks
