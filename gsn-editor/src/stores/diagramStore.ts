@@ -13,6 +13,7 @@ import {
   DEFAULT_NODE_SIZE,
   NODE_COLORS,
 } from '../types/diagram';
+import { autoLayout } from '../utils/autoLayout';
 
 interface DiagramStore {
   // State
@@ -59,6 +60,7 @@ interface DiagramStore {
   exportProjectData: () => ProjectData;
   importProjectData: (data: ProjectData) => void;
   exportAsImage: (format: 'png' | 'svg') => void;
+  applyAutoLayout: () => void;
   reset: () => void;
 }
 
@@ -777,6 +779,21 @@ export const useDiagramStore = create<DiagramStore>()(
             Module: 0,
           },
           canvasState: DEFAULT_CANVAS_STATE,
+        });
+      },
+
+      applyAutoLayout: () => {
+        const state = get();
+        if (state.nodes.length === 0) {
+          alert('レイアウトするノードがありません');
+          return;
+        }
+
+        saveToHistory(get, set);
+        const layoutedNodes = autoLayout(state.nodes, state.links);
+
+        set({
+          nodes: layoutedNodes,
         });
       },
 

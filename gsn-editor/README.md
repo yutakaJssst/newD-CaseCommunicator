@@ -11,6 +11,11 @@ GSN (Goal Structuring Notation) 図を作成・編集するためのWebアプリ
 
 - **8種類のGSNノード**: Goal, Strategy, Context, Evidence, Assumption, Justification, Undeveloped, Module
 - **ノードラベル自動採番**: G1, S1, E1など自動付与、手動編集も可能
+- **自動レイアウト機能** ⚡: ワンクリックでツリー構造を整列
+  - Reingold-Tilfordアルゴリズムによる階層的配置
+  - Context系ノード（Context、Assumption、Justification）は親ノードの右側に横配置
+  - 複数のContext系ノードはバランス良く上下に配置
+  - 複数のルートノードにも対応
 - **モジュール機能**: 複雑な図を階層化して管理
   - Goalを右クリック→「モジュールにする」でサブツリーを別ダイアグラムに分離
   - サイドバーから直接空のModuleノードを配置可能
@@ -24,7 +29,7 @@ GSN (Goal Structuring Notation) 図を作成・編集するためのWebアプリ
 - **リンク削除**: リンクを右クリックで削除
 - **自動保存**: LocalStorageに自動保存（モジュール階層も含む）
 - **Undo/Redo**: 操作履歴の管理（Ctrl+Z / Ctrl+Y）
-- **エクスポート**: JSON/PNG/SVG形式で保存可能
+- **エクスポート**: JSON/PNG/SVG形式、プロジェクト全体のエクスポートも可能
 
 ## 🚀 クイックスタート
 
@@ -128,6 +133,15 @@ npm run build
 - ヘッダーの **⊞** ボタンをクリックでON/OFF切り替え
 - ONの時、20px間隔のグリッド線が表示される
 - ノード追加・移動時に自動的にグリッドに吸着
+
+### 自動レイアウト
+
+- ヘッダーの **⚡整列** ボタンをクリック
+- ツリー構造が階層的に自動整列される
+- **主要ノード**（Goal、Strategy、Evidence等）: 縦に階層配置
+- **Context系ノード**（Context、Assumption、Justification）: 親ノードの右側に横配置
+- 複数のContext系ノードがある場合は上下にバランス良く配置
+- Undo/Redo対応（Ctrl+Zで元に戻せる）
 
 ## 📊 GSNノードタイプ
 

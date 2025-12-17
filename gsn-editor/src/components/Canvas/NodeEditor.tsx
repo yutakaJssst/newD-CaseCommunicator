@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import type { Node } from '../../types/diagram';
 
 interface NodeEditorProps {

@@ -21,9 +21,9 @@ export const Header: React.FC = () => {
     canRedo,
     currentDiagramId,
     modules,
-    switchToParent,
     switchToDiagram,
     toggleGridSnap,
+    applyAutoLayout,
   } = useDiagramStore();
   const { viewport, gridSnapEnabled } = canvasState;
 
@@ -346,6 +346,37 @@ export const Header: React.FC = () => {
           }}
         >
           ⊞
+        </button>
+
+        {/* 自動レイアウトボタン */}
+        <button
+          onClick={applyAutoLayout}
+          title="自動レイアウト"
+          style={{
+            padding: '8px 16px',
+            fontSize: '14px',
+            fontWeight: '500',
+            border: '1px solid #D1D5DB',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            backgroundColor: '#FFFFFF',
+            color: '#374151',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#F3F4F6';
+            e.currentTarget.style.borderColor = '#9CA3AF';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#D1D5DB';
+          }}
+        >
+          <span style={{ fontSize: '16px' }}>⚡</span>
+          <span>整列</span>
         </button>
 
         <div style={{ width: '1px', height: '24px', backgroundColor: '#E5E7EB', margin: '0 4px' }} />
