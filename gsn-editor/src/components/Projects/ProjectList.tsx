@@ -281,13 +281,47 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
                   alignItems: 'center',
                   paddingTop: '12px',
                   borderTop: '1px solid #E5E7EB',
+                  gap: '12px',
                 }}>
-                  <span style={{
-                    fontSize: '13px',
-                    color: '#6B7280',
-                  }}>
-                    ダイアグラム数: {project._count?.diagrams || 0}
-                  </span>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1 }}>
+                    <span style={{
+                      fontSize: '13px',
+                      color: '#6B7280',
+                    }}>
+                      📊 {project._count?.diagrams || 0}
+                    </span>
+                    <div
+                      style={{
+                        fontSize: '13px',
+                        color: user?.id === project.ownerId ? '#3B82F6' : '#6B7280',
+                        fontWeight: user?.id === project.ownerId ? '500' : 'normal',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        cursor: 'help',
+                        position: 'relative',
+                      }}
+                      title={
+                        project.members && project.members.length > 0
+                          ? `オーナー: ${project.owner.email}\nメンバー: ${project.members.map((m) => m.user.email).join(', ')}`
+                          : `オーナー: ${project.owner.email}\n（共有メンバーなし）`
+                      }
+                    >
+                      👥 {(project.members?.length || 0) + 1}
+                      {user?.id === project.ownerId && (
+                        <span style={{
+                          fontSize: '11px',
+                          backgroundColor: '#EFF6FF',
+                          color: '#3B82F6',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          fontWeight: '600',
+                        }}>
+                          オーナー
+                        </span>
+                      )}
+                    </div>
+                  </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button
                       onClick={(e) => {
