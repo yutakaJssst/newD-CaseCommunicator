@@ -192,59 +192,57 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
   return (
     <div
       style={{
-        height: '64px',
+        height: '60px',
         borderBottom: '1px solid #E5E7EB',
         backgroundColor: '#FFFFFF',
         display: 'flex',
         alignItems: 'center',
-        padding: '0 24px',
-        gap: '24px',
+        padding: '0 16px',
+        gap: '12px',
         boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
       }}
     >
       {/* プロジェクト一覧に戻るボタン */}
       {onBackToProjects && (
-        <>
-          <button
-            onClick={onBackToProjects}
-            style={{
-              padding: '8px 16px',
-              fontSize: '14px',
-              fontWeight: '500',
-              border: '1px solid #D1D5DB',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              backgroundColor: '#FFFFFF',
-              color: '#374151',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#F3F4F6';
-              e.currentTarget.style.borderColor = '#9CA3AF';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#FFFFFF';
-              e.currentTarget.style.borderColor = '#D1D5DB';
-            }}
-          >
-            <span>←</span>
-            <span>プロジェクト一覧</span>
-          </button>
-          <div style={{ width: '1px', height: '24px', backgroundColor: '#E5E7EB', margin: '0 4px' }} />
-        </>
+        <button
+          onClick={onBackToProjects}
+          style={{
+            padding: '6px 10px',
+            fontSize: '12px',
+            fontWeight: '500',
+            border: '1px solid #D1D5DB',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            backgroundColor: '#FFFFFF',
+            color: '#374151',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            transition: 'all 0.2s',
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#F3F4F6';
+            e.currentTarget.style.borderColor = '#9CA3AF';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#D1D5DB';
+          }}
+        >
+          <span>←</span>
+          <span>プロジェクト</span>
+        </button>
       )}
 
       {/* パンくずリスト */}
       {breadcrumbs.length > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', flexShrink: 1, minWidth: 0 }}>
           {breadcrumbs.map((crumb, index) => (
             <React.Fragment key={crumb.id}>
-              {index > 0 && <span style={{ color: '#9CA3AF' }}>›</span>}
+              {index > 0 && <span style={{ color: '#9CA3AF', flexShrink: 0 }}>›</span>}
               {index === breadcrumbs.length - 1 ? (
-                <span style={{ color: '#374151', fontWeight: '500' }}>{crumb.title}</span>
+                <span style={{ color: '#374151', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{crumb.title}</span>
               ) : (
                 <button
                   onClick={() => switchToDiagram(crumb.id)}
@@ -253,10 +251,11 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
                     border: 'none',
                     color: '#3B82F6',
                     cursor: 'pointer',
-                    padding: '4px 8px',
+                    padding: '2px 6px',
                     borderRadius: '4px',
-                    fontSize: '14px',
+                    fontSize: '12px',
                     transition: 'background-color 0.2s',
+                    flexShrink: 0,
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = '#EFF6FF';
@@ -279,31 +278,32 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         onChange={(e) => setTitle(e.target.value)}
         placeholder="タイトル"
         style={{
-          width: '200px',
-          padding: '10px 14px',
-          fontSize: '15px',
+          width: '160px',
+          padding: '6px 10px',
+          fontSize: '13px',
           border: '1px solid #D1D5DB',
-          borderRadius: '8px',
+          borderRadius: '6px',
           backgroundColor: '#FFFFFF',
           outline: 'none',
           transition: 'border-color 0.2s',
+          flexShrink: 0,
         }}
         onFocus={(e) => (e.target.style.borderColor = '#3B82F6')}
         onBlur={(e) => (e.target.style.borderColor = '#D1D5DB')}
       />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
         {/* Undo/Redoボタン */}
         <button
           onClick={undo}
           disabled={!canUndo()}
           title="元に戻す (Ctrl+Z)"
           style={{
-            width: '36px',
-            height: '36px',
-            fontSize: '18px',
+            width: '30px',
+            height: '30px',
+            fontSize: '16px',
             border: '1px solid #D1D5DB',
-            borderRadius: '8px',
+            borderRadius: '6px',
             cursor: canUndo() ? 'pointer' : 'not-allowed',
             backgroundColor: '#FFFFFF',
             color: canUndo() ? '#374151' : '#D1D5DB',
@@ -330,11 +330,11 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
           disabled={!canRedo()}
           title="やり直す (Ctrl+Y)"
           style={{
-            width: '36px',
-            height: '36px',
-            fontSize: '18px',
+            width: '30px',
+            height: '30px',
+            fontSize: '16px',
             border: '1px solid #D1D5DB',
-            borderRadius: '8px',
+            borderRadius: '6px',
             cursor: canRedo() ? 'pointer' : 'not-allowed',
             backgroundColor: '#FFFFFF',
             color: canRedo() ? '#374151' : '#D1D5DB',
@@ -357,18 +357,16 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
           ↷
         </button>
 
-        <div style={{ width: '1px', height: '24px', backgroundColor: '#E5E7EB', margin: '0 4px' }} />
-
         {/* グリッドスナップトグル */}
         <button
           onClick={toggleGridSnap}
           title={gridSnapEnabled ? 'グリッドスナップOFF' : 'グリッドスナップON'}
           style={{
-            width: '36px',
-            height: '36px',
-            fontSize: '18px',
+            width: '30px',
+            height: '30px',
+            fontSize: '16px',
             border: '1px solid #D1D5DB',
-            borderRadius: '8px',
+            borderRadius: '6px',
             cursor: 'pointer',
             backgroundColor: gridSnapEnabled ? '#3B82F6' : '#FFFFFF',
             color: gridSnapEnabled ? '#FFFFFF' : '#374151',
@@ -398,17 +396,17 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
           onClick={applyAutoLayout}
           title="自動レイアウト"
           style={{
-            padding: '8px 16px',
-            fontSize: '14px',
-            fontWeight: '500',
+            width: '30px',
+            height: '30px',
+            fontSize: '16px',
             border: '1px solid #D1D5DB',
-            borderRadius: '8px',
+            borderRadius: '6px',
             cursor: 'pointer',
             backgroundColor: '#FFFFFF',
             color: '#374151',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
+            justifyContent: 'center',
             transition: 'all 0.2s',
           }}
           onMouseEnter={(e) => {
@@ -420,22 +418,19 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
             e.currentTarget.style.borderColor = '#D1D5DB';
           }}
         >
-          <span style={{ fontSize: '16px' }}>⚡</span>
-          <span>整列</span>
+          ⚡
         </button>
-
-        <div style={{ width: '1px', height: '24px', backgroundColor: '#E5E7EB', margin: '0 4px' }} />
 
         {/* フィット・リセットボタン */}
         <button
           onClick={fitToScreen}
           title="全体表示 (Fit to Screen)"
           style={{
-            width: '36px',
-            height: '36px',
-            fontSize: '16px',
+            width: '30px',
+            height: '30px',
+            fontSize: '14px',
             border: '1px solid #D1D5DB',
-            borderRadius: '8px',
+            borderRadius: '6px',
             cursor: 'pointer',
             backgroundColor: '#FFFFFF',
             color: '#374151',
@@ -460,13 +455,14 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
           onClick={resetZoom}
           title="100%にリセット"
           style={{
-            fontSize: '14px',
+            fontSize: '12px',
             color: '#6B7280',
             fontWeight: '500',
             cursor: 'pointer',
-            padding: '4px 8px',
+            padding: '2px 6px',
             borderRadius: '4px',
             transition: 'background-color 0.2s',
+            flexShrink: 0,
           }}
           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F3F4F6')}
           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
@@ -476,11 +472,11 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         <button
           onClick={handleZoomOut}
           style={{
-            width: '36px',
-            height: '36px',
-            fontSize: '18px',
+            width: '30px',
+            height: '30px',
+            fontSize: '16px',
             border: '1px solid #D1D5DB',
-            borderRadius: '8px',
+            borderRadius: '6px',
             cursor: 'pointer',
             backgroundColor: '#FFFFFF',
             color: '#374151',
@@ -503,11 +499,11 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         <button
           onClick={handleZoomIn}
           style={{
-            width: '36px',
-            height: '36px',
-            fontSize: '18px',
+            width: '30px',
+            height: '30px',
+            fontSize: '16px',
             border: '1px solid #D1D5DB',
-            borderRadius: '8px',
+            borderRadius: '6px',
             cursor: 'pointer',
             backgroundColor: '#FFFFFF',
             color: '#374151',
@@ -529,41 +525,31 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto', alignItems: 'center', flexShrink: 0 }}>
         {/* オンラインユーザー表示 */}
         {isWebSocketConnected && onlineUsers.length > 0 && (
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            padding: '6px 12px',
+            gap: '6px',
+            padding: '4px 8px',
             backgroundColor: '#F0FDF4',
             border: '1px solid #86EFAC',
-            borderRadius: '8px',
+            borderRadius: '6px',
           }}>
             <div style={{
-              width: '8px',
-              height: '8px',
+              width: '6px',
+              height: '6px',
               borderRadius: '50%',
               backgroundColor: '#22C55E',
             }} />
             <span style={{
-              fontSize: '13px',
+              fontSize: '11px',
               color: '#16A34A',
               fontWeight: '500',
             }}>
-              {onlineUsers.length}人オンライン
+              {onlineUsers.length}人
             </span>
-            <div style={{
-              fontSize: '12px',
-              color: '#4B5563',
-              maxWidth: '200px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}>
-              ({onlineUsers.map(u => u.userName).join(', ')})
-            </div>
           </div>
         )}
 
@@ -571,10 +557,10 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         {user && onLogout && (
           <>
             <span style={{
-              fontSize: '13px',
+              fontSize: '11px',
               color: '#6B7280',
               fontWeight: '500',
-              maxWidth: '150px',
+              maxWidth: '120px',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -586,8 +572,8 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
             <button
               onClick={onLogout}
               style={{
-                padding: '6px 12px',
-                fontSize: '13px',
+                padding: '4px 8px',
+                fontSize: '11px',
                 fontWeight: '500',
                 border: '1px solid #D1D5DB',
                 borderRadius: '6px',
@@ -607,7 +593,6 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
             >
               ログアウト
             </button>
-            <div style={{ width: '1px', height: '20px', backgroundColor: '#E5E7EB', margin: '0 2px' }} />
           </>
         )}
 
@@ -619,8 +604,8 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
               setShowExportMenu(!showExportMenu);
             }}
             style={{
-              padding: '7px 14px',
-              fontSize: '13px',
+              padding: '5px 10px',
+              fontSize: '11px',
               fontWeight: '500',
               border: 'none',
               borderRadius: '6px',
@@ -632,7 +617,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2563EB')}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#3B82F6')}
           >
-            エクスポート ▾
+            Export ▾
           </button>
 
           {showExportMenu && (
@@ -737,8 +722,8 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         <button
           onClick={handleImport}
           style={{
-            padding: '7px 14px',
-            fontSize: '13px',
+            padding: '5px 10px',
+            fontSize: '11px',
             fontWeight: '500',
             border: '1px solid #D1D5DB',
             borderRadius: '6px',
@@ -756,13 +741,13 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
             e.currentTarget.style.borderColor = '#D1D5DB';
           }}
         >
-          インポート
+          Import
         </button>
         <button
           onClick={handleReset}
           style={{
-            padding: '7px 14px',
-            fontSize: '13px',
+            padding: '5px 10px',
+            fontSize: '11px',
             fontWeight: '500',
             border: '1px solid #D1D5DB',
             borderRadius: '6px',
@@ -780,7 +765,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
             e.currentTarget.style.borderColor = '#D1D5DB';
           }}
         >
-          リセット
+          Reset
         </button>
       </div>
     </div>
