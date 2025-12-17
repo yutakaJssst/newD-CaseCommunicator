@@ -6,6 +6,41 @@ interface AuthenticatedSocket extends Socket {
   currentProjectId?: string;
 }
 
+interface OnlineUser {
+  userId: string;
+  userName: string;
+  socketId: string;
+  joinedAt: string;
+}
+
+// Track online users per project
+const onlineUsers = new Map<string, Map<string, OnlineUser>>();
+
+// Get online users for a project
+const getOnlineUsers = (projectId: string): OnlineUser[] => {
+  const projectUsers = onlineUsers.get(projectId);
+  return projectUsers ? Array.from(projectUsers.values()) : [];
+};
+
+// Add user to online users
+const addOnlineUser = (projectId: string, user: OnlineUser) => {
+  if (!onlineUsers.has(projectId)) {
+    onlineUsers.set(projectId, new Map());
+  }
+  onlineUsers.get(projectId)!.set(user.userId, user);
+};
+
+// Remove user from online users
+const removeOnlineUser = (projectId: string, userId: string) => {
+  const projectUsers = onlineUsers.get(projectId);
+  if (projectUsers) {
+    projectUsers.delete(userId);
+    if (projectUsers.size === 0) {
+      onlineUsers.delete(projectId);
+    }
+  }
+};
+
 export const setupWebSocket = (io: Server) => {
   io.on('connection', (socket: AuthenticatedSocket) => {
     console.log(`[WebSocket] Client connected: ${socket.id}`);
@@ -21,6 +56,20 @@ export const setupWebSocket = (io: Server) => {
       // Join the project room
       socket.join(projectId);
 
+      // Add to online users
+      addOnlineUser(projectId, {
+        userId,
+        userName,
+        socketId: socket.id,
+        joinedAt: new Date().toISOString(),
+      });
+
+      // Get current online users
+      const currentUsers = getOnlineUsers(projectId);
+
+      // Send current online users to the joining user
+      socket.emit('online_users', currentUsers);
+
       // Notify other users in the room
       socket.to(projectId).emit('user_joined', {
         userId,
@@ -28,13 +77,16 @@ export const setupWebSocket = (io: Server) => {
         timestamp: new Date().toISOString(),
       });
 
-      // Send current online users to the joining user
-      // TODO: Implement online users tracking
+      console.log(`[WebSocket] Project ${projectId} now has ${currentUsers.length} users online`);
     });
 
     // Handle leave_project
     socket.on('leave_project', ({ projectId }) => {
       console.log(`[WebSocket] User ${socket.userName} left project ${projectId}`);
+
+      if (socket.userId) {
+        removeOnlineUser(projectId, socket.userId);
+      }
 
       socket.leave(projectId);
 
@@ -79,7 +131,9 @@ export const setupWebSocket = (io: Server) => {
     socket.on('disconnect', () => {
       console.log(`[WebSocket] Client disconnected: ${socket.id}`);
 
-      if (socket.currentProjectId) {
+      if (socket.currentProjectId && socket.userId) {
+        removeOnlineUser(socket.currentProjectId, socket.userId);
+
         socket.to(socket.currentProjectId).emit('user_left', {
           userId: socket.userId,
           userName: socket.userName,

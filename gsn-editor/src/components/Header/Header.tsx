@@ -33,6 +33,8 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
     applyAutoLayout,
     fitToScreen,
     resetZoom,
+    onlineUsers,
+    isWebSocketConnected,
   } = useDiagramStore();
   const { viewport, gridSnapEnabled } = canvasState;
 
@@ -528,6 +530,43 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
       </div>
 
       <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', alignItems: 'center' }}>
+        {/* オンラインユーザー表示 */}
+        {isWebSocketConnected && onlineUsers.length > 0 && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '6px 12px',
+            backgroundColor: '#F0FDF4',
+            border: '1px solid #86EFAC',
+            borderRadius: '8px',
+          }}>
+            <div style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: '#22C55E',
+            }} />
+            <span style={{
+              fontSize: '13px',
+              color: '#16A34A',
+              fontWeight: '500',
+            }}>
+              {onlineUsers.length}人オンライン
+            </span>
+            <div style={{
+              fontSize: '12px',
+              color: '#4B5563',
+              maxWidth: '200px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+              ({onlineUsers.map(u => u.userName).join(', ')})
+            </div>
+          </div>
+        )}
+
         {/* ユーザー情報 */}
         {user && onLogout && (
           <>

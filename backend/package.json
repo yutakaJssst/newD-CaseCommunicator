@@ -12,11 +12,17 @@
     "prisma:studio": "prisma studio",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["gsn", "editor", "backend", "websocket"],
+  "keywords": [
+    "gsn",
+    "editor",
+    "backend",
+    "websocket"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^6.19.1",
+    "@types/socket.io": "^3.0.1",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",

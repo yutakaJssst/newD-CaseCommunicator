@@ -7,10 +7,11 @@ import { RegisterForm } from './components/Auth/RegisterForm';
 import { ProjectList } from './components/Projects/ProjectList';
 import { useAuthStore } from './stores/authStore';
 import { useDiagramStore } from './stores/diagramStore';
+import { websocketService } from './services/websocket';
 
 function App() {
   const { isAuthenticated, checkAuth, logout, user, isLoading } = useAuthStore();
-  const { setCurrentProject } = useDiagramStore();
+  const { setCurrentProject, initializeWebSocket, disconnectWebSocket } = useDiagramStore();
   const [showRegister, setShowRegister] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
@@ -25,6 +26,42 @@ function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Initialize WebSocket when user is authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const userName = user.firstName || user.lastName
+        ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
+        : user.email;
+
+      initializeWebSocket(user.id, userName);
+      console.log('[App] WebSocket initialized for user:', userName);
+
+      return () => {
+        disconnectWebSocket();
+        console.log('[App] WebSocket disconnected');
+      };
+    }
+  }, [isAuthenticated, user, initializeWebSocket, disconnectWebSocket]);
+
+  // Join/leave project room when selectedProjectId changes
+  useEffect(() => {
+    if (isAuthenticated && user && selectedProjectId) {
+      const userName = user.firstName || user.lastName
+        ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
+        : user.email;
+
+      websocketService.joinProject(selectedProjectId, user.id, userName);
+      console.log('[App] Joined project room:', selectedProjectId);
+
+      return () => {
+        if (selectedProjectId) {
+          websocketService.leaveProject(selectedProjectId);
+          console.log('[App] Left project room:', selectedProjectId);
+        }
+      };
+    }
+  }, [isAuthenticated, user, selectedProjectId]);
 
   // Save selected project to localStorage and update diagram store
   useEffect(() => {

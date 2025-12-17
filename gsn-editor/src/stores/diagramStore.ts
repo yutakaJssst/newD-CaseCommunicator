@@ -15,6 +15,14 @@ import {
 } from '../types/diagram';
 import { autoLayout } from '../utils/autoLayout';
 import { diagramsApi } from '../api/diagrams';
+import { websocketService } from '../services/websocket';
+
+interface OnlineUser {
+  userId: string;
+  userName: string;
+  socketId: string;
+  joinedAt: string;
+}
 
 interface DiagramStore {
   // State
@@ -22,6 +30,8 @@ interface DiagramStore {
   currentDiagramDbId: string | null; // DBに保存されているダイアグラムのID
   isSyncing: boolean; // DB同期中フラグ
   lastSyncedAt: string | null; // 最後の同期日時
+  isWebSocketConnected: boolean; // WebSocket接続状態
+  onlineUsers: OnlineUser[]; // プロジェクトに接続中のユーザー
   title: string;
   nodes: Node[];
   links: Link[];
@@ -35,6 +45,8 @@ interface DiagramStore {
 
   // Actions
   setCurrentProject: (projectId: string | null) => void;
+  initializeWebSocket: (userId: string, userName: string) => void;
+  disconnectWebSocket: () => void;
   loadDiagramFromDB: (projectId: string, diagramId?: string) => Promise<void>;
   saveDiagramToDB: () => Promise<void>;
   createDiagramInDB: (title: string) => Promise<void>;
@@ -203,6 +215,8 @@ export const useDiagramStore = create<DiagramStore>()(
       currentDiagramDbId: null,
       isSyncing: false,
       lastSyncedAt: null,
+      isWebSocketConnected: false,
+      onlineUsers: [],
       title: '新しいGSN図',
       nodes: [],
       links: [],
@@ -222,6 +236,83 @@ export const useDiagramStore = create<DiagramStore>()(
         Module: 0,
       },
       clipboard: [],
+
+      // WebSocket Actions
+      initializeWebSocket: (userId: string, userName: string) => {
+        // Connect to WebSocket
+        websocketService.connect();
+
+        // Set up callbacks
+        websocketService.setCallbacks({
+          onNodeCreated: (node) => {
+            const state = get();
+            // 自分が作成したノードでない場合のみ追加
+            if (!state.nodes.find(n => n.id === node.id)) {
+              set({ nodes: [...state.nodes, node] });
+            }
+          },
+          onNodeUpdated: (node) => {
+            const state = get();
+            set({
+              nodes: state.nodes.map(n => n.id === node.id ? node : n),
+            });
+          },
+          onNodeDeleted: (nodeId) => {
+            const state = get();
+            set({
+              nodes: state.nodes.filter(n => n.id !== nodeId),
+              links: state.links.filter(l => l.source !== nodeId && l.target !== nodeId),
+            });
+          },
+          onNodeMoved: (nodeId, position) => {
+            const state = get();
+            set({
+              nodes: state.nodes.map(n =>
+                n.id === nodeId ? { ...n, position } : n
+              ),
+            });
+          },
+          onLinkCreated: (link) => {
+            const state = get();
+            if (!state.links.find(l => l.id === link.id)) {
+              set({ links: [...state.links, link] });
+            }
+          },
+          onLinkDeleted: (linkId) => {
+            const state = get();
+            set({
+              links: state.links.filter(l => l.id !== linkId),
+            });
+          },
+          onUserJoined: (user) => {
+            console.log('User joined:', user);
+            // オンラインユーザーリストは online_users イベントで更新される
+          },
+          onUserLeft: (user) => {
+            const state = get();
+            console.log('User left:', user);
+            set({
+              onlineUsers: state.onlineUsers.filter(u => u.userId !== user.userId),
+            });
+          },
+          onOnlineUsers: (users) => {
+            set({ onlineUsers: users });
+          },
+        });
+
+        set({ isWebSocketConnected: true });
+
+        // プロジェクトに参加している場合は自動join
+        const projectId = get().currentProjectId;
+        if (projectId) {
+          websocketService.joinProject(projectId, userId, userName);
+        }
+      },
+
+      disconnectWebSocket: () => {
+        websocketService.disconnect();
+        set({ isWebSocketConnected: false, onlineUsers: [] });
+      },
 
       // Actions
       loadDiagramFromDB: async (projectId: string, diagramId?: string) => {
@@ -715,17 +806,32 @@ export const useDiagramStore = create<DiagramStore>()(
             },
           }));
         }
+
+        // WebSocketでブロードキャスト
+        const projectId = get().currentProjectId;
+        if (projectId && websocketService.isConnected()) {
+          websocketService.emitNodeCreated(projectId, newNode);
+        }
+
         // DB保存をデバウンス
         debouncedSaveToDB(() => get().saveDiagramToDB());
       },
 
       updateNode: (id, updates) => {
         saveToHistory(get, set);
+        const updatedNode = get().nodes.find(n => n.id === id);
         set((state) => ({
           nodes: state.nodes.map((node) =>
             node.id === id ? { ...node, ...updates } : node
           ),
         }));
+
+        // WebSocketでブロードキャスト
+        const projectId = get().currentProjectId;
+        if (projectId && websocketService.isConnected() && updatedNode) {
+          websocketService.emitNodeUpdated(projectId, { ...updatedNode, ...updates });
+        }
+
         // DB保存をデバウンス
         debouncedSaveToDB(() => get().saveDiagramToDB());
       },
@@ -740,6 +846,13 @@ export const useDiagramStore = create<DiagramStore>()(
             selectedNodes: state.canvasState.selectedNodes.filter((nodeId) => nodeId !== id),
           },
         }));
+
+        // WebSocketでブロードキャスト
+        const projectId = get().currentProjectId;
+        if (projectId && websocketService.isConnected()) {
+          websocketService.emitNodeDeleted(projectId, id);
+        }
+
         // DB保存をデバウンス
         debouncedSaveToDB(() => get().saveDiagramToDB());
       },
@@ -751,6 +864,12 @@ export const useDiagramStore = create<DiagramStore>()(
             node.id === id ? { ...node, position: { x, y } } : node
           ),
         }));
+
+        // WebSocketでブロードキャスト
+        const projectId = get().currentProjectId;
+        if (projectId && websocketService.isConnected()) {
+          websocketService.emitNodeMoved(projectId, id, { x, y });
+        }
       },
 
       addLink: (sourceId, targetId, type) => {
@@ -779,6 +898,13 @@ export const useDiagramStore = create<DiagramStore>()(
         set((state) => ({
           links: [...state.links, newLink],
         }));
+
+        // WebSocketでブロードキャスト
+        const projectId = get().currentProjectId;
+        if (projectId && websocketService.isConnected()) {
+          websocketService.emitLinkCreated(projectId, newLink);
+        }
+
         // DB保存をデバウンス
         debouncedSaveToDB(() => get().saveDiagramToDB());
       },
@@ -788,6 +914,13 @@ export const useDiagramStore = create<DiagramStore>()(
         set((state) => ({
           links: state.links.filter((link) => link.id !== id),
         }));
+
+        // WebSocketでブロードキャスト
+        const projectId = get().currentProjectId;
+        if (projectId && websocketService.isConnected()) {
+          websocketService.emitLinkDeleted(projectId, id);
+        }
+
         // DB保存をデバウンス
         debouncedSaveToDB(() => get().saveDiagramToDB());
       },
@@ -891,6 +1024,18 @@ export const useDiagramStore = create<DiagramStore>()(
               : node
           ),
         });
+
+        // WebSocketでブロードキャスト（各ノードの移動を通知）
+        const projectId = get().currentProjectId;
+        if (projectId && websocketService.isConnected()) {
+          state.canvasState.selectedNodes.forEach(nodeId => {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (node) {
+              const newPosition = { x: node.position.x + dx, y: node.position.y + dy };
+              websocketService.emitNodeMoved(projectId, nodeId, newPosition);
+            }
+          });
+        }
       },
 
       copySelectedNodes: () => {
