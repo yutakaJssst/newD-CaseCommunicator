@@ -1485,6 +1485,7 @@ export const useDiagramStore = create<DiagramStore>()(
         // WebSocketでブロードキャスト
         const projectId = state.currentProjectId;
         const currentDiagramId = state.currentDiagramId;
+        console.log('[convertToModule] Broadcasting:', { projectId, isConnected: websocketService.isConnected(), currentDiagramId });
         if (projectId && websocketService.isConnected()) {
           // 1. サブツリーのノードを削除
           subtreeNodes.forEach(node => {
@@ -1510,12 +1511,7 @@ export const useDiagramStore = create<DiagramStore>()(
           });
 
           // 6. モジュールデータを作成（カスタムイベント）
-          websocketService.socket?.emit('module_created', {
-            projectId,
-            moduleId,
-            moduleData,
-            parentDiagramId: currentDiagramId,
-          });
+          websocketService.emitModuleCreated(projectId, moduleId, moduleData, currentDiagramId);
         }
 
         // DB保存をデバウンス

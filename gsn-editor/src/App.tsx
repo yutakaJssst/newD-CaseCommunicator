@@ -42,7 +42,8 @@ function App() {
         console.log('[App] WebSocket disconnected');
       };
     }
-  }, [isAuthenticated, user, initializeWebSocket, disconnectWebSocket]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user]); // Zustand actions are stable, no need in deps
 
   // Join/leave project room when selectedProjectId changes
   useEffect(() => {
@@ -72,7 +73,8 @@ function App() {
       localStorage.removeItem('selectedProjectId');
       setCurrentProject(null);
     }
-  }, [selectedProjectId, setCurrentProject]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId]); // setCurrentProject は Zustand の安定したアクションなので依存配列に含めない
 
   console.log('App render:', { isAuthenticated, isLoading, user, selectedProjectId });
 

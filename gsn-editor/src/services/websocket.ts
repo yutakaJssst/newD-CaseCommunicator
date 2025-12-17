@@ -175,6 +175,12 @@ class WebSocketService {
     this.socket?.emit('link_deleted', { projectId, linkId, diagramId });
   }
 
+  // Emit module operations
+  emitModuleCreated(projectId: string, moduleId: string, moduleData: any, parentDiagramId: string) {
+    console.log('[WebSocket Client] Emitting module_created:', { projectId, moduleId, parentDiagramId });
+    this.socket?.emit('module_created', { projectId, moduleId, moduleData, parentDiagramId });
+  }
+
   // Register callbacks
   setCallbacks(callbacks: WebSocketCallbacks) {
     this.callbacks = callbacks;
