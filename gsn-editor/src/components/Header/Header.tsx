@@ -35,6 +35,8 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
     resetZoom,
     onlineUsers,
     isWebSocketConnected,
+    isReconnecting,
+    reconnectAttempts,
   } = useDiagramStore();
   const { viewport, gridSnapEnabled } = canvasState;
 
@@ -526,6 +528,36 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
       </div>
 
       <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto', alignItems: 'center', flexShrink: 0 }}>
+        {/* 接続ステータス */}
+        {!isWebSocketConnected && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 8px',
+            backgroundColor: isReconnecting ? '#FEF3C7' : '#FEE2E2',
+            border: `1px solid ${isReconnecting ? '#FCD34D' : '#FCA5A5'}`,
+            borderRadius: '6px',
+            fontSize: '11px',
+            color: isReconnecting ? '#92400E' : '#991B1B',
+            fontWeight: 500,
+          }}>
+            <div
+              style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                backgroundColor: isReconnecting ? '#F59E0B' : '#DC2626',
+              }}
+            />
+            {isReconnecting ? (
+              <span>再接続中... (試行 {reconnectAttempts})</span>
+            ) : (
+              <span>接続が切断されました</span>
+            )}
+          </div>
+        )}
+
         {/* オンラインユーザー表示 */}
         {isWebSocketConnected && onlineUsers.length > 0 && (
           <div style={{

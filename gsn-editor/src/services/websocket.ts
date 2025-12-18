@@ -19,11 +19,15 @@ interface WebSocketCallbacks {
   onUserJoined?: (user: { userId: string; userName: string; timestamp: string }) => void;
   onUserLeft?: (user: { userId: string; userName: string; timestamp: string }) => void;
   onOnlineUsers?: (users: OnlineUser[]) => void;
+  onConnectionStatusChange?: (status: { connected: boolean; reconnecting: boolean; attempts: number }) => void;
 }
 
 class WebSocketService {
   private socket: Socket | null = null;
   private currentProjectId: string | null = null;
+  private lastJoinPayload: { projectId: string; userId: string; userName: string } | null = null;
+  private reconnectAttempts = 0;
+  private readonly maxReconnectAttempts = 5;
   private callbacks: WebSocketCallbacks = {};
 
   connect() {
@@ -36,19 +40,74 @@ class WebSocketService {
       autoConnect: true,
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: this.maxReconnectAttempts,
     });
 
     this.socket.on('connect', () => {
       console.log('[WebSocket] Connected:', this.socket?.id);
+      this.reconnectAttempts = 0;
+      this.callbacks.onConnectionStatusChange?.({
+        connected: true,
+        reconnecting: false,
+        attempts: 0,
+      });
+      if (this.lastJoinPayload) {
+        console.log('[WebSocket] Rejoining project after reconnect');
+        this.joinProject(
+          this.lastJoinPayload.projectId,
+          this.lastJoinPayload.userId,
+          this.lastJoinPayload.userName,
+        );
+      }
     });
 
     this.socket.on('disconnect', (reason) => {
       console.log('[WebSocket] Disconnected:', reason);
+      this.callbacks.onConnectionStatusChange?.({
+        connected: false,
+        reconnecting: true,
+        attempts: this.reconnectAttempts,
+      });
+      if (reason === 'io client disconnect') {
+        this.lastJoinPayload = null;
+      }
     });
 
     this.socket.on('connect_error', (error) => {
       console.error('[WebSocket] Connection error:', error);
+      this.reconnectAttempts += 1;
+      this.callbacks.onConnectionStatusChange?.({
+        connected: false,
+        reconnecting: true,
+        attempts: this.reconnectAttempts,
+      });
+      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        console.warn('[WebSocket] Reconnect attempts exhausted');
+        this.callbacks.onConnectionStatusChange?.({
+          connected: false,
+          reconnecting: false,
+          attempts: this.reconnectAttempts,
+        });
+      }
+    });
+@@
+    this.socket.on('reconnect_attempt', (attempt) => {
+      this.reconnectAttempts = attempt;
+      console.log('[WebSocket] Reconnect attempt:', attempt);
+      this.callbacks.onConnectionStatusChange?.({
+        connected: false,
+        reconnecting: true,
+        attempts: attempt,
+      });
+    });
+
+    this.socket.on('reconnect_failed', () => {
+      console.warn('[WebSocket] Reconnect failed');
+      this.callbacks.onConnectionStatusChange?.({
+        connected: false,
+        reconnecting: false,
+        attempts: this.reconnectAttempts,
+      });
     });
 
     // Listen to events
@@ -128,6 +187,7 @@ class WebSocketService {
     }
 
     this.currentProjectId = projectId;
+    this.lastJoinPayload = { projectId, userId, userName };
 
     this.socket.emit('join_project', {
       projectId,
@@ -145,6 +205,9 @@ class WebSocketService {
 
     this.socket.emit('leave_project', { projectId });
     this.currentProjectId = null;
+    if (this.lastJoinPayload?.projectId === projectId) {
+      this.lastJoinPayload = null;
+    }
 
     console.log('[WebSocket] Left project:', projectId);
   }

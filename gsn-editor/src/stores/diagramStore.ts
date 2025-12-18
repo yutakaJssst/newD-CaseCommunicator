@@ -42,6 +42,8 @@ interface DiagramStore {
   modules: Record<string, DiagramData>;
   labelCounters: Record<NodeType, number>;
   clipboard: Node[]; // コピーしたノードを保存
+  isReconnecting: boolean;
+  reconnectAttempts: number;
 
   // Actions
   setCurrentProject: (projectId: string | null) => void;
@@ -380,6 +382,8 @@ export const useDiagramStore = create<DiagramStore>()(
       lastSyncedAt: null,
       isWebSocketConnected: false,
       onlineUsers: [],
+      isReconnecting: false,
+      reconnectAttempts: 0,
       title: '新しいGSN図',
       nodes: [],
       links: [],
@@ -565,6 +569,16 @@ export const useDiagramStore = create<DiagramStore>()(
           },
           onOnlineUsers: (users) => {
             set({ onlineUsers: users });
+          },
+          onConnectionStatusChange: ({ connected, reconnecting, attempts }) => {
+            set({
+              isWebSocketConnected: connected,
+              isReconnecting: reconnecting,
+              reconnectAttempts: attempts,
+            });
+            if (!connected && !reconnecting && attempts >= 5) {
+              console.warn('[DiagramStore] WebSocket reconnect exhausted, consider manual refresh');
+            }
           },
         });
 
