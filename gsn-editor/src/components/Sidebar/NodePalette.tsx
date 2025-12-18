@@ -39,15 +39,15 @@ const NodeIcon: React.FC<{ type: NodeType }> = ({ type }) => {
     case 'Assumption':
       return (
         <svg width={size} height={size} viewBox="0 0 32 32">
-          <ellipse cx="16" cy="16" rx="12" ry="8" fill={fillColor} stroke={strokeColor} strokeWidth="1.5" />
-          <text x="24" y="24" fontSize="10" fontWeight="bold" fill={strokeColor}>A</text>
+          <ellipse cx="14" cy="14" rx="11" ry="7" fill={fillColor} stroke={strokeColor} strokeWidth="1.5" />
+          <text x="22" y="28" fontSize="12" fontWeight="bold" fill="#DC2626">A</text>
         </svg>
       );
     case 'Justification':
       return (
         <svg width={size} height={size} viewBox="0 0 32 32">
-          <ellipse cx="16" cy="16" rx="12" ry="8" fill={fillColor} stroke={strokeColor} strokeWidth="1.5" />
-          <text x="24" y="24" fontSize="10" fontWeight="bold" fill={strokeColor}>J</text>
+          <ellipse cx="14" cy="14" rx="11" ry="7" fill={fillColor} stroke={strokeColor} strokeWidth="1.5" />
+          <text x="23" y="28" fontSize="12" fontWeight="bold" fill="#2563EB">J</text>
         </svg>
       );
     case 'Undeveloped':
@@ -95,7 +95,7 @@ export const NodePalette: React.FC = () => {
         textTransform: 'uppercase',
         letterSpacing: '0.05em',
       }}>
-        要素
+        ノード
       </h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {nodeTypes.map((type) => (

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useDiagramStore } from '../../stores/diagramStore';
 import type { User } from '../../services/api';
+import { validateDiagram, type ValidationResult } from '../../utils/validation';
+import { ValidationModal } from '../Canvas/ValidationModal';
 
 interface HeaderProps {
   user?: User | null;
@@ -11,6 +13,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects }) => {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showModuleList, setShowModuleList] = useState(false);
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
 
   const {
     title,
@@ -38,6 +41,8 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
     isWebSocketConnected,
     isReconnecting,
     reconnectAttempts,
+    nodes,
+    links,
   } = useDiagramStore();
   const { viewport, gridSnapEnabled } = canvasState;
 
@@ -212,6 +217,11 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
     if (confirm('すべてのデータをリセットしますか？')) {
       reset();
     }
+  };
+
+  const handleValidate = () => {
+    const result = validateDiagram(nodes, links);
+    setValidationResult(result);
   };
 
   return (
@@ -534,6 +544,36 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
           }}
         >
           ⚡
+        </button>
+
+        {/* 検証ボタン */}
+        <button
+          onClick={handleValidate}
+          title="GSN検証"
+          style={{
+            width: '30px',
+            height: '30px',
+            fontSize: '14px',
+            border: '1px solid #D1D5DB',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            backgroundColor: '#FFFFFF',
+            color: '#374151',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#F3F4F6';
+            e.currentTarget.style.borderColor = '#9CA3AF';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#D1D5DB';
+          }}
+        >
+          ✓
         </button>
 
         {/* フィット・リセットボタン */}
@@ -913,6 +953,14 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
           Reset
         </button>
       </div>
+
+      {/* 検証結果モーダル */}
+      {validationResult && (
+        <ValidationModal
+          result={validationResult}
+          onClose={() => setValidationResult(null)}
+        />
+      )}
     </div>
   );
 };
