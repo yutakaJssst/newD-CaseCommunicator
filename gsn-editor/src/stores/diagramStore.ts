@@ -96,6 +96,168 @@ interface DiagramStore {
   reset: () => void;
 }
 
+type ProjectStateSlice = Pick<
+  DiagramStore,
+  'title' | 'nodes' | 'links' | 'currentDiagramId' | 'modules' | 'labelCounters'
+>;
+
+const getDefaultLabelCounters = (): Record<NodeType, number> => ({
+  Goal: 0,
+  Strategy: 0,
+  Context: 0,
+  Evidence: 0,
+  Assumption: 0,
+  Justification: 0,
+  Undeveloped: 0,
+  Module: 0,
+});
+
+const createEmptyDiagramData = (title = '新しいGSN図', id = 'root'): DiagramData => {
+  const now = new Date().toISOString();
+  return {
+    version: '1.0.0',
+    title,
+    nodes: [],
+    links: [],
+    metadata: {
+      createdAt: now,
+      updatedAt: now,
+      id,
+      isModule: id !== 'root',
+    },
+  };
+};
+
+const ensureRootModuleExists = (
+  modules: Record<string, DiagramData>,
+  fallbackRoot: DiagramData,
+): Record<string, DiagramData> => {
+  if (modules.root) {
+    return modules;
+  }
+
+  return {
+    ...modules,
+    root: {
+      ...fallbackRoot,
+      metadata: {
+        ...fallbackRoot.metadata,
+        id: 'root',
+        isModule: false,
+      },
+    },
+  };
+};
+
+const buildDiagramSnapshot = (state: ProjectStateSlice): DiagramData => {
+  const existingMetadata = state.modules[state.currentDiagramId]?.metadata;
+  return {
+    version: '1.0.0',
+    title: state.title,
+    nodes: state.nodes,
+    links: state.links,
+    metadata: {
+      createdAt: existingMetadata?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      id: state.currentDiagramId,
+      isModule: state.currentDiagramId !== 'root',
+      parentModuleId: existingMetadata?.parentModuleId,
+    },
+  };
+};
+
+const buildProjectDataFromState = (state: ProjectStateSlice): ProjectData => {
+  const currentSnapshot = buildDiagramSnapshot(state);
+  const mergedModules = {
+    ...state.modules,
+    [state.currentDiagramId]: currentSnapshot,
+  };
+
+  const fallbackRoot =
+    mergedModules.root ||
+    (state.currentDiagramId === 'root' ? currentSnapshot : createEmptyDiagramData());
+
+  const normalizedModules = ensureRootModuleExists(mergedModules, fallbackRoot);
+
+  return {
+    version: '1.0.0',
+    currentDiagramId: state.currentDiagramId,
+    modules: normalizedModules,
+    labelCounters: state.labelCounters ?? getDefaultLabelCounters(),
+    exportedAt: new Date().toISOString(),
+  };
+};
+
+const isProjectData = (data: unknown): data is ProjectData => {
+  return Boolean(data && typeof data === 'object' && 'modules' in (data as Record<string, unknown>));
+};
+
+const normalizeProjectData = (rawData: unknown, fallbackTitle: string): ProjectData => {
+  const now = new Date().toISOString();
+
+  if (isProjectData(rawData)) {
+    const modules = rawData.modules || {};
+    const normalizedModules = ensureRootModuleExists(
+      modules,
+      modules.root || createEmptyDiagramData(fallbackTitle),
+    );
+
+    const targetId =
+      rawData.currentDiagramId && normalizedModules[rawData.currentDiagramId]
+        ? rawData.currentDiagramId
+        : 'root';
+
+    return {
+      version: rawData.version || '1.0.0',
+      currentDiagramId: targetId,
+      modules: normalizedModules,
+      labelCounters: rawData.labelCounters || getDefaultLabelCounters(),
+      exportedAt: rawData.exportedAt || now,
+    };
+  }
+
+  const diagramData = rawData as Partial<DiagramData> | undefined;
+  const rootDiagram: DiagramData = diagramData
+    ? {
+        version: diagramData.version || '1.0.0',
+        title: diagramData.title || fallbackTitle,
+        nodes: diagramData.nodes || [],
+        links: diagramData.links || [],
+        metadata: {
+          createdAt: diagramData.metadata?.createdAt || now,
+          updatedAt: diagramData.metadata?.updatedAt || now,
+          id: 'root',
+          isModule: false,
+        },
+      }
+    : createEmptyDiagramData(fallbackTitle);
+
+  return {
+    version: '1.0.0',
+    currentDiagramId: 'root',
+    modules: { root: rootDiagram },
+    labelCounters: getDefaultLabelCounters(),
+    exportedAt: now,
+  };
+};
+
+const buildProjectDataFromLegacyState = (stateData: any, fallbackTitle: string): ProjectData => {
+  if (!stateData || typeof stateData !== 'object') {
+    return normalizeProjectData(null, fallbackTitle);
+  }
+
+  const slice: ProjectStateSlice = {
+    title: stateData.title || fallbackTitle,
+    nodes: stateData.nodes || [],
+    links: stateData.links || [],
+    currentDiagramId: stateData.currentDiagramId || 'root',
+    modules: stateData.modules || {},
+    labelCounters: stateData.labelCounters || getDefaultLabelCounters(),
+  };
+
+  return buildProjectDataFromState(slice);
+};
+
 const generateId = () => `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 const generateLinkId = () => `link_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 const generateModuleId = () => `module_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -189,7 +351,8 @@ const saveToHistory = (get: () => DiagramStore, set: (state: Partial<DiagramStor
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       id: state.currentDiagramId,
-      isModule: false,
+      isModule: state.currentDiagramId !== 'root',
+      parentModuleId: state.modules[state.currentDiagramId]?.metadata?.parentModuleId,
     },
   };
 
@@ -224,17 +387,8 @@ export const useDiagramStore = create<DiagramStore>()(
       history: [],
       historyIndex: -1,
       currentDiagramId: 'root',
-      modules: {},
-      labelCounters: {
-        Goal: 0,
-        Strategy: 0,
-        Context: 0,
-        Evidence: 0,
-        Assumption: 0,
-        Justification: 0,
-        Undeveloped: 0,
-        Module: 0,
-      },
+      modules: { root: createEmptyDiagramData() },
+      labelCounters: getDefaultLabelCounters(),
       clipboard: [],
 
       // WebSocket Actions
@@ -433,90 +587,55 @@ export const useDiagramStore = create<DiagramStore>()(
         try {
           set({ isSyncing: true });
 
-          if (diagramId) {
-            // 特定のダイアグラムを読み込む
-            const diagram = await diagramsApi.getDiagram(projectId, diagramId);
-            const data = diagram.data as DiagramData;
+          const loadAndApplyProjectData = async (targetDiagramId: string) => {
+            const diagram = await diagramsApi.getDiagram(projectId, targetDiagramId);
+            const projectData = normalizeProjectData(diagram.data, diagram.title);
+            const activeDiagram =
+              projectData.modules[projectData.currentDiagramId] ||
+              projectData.modules.root ||
+              createEmptyDiagramData(diagram.title);
 
             set({
               currentDiagramDbId: diagram.id,
-              title: diagram.title,
-              nodes: data.nodes || [],
-              links: data.links || [],
-              currentDiagramId: 'root',
-              modules: {},
-              labelCounters: {
-                Goal: 0,
-                Strategy: 0,
-                Context: 0,
-                Evidence: 0,
-                Assumption: 0,
-                Justification: 0,
-                Undeveloped: 0,
-                Module: 0,
-              },
+              title: activeDiagram.title,
+              nodes: activeDiagram.nodes || [],
+              links: activeDiagram.links || [],
+              currentDiagramId: projectData.currentDiagramId,
+              modules: projectData.modules,
+              labelCounters: projectData.labelCounters || getDefaultLabelCounters(),
               history: [],
               historyIndex: -1,
               lastSyncedAt: new Date().toISOString(),
               isSyncing: false,
             });
-          } else {
-            // プロジェクトの最初のダイアグラムを読み込む（存在する場合）
-            const diagrams = await diagramsApi.getDiagrams(projectId);
+          };
 
-            if (diagrams.length > 0) {
-              // 最新のダイアグラムを取得
-              const diagram = await diagramsApi.getDiagram(projectId, diagrams[0].id);
-              const data = diagram.data as DiagramData;
-
-              set({
-                currentDiagramDbId: diagram.id,
-                title: diagram.title,
-                nodes: data.nodes || [],
-                links: data.links || [],
-                currentDiagramId: 'root',
-                modules: {},
-                labelCounters: {
-                  Goal: 0,
-                  Strategy: 0,
-                  Context: 0,
-                  Evidence: 0,
-                  Assumption: 0,
-                  Justification: 0,
-                  Undeveloped: 0,
-                  Module: 0,
-                },
-                history: [],
-                historyIndex: -1,
-                lastSyncedAt: new Date().toISOString(),
-                isSyncing: false,
-              });
-            } else {
-              // ダイアグラムがない場合は空の状態
-              set({
-                currentDiagramDbId: null,
-                title: '新しいGSN図',
-                nodes: [],
-                links: [],
-                currentDiagramId: 'root',
-                modules: {},
-                labelCounters: {
-                  Goal: 0,
-                  Strategy: 0,
-                  Context: 0,
-                  Evidence: 0,
-                  Assumption: 0,
-                  Justification: 0,
-                  Undeveloped: 0,
-                  Module: 0,
-                },
-                history: [],
-                historyIndex: -1,
-                lastSyncedAt: null,
-                isSyncing: false,
-              });
-            }
+          if (diagramId) {
+            await loadAndApplyProjectData(diagramId);
+            return;
           }
+
+          const diagrams = await diagramsApi.getDiagrams(projectId);
+          if (diagrams.length > 0) {
+            await loadAndApplyProjectData(diagrams[0].id);
+            return;
+          }
+
+          const emptyProjectData = normalizeProjectData(null, '新しいGSN図');
+          const rootDiagram = emptyProjectData.modules[emptyProjectData.currentDiagramId];
+          set({
+            currentDiagramDbId: null,
+            title: rootDiagram?.title || '新しいGSN図',
+            nodes: rootDiagram?.nodes || [],
+            links: rootDiagram?.links || [],
+            currentDiagramId: emptyProjectData.currentDiagramId,
+            modules: emptyProjectData.modules,
+            labelCounters: emptyProjectData.labelCounters,
+            history: [],
+            historyIndex: -1,
+            lastSyncedAt: null,
+            isSyncing: false,
+          });
         } catch (error) {
           console.error('Failed to load diagram from DB:', error);
           set({ isSyncing: false });
@@ -529,23 +648,21 @@ export const useDiagramStore = create<DiagramStore>()(
             if (stored) {
               try {
                 const data = JSON.parse(stored);
-                const stateData = data.state;
+                const stateData = data.state || {};
+                const fallbackTitle = stateData.title || '新しいGSN図';
+                const normalized = buildProjectDataFromLegacyState(stateData, fallbackTitle);
+                const activeDiagram =
+                  normalized.modules[normalized.currentDiagramId] ||
+                  normalized.modules.root ||
+                  createEmptyDiagramData(fallbackTitle);
+
                 set({
-                  title: stateData.title || '新しいGSN図',
-                  nodes: stateData.nodes || [],
-                  links: stateData.links || [],
-                  currentDiagramId: stateData.currentDiagramId || 'root',
-                  modules: stateData.modules || {},
-                  labelCounters: stateData.labelCounters || {
-                    Goal: 0,
-                    Strategy: 0,
-                    Context: 0,
-                    Evidence: 0,
-                    Assumption: 0,
-                    Justification: 0,
-                    Undeveloped: 0,
-                    Module: 0,
-                  },
+                  title: activeDiagram.title,
+                  nodes: activeDiagram.nodes,
+                  links: activeDiagram.links,
+                  currentDiagramId: normalized.currentDiagramId,
+                  modules: normalized.modules,
+                  labelCounters: normalized.labelCounters,
                 });
               } catch (e) {
                 console.error('Failed to load from LocalStorage:', e);
@@ -565,19 +682,11 @@ export const useDiagramStore = create<DiagramStore>()(
         try {
           set({ isSyncing: true });
 
-          // 現在のダイアグラムデータを準備
-          const diagramData: DiagramData = {
-            version: '1.0.0',
-            title: state.title,
-            nodes: state.nodes,
-            links: state.links,
-            metadata: {
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              id: state.currentDiagramId,
-              isModule: false,
-            },
-          };
+          const projectData = buildProjectDataFromState(state);
+          const rootTitle =
+            projectData.modules.root?.title ||
+            projectData.modules[projectData.currentDiagramId]?.title ||
+            state.title;
 
           if (state.currentDiagramDbId) {
             // 既存のダイアグラムを更新
@@ -585,8 +694,8 @@ export const useDiagramStore = create<DiagramStore>()(
               state.currentProjectId,
               state.currentDiagramDbId,
               {
-                title: state.title,
-                data: diagramData,
+                title: rootTitle,
+                data: projectData,
               }
             );
           } else {
@@ -594,8 +703,8 @@ export const useDiagramStore = create<DiagramStore>()(
             const created = await diagramsApi.createDiagram(
               state.currentProjectId,
               {
-                title: state.title,
-                data: diagramData,
+                title: rootTitle,
+                data: projectData,
               }
             );
             set({ currentDiagramDbId: created.id });
@@ -622,44 +731,33 @@ export const useDiagramStore = create<DiagramStore>()(
         try {
           set({ isSyncing: true });
 
-          const diagramData: DiagramData = {
+          const rootDiagram = createEmptyDiagramData(title, 'root');
+          const projectData: ProjectData = {
             version: '1.0.0',
-            title,
-            nodes: [],
-            links: [],
-            metadata: {
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              id: 'root',
-              isModule: false,
+            currentDiagramId: 'root',
+            modules: {
+              root: rootDiagram,
             },
+            labelCounters: getDefaultLabelCounters(),
+            exportedAt: new Date().toISOString(),
           };
 
           const created = await diagramsApi.createDiagram(
             state.currentProjectId,
             {
               title,
-              data: diagramData,
+              data: projectData,
             }
           );
 
           set({
             currentDiagramDbId: created.id,
             title: created.title,
-            nodes: [],
-            links: [],
+            nodes: rootDiagram.nodes,
+            links: rootDiagram.links,
             currentDiagramId: 'root',
-            modules: {},
-            labelCounters: {
-              Goal: 0,
-              Strategy: 0,
-              Context: 0,
-              Evidence: 0,
-              Assumption: 0,
-              Justification: 0,
-              Undeveloped: 0,
-              Module: 0,
-            },
+            modules: projectData.modules,
+            labelCounters: projectData.labelCounters,
             history: [],
             historyIndex: -1,
             lastSyncedAt: new Date().toISOString(),
@@ -687,31 +785,27 @@ export const useDiagramStore = create<DiagramStore>()(
 
           const data = JSON.parse(stored);
           const stateData = data.state;
+          const fallbackTitle = stateData?.title || '移行されたGSN図';
+          const projectData = buildProjectDataFromLegacyState(stateData, fallbackTitle);
+          const hasContent = Object.values(projectData.modules).some(
+            (diagram) => (diagram.nodes?.length || 0) > 0 || (diagram.links?.length || 0) > 0,
+          );
 
-          if (!stateData.nodes || stateData.nodes.length === 0) {
+          if (!hasContent) {
             console.log('LocalStorage data is empty, skipping migration');
             set({ isSyncing: false });
             return false;
           }
 
-          // ダイアグラムデータを準備
-          const diagramData: DiagramData = {
-            version: '1.0.0',
-            title: stateData.title || '移行されたGSN図',
-            nodes: stateData.nodes,
-            links: stateData.links,
-            metadata: {
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              id: stateData.currentDiagramId || 'root',
-              isModule: false,
-            },
-          };
+          const activeDiagram =
+            projectData.modules[projectData.currentDiagramId] ||
+            projectData.modules.root ||
+            createEmptyDiagramData(fallbackTitle);
 
           // DBに保存
           const created = await diagramsApi.createDiagram(projectId, {
-            title: diagramData.title,
-            data: diagramData,
+            title: projectData.modules.root?.title || fallbackTitle,
+            data: projectData,
           });
 
           console.log('Successfully migrated LocalStorage data to DB:', created.id);
@@ -719,21 +813,12 @@ export const useDiagramStore = create<DiagramStore>()(
           // 現在の状態を更新
           set({
             currentDiagramDbId: created.id,
-            title: diagramData.title,
-            nodes: diagramData.nodes,
-            links: diagramData.links,
-            currentDiagramId: stateData.currentDiagramId || 'root',
-            modules: stateData.modules || {},
-            labelCounters: stateData.labelCounters || {
-              Goal: 0,
-              Strategy: 0,
-              Context: 0,
-              Evidence: 0,
-              Assumption: 0,
-              Justification: 0,
-              Undeveloped: 0,
-              Module: 0,
-            },
+            title: activeDiagram.title,
+            nodes: activeDiagram.nodes,
+            links: activeDiagram.links,
+            currentDiagramId: projectData.currentDiagramId,
+            modules: projectData.modules,
+            labelCounters: projectData.labelCounters,
             lastSyncedAt: new Date().toISOString(),
             isSyncing: false,
           });
@@ -773,23 +858,17 @@ export const useDiagramStore = create<DiagramStore>()(
 
               if (!migrated) {
                 // 移行するデータもない場合は空の状態で開始
+                const emptyProjectData = normalizeProjectData(null, '新しいGSN図');
+                const rootDiagram =
+                  emptyProjectData.modules[emptyProjectData.currentDiagramId];
                 set({
                   currentDiagramDbId: null,
-                  title: '新しいGSN図',
-                  nodes: [],
-                  links: [],
-                  currentDiagramId: 'root',
-                  modules: {},
-                  labelCounters: {
-                    Goal: 0,
-                    Strategy: 0,
-                    Context: 0,
-                    Evidence: 0,
-                    Assumption: 0,
-                    Justification: 0,
-                    Undeveloped: 0,
-                    Module: 0,
-                  },
+                  title: rootDiagram?.title || '新しいGSN図',
+                  nodes: rootDiagram?.nodes || [],
+                  links: rootDiagram?.links || [],
+                  currentDiagramId: emptyProjectData.currentDiagramId,
+                  modules: emptyProjectData.modules,
+                  labelCounters: emptyProjectData.labelCounters,
                 });
               }
             } else {
@@ -806,22 +885,20 @@ export const useDiagramStore = create<DiagramStore>()(
               try {
                 const data = JSON.parse(stored);
                 const stateData = data.state;
+                const fallbackTitle = stateData?.title || '新しいGSN図';
+                const normalized = buildProjectDataFromLegacyState(stateData, fallbackTitle);
+                const activeDiagram =
+                  normalized.modules[normalized.currentDiagramId] ||
+                  normalized.modules.root ||
+                  createEmptyDiagramData(fallbackTitle);
+
                 set({
-                  title: stateData.title || '新しいGSN図',
-                  nodes: stateData.nodes || [],
-                  links: stateData.links || [],
-                  currentDiagramId: stateData.currentDiagramId || 'root',
-                  modules: stateData.modules || {},
-                  labelCounters: stateData.labelCounters || {
-                    Goal: 0,
-                    Strategy: 0,
-                    Context: 0,
-                    Evidence: 0,
-                    Assumption: 0,
-                    Justification: 0,
-                    Undeveloped: 0,
-                    Module: 0,
-                  },
+                  title: activeDiagram.title,
+                  nodes: activeDiagram.nodes,
+                  links: activeDiagram.links,
+                  currentDiagramId: normalized.currentDiagramId,
+                  modules: normalized.modules,
+                  labelCounters: normalized.labelCounters,
                 });
               } catch (e) {
                 console.error('Failed to load from LocalStorage:', e);
@@ -836,6 +913,9 @@ export const useDiagramStore = create<DiagramStore>()(
             title: '新しいGSN図',
             nodes: [],
             links: [],
+            currentDiagramId: 'root',
+            modules: { root: createEmptyDiagramData() },
+            labelCounters: getDefaultLabelCounters(),
           });
         }
       },
@@ -906,6 +986,11 @@ export const useDiagramStore = create<DiagramStore>()(
               selectedNodeType: undefined,
             },
           });
+
+          const projectId = state.currentProjectId;
+          if (projectId && websocketService.isConnected()) {
+            websocketService.emitModuleCreated(projectId, moduleId, moduleData, state.currentDiagramId);
+          }
         } else {
           set((state) => ({
             nodes: [...state.nodes, newNode],
@@ -1603,6 +1688,9 @@ export const useDiagramStore = create<DiagramStore>()(
           }
           return node;
         });
+        const updatedModuleNode = updatedParentNodes.find(
+          (node) => node.type === 'Module' && node.moduleId === state.currentDiagramId,
+        );
 
         // 親に切り替え
         set({
@@ -1616,6 +1704,11 @@ export const useDiagramStore = create<DiagramStore>()(
           },
           canvasState: DEFAULT_CANVAS_STATE,
         });
+
+        const projectId = state.currentProjectId;
+        if (projectId && websocketService.isConnected() && updatedModuleNode) {
+          websocketService.emitNodeUpdated(projectId, updatedModuleNode, parentId);
+        }
       },
 
       switchToDiagram: (diagramId) => {
@@ -1726,67 +1819,29 @@ export const useDiagramStore = create<DiagramStore>()(
 
       exportProjectData: () => {
         const state = get();
-
-        // 現在のダイアグラムを保存
-        const currentData: DiagramData = {
-          version: '1.0.0',
-          title: state.title,
-          nodes: state.nodes,
-          links: state.links,
-          metadata: {
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            id: state.currentDiagramId,
-            isModule: state.currentDiagramId !== 'root',
-            parentModuleId: state.modules[state.currentDiagramId]?.metadata?.parentModuleId,
-          },
-        };
-
-        // 全モジュールをマージ（現在のダイアグラム含む）
-        const allModules = {
-          ...state.modules,
-          [state.currentDiagramId]: currentData,
-        };
-
-        const projectData: ProjectData = {
-          version: '1.0.0',
-          currentDiagramId: state.currentDiagramId,
-          modules: allModules,
-          labelCounters: state.labelCounters,
-          exportedAt: new Date().toISOString(),
-        };
-
-        return projectData;
+        return buildProjectDataFromState(state);
       },
 
       importProjectData: (data) => {
         saveToHistory(get, set);
 
-        // インポートするダイアグラムを取得（rootまたは指定されたcurrentDiagramId）
-        const targetDiagramId = data.currentDiagramId || 'root';
-        const targetDiagram = data.modules[targetDiagramId];
-
-        if (!targetDiagram) {
-          console.error('Target diagram not found in imported data');
-          return;
-        }
+        const fallbackTitle =
+          (data && typeof data === 'object' && 'title' in data && typeof (data as any).title === 'string'
+            ? (data as any).title
+            : 'インポートされたGSN図') || 'インポートされたGSN図';
+        const projectData = normalizeProjectData(data, fallbackTitle);
+        const targetDiagram =
+          projectData.modules[projectData.currentDiagramId] ||
+          projectData.modules.root ||
+          createEmptyDiagramData(fallbackTitle);
 
         set({
           title: targetDiagram.title,
           nodes: targetDiagram.nodes,
           links: targetDiagram.links,
-          currentDiagramId: targetDiagramId,
-          modules: data.modules,
-          labelCounters: data.labelCounters || {
-            Goal: 0,
-            Strategy: 0,
-            Context: 0,
-            Evidence: 0,
-            Assumption: 0,
-            Justification: 0,
-            Undeveloped: 0,
-            Module: 0,
-          },
+          currentDiagramId: projectData.currentDiagramId,
+          modules: projectData.modules,
+          labelCounters: projectData.labelCounters,
           canvasState: DEFAULT_CANVAS_STATE,
         });
       },
@@ -2161,15 +2216,18 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       reset: () => {
+        const emptyProjectData = normalizeProjectData(null, '新しいGSN図');
+        const rootDiagram = emptyProjectData.modules[emptyProjectData.currentDiagramId];
         set({
-          title: '新しいGSN図',
-          nodes: [],
-          links: [],
+          title: rootDiagram?.title || '新しいGSN図',
+          nodes: rootDiagram?.nodes || [],
+          links: rootDiagram?.links || [],
           canvasState: DEFAULT_CANVAS_STATE,
           history: [],
           historyIndex: -1,
-          currentDiagramId: 'root',
-          modules: {},
+          currentDiagramId: emptyProjectData.currentDiagramId,
+          modules: emptyProjectData.modules,
+          labelCounters: emptyProjectData.labelCounters,
         });
       },
     }),

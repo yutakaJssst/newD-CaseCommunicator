@@ -49,10 +49,12 @@ app.use(errorHandler);
 setupWebSocket(io);
 
 // Start server
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
+const HOST = process.env.HOST || '0.0.0.0';
 
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+httpServer.listen(PORT, HOST, () => {
+  const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
+  console.log(`🚀 Server running on http://${displayHost}:${PORT}`);
   console.log(`🔌 WebSocket server ready`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
