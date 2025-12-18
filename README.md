@@ -19,22 +19,25 @@ Goal Structuring Notation (GSN) を描画・編集するためのWebアプリケ
 
 ## 技術スタック
 
-### フロントエンド
+### フロントエンド (gsn-editor)
 - **フレームワーク**: React 19.2.0
 - **言語**: TypeScript 5.9.3
 - **状態管理**: Zustand 5.0.9
 - **ビルドツール**: Vite 7.2.4
+- **HTTPクライアント**: Axios 1.13.2
+- **リアルタイム通信**: Socket.IO Client 4.8.1
 - **描画**: SVG (ネイティブ)
 - **パッケージマネージャ**: npm
 
-### バックエンド
-- **フレームワーク**: Express.js 4.21.2
-- **言語**: TypeScript 5.7.3
+### バックエンド (backend)
+- **フレームワーク**: Express.js 5.2.1
+- **言語**: TypeScript 5.9.3
 - **データベース**: SQLite (開発環境) / Prisma ORM
-- **ORM**: Prisma 6.2.1
-- **認証**: JWT (jsonwebtoken 9.0.2)
-- **リアルタイム通信**: Socket.IO v4
-- **ランタイム**: Node.js 20.17.0
+- **ORM**: Prisma 6.19.1
+- **認証**: JWT (jsonwebtoken 9.0.3) + bcrypt 6.0.0
+- **リアルタイム通信**: Socket.IO 4.8.1
+- **バリデーション**: express-validator 7.3.1
+- **ランタイム**: Node.js
 
 ## 主要機能
 
@@ -135,13 +138,14 @@ Goal Structuring Notation (GSN) を描画・編集するためのWebアプリケ
 - ✅ **競合解決**
   - Last-Write-Wins方式（最後の書き込みが優先）
 
-### 未実装（今後の予定）
+### 未実装（今後の予定 - Phase 6）
 
-- ❌ ユーザーカーソル表示（他のユーザーのマウスカーソル位置）
-- ❌ CRDT（高度な競合解決）
-- ❌ メール通知機能（メンバー招待時のメール送信）
-- ❌ テンプレート機能
-- ❌ 検証機能（ルートノード存在チェック、循環参照検出、孤立ノード警告）
+- ❌ **ユーザーカーソル表示**: 他のユーザーのマウスカーソル位置をリアルタイム表示
+- ❌ **CRDT導入**: 高度な競合解決（Yjs, Automerge等）
+- ❌ **メール通知機能**: Nodemailerでメンバー招待時にメール送信
+- ❌ **テンプレート機能**: よく使うGSNパターンを保存・再利用
+- ❌ **検証機能**: ルートノード存在チェック、循環参照検出、孤立ノード警告
+- ❌ **コミット/履歴管理**: バージョン管理とロールバック
 
 ## セットアップ
 
@@ -343,65 +347,67 @@ npm run preview
 ## プロジェクト構成
 
 ```
-gsn-editor/
-├── src/
-│   ├── App.tsx                    # メインアプリケーション
-│   ├── main.tsx                   # エントリーポイント
-│   ├── components/
-│   │   ├── Canvas/
-│   │   │   ├── Canvas.tsx         # SVGキャンバス
-│   │   │   ├── Node.tsx           # ノード描画
-│   │   │   ├── Link.tsx           # リンク描画（GSN標準準拠）
-│   │   │   ├── NodeEditor.tsx    # リッチテキストエディタ
-│   │   │   └── ContextMenu.tsx   # 右クリックメニュー
-│   │   ├── Header/
-│   │   │   └── Header.tsx         # ヘッダー（エクスポート/インポート、Undo/Redo）
-│   │   ├── Sidebar/
-│   │   │   ├── Sidebar.tsx        # サイドバー
-│   │   │   └── NodePalette.tsx   # ノードパレット
-│   │   ├── Auth/
-│   │   │   ├── LoginForm.tsx      # ログインフォーム
-│   │   │   └── RegisterForm.tsx   # 新規登録フォーム
-│   │   └── Projects/
-│   │       ├── ProjectList.tsx    # プロジェクト一覧
-│   │       └── ProjectMembers.tsx # メンバー管理（テーブル形式）
-│   ├── stores/
-│   │   ├── diagramStore.ts        # Zustand状態管理（ダイアグラム）
-│   │   └── authStore.ts           # Zustand状態管理（認証）
-│   ├── api/
-│   │   ├── diagrams.ts            # ダイアグラムAPI
-│   │   └── projectMembers.ts      # メンバー管理API
-│   ├── services/
-│   │   └── websocket.ts           # WebSocketクライアント
-│   ├── types/
-│   │   └── diagram.ts             # TypeScript型定義
-│   └── utils/
-├── public/
-└── index.html
-
-backend/
-├── src/
-│   ├── server.ts                  # メインサーバー
-│   ├── controllers/
-│   │   ├── authController.ts      # 認証ロジック
-│   │   ├── projectController.ts   # プロジェクト管理
-│   │   ├── diagramController.ts   # ダイアグラム管理
-│   │   └── projectMemberController.ts # メンバー管理
-│   ├── routes/
-│   │   ├── auth.ts                # 認証ルート
-│   │   ├── projects.ts            # プロジェクトルート
-│   │   └── diagrams.ts            # ダイアグラムルート
-│   ├── middleware/
-│   │   ├── auth.ts                # JWT認証ミドルウェア
-│   │   └── errorHandler.ts       # エラーハンドリング
-│   ├── websocket/
-│   │   └── handlers.ts            # WebSocketイベントハンドラー
-│   └── db/
-│       └── prisma.ts              # Prisma Client
-├── prisma/
-│   ├── schema.prisma              # データベーススキーマ
-│   └── dev.db                     # SQLite データベース
-└── .env                           # 環境変数
+newD-CaseCommunicatorM1/
+├── gsn-editor/                    # フロントエンド（React）
+│   └── src/
+│       ├── App.tsx                # メインアプリケーション（認証・画面遷移）
+│       ├── main.tsx               # エントリーポイント
+│       ├── components/
+│       │   ├── Auth/              # 認証UI
+│       │   │   ├── LoginForm.tsx      # ログインフォーム
+│       │   │   └── RegisterForm.tsx   # 新規登録フォーム
+│       │   ├── Canvas/            # GSNキャンバス
+│       │   │   ├── Canvas.tsx         # SVGキャンバス（ノード・リンク描画）
+│       │   │   ├── Node.tsx           # ノード描画（8種類の形状）
+│       │   │   ├── Link.tsx           # リンク描画（GSN標準準拠）
+│       │   │   ├── NodeEditor.tsx     # リッチテキストエディタ
+│       │   │   └── ContextMenu.tsx    # 右クリックメニュー
+│       │   ├── Header/
+│       │   │   └── Header.tsx         # ヘッダー（ズーム・エクスポート・オンラインユーザー表示）
+│       │   ├── Sidebar/
+│       │   │   ├── Sidebar.tsx        # サイドバーコンテナ
+│       │   │   └── NodePalette.tsx    # ノードタイプ選択パレット
+│       │   └── Projects/          # プロジェクト管理
+│       │       ├── ProjectList.tsx    # プロジェクト一覧（カードグリッド）
+│       │       └── ProjectMembers.tsx # メンバー管理（テーブル形式）
+│       ├── stores/
+│       │   ├── diagramStore.ts        # Zustandストア（ダイアグラム状態・DB同期）
+│       │   └── authStore.ts           # Zustandストア（認証状態）
+│       ├── services/
+│       │   ├── api.ts                 # axios HTTPクライアント（JWT自動付与）
+│       │   └── websocket.ts           # Socket.IOクライアント（リアルタイム同期）
+│       ├── api/
+│       │   ├── diagrams.ts            # ダイアグラムAPI
+│       │   └── projectMembers.ts      # メンバー管理API
+│       ├── types/
+│       │   └── diagram.ts             # TypeScript型定義・定数
+│       └── utils/
+│           └── autoLayout.ts          # 自動レイアウト（Reingold-Tilford）
+│
+├── backend/                       # バックエンド（Express + TypeScript）
+│   ├── src/
+│   │   ├── server.ts                  # メインサーバー（Express + Socket.IO）
+│   │   ├── controllers/               # ビジネスロジック
+│   │   │   ├── authController.ts          # 認証（register/login/logout）
+│   │   │   ├── projectController.ts       # プロジェクトCRUD
+│   │   │   ├── diagramController.ts       # ダイアグラムCRUD
+│   │   │   └── projectMemberController.ts # メンバー管理
+│   │   ├── routes/                    # APIルート定義
+│   │   │   ├── auth.ts                    # /api/auth/*
+│   │   │   ├── projects.ts                # /api/projects/*
+│   │   │   └── diagrams.ts                # /api/projects/:id/diagrams/*
+│   │   ├── middleware/
+│   │   │   ├── auth.ts                    # JWT認証ミドルウェア
+│   │   │   └── errorHandler.ts            # エラーハンドリング
+│   │   ├── websocket/
+│   │   │   └── handlers.ts                # WebSocketイベントハンドラー
+│   │   └── db/
+│   │       └── prisma.ts                  # Prisma Client
+│   └── prisma/
+│       ├── schema.prisma              # データベーススキーマ（6テーブル）
+│       └── dev.db                     # SQLite データベース
+│
+└── dcase_com-main/                # レガシー参照コード（AngularJS版）
 ```
 
 ## 開発ガイド
@@ -419,6 +425,14 @@ backend/
 
 ## 更新履歴
 
+### 2025-12-18
+
+- ✅ **ドキュメント更新**
+  - CLAUDE.md / README.md の最新化
+  - 技術スタック情報の更新（パッケージバージョン）
+  - ディレクトリ構造の完全な反映
+  - 実装完了サマリーの追加
+
 ### 2025-12-17
 
 - ✅ **Phase 3: Diagram DB Storage 完了**
@@ -428,7 +442,7 @@ backend/
   - ダイアグラムのDB保存・読み込み
   - SQLiteデータベース統合
 - ✅ **Phase 4: Multiuser Sharing 完了**
-  - プロジェクトメンバー管理UI
+  - プロジェクトメンバー管理UI（テーブル形式）
   - メンバー招待機能（メールアドレス指定）
   - ロール管理（owner/editor/viewer）
   - メンバー削除機能
@@ -438,9 +452,9 @@ backend/
   - WebSocket通信実装（Socket.IO v4）
   - ノード移動のリアルタイム同期
   - 複数ノード移動の同期（矢印キー、一括ドラッグ）
-  - オンラインユーザー表示UI
+  - オンラインユーザー表示UI（緑色インジケーター）
   - プロジェクトごとのルーム管理
-  - 自動再接続機能
+  - 自動再接続機能（ステータス表示付き）
   - Last-Write-Wins競合解決
 
 ### 2025-12-16

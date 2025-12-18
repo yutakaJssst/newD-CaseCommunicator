@@ -90,7 +90,6 @@ class WebSocketService {
         });
       }
     });
-@@
     this.socket.on('reconnect_attempt', (attempt) => {
       this.reconnectAttempts = attempt;
       console.log('[WebSocket] Reconnect attempt:', attempt);

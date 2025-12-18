@@ -350,7 +350,7 @@ pnpm dev
 
 ---
 
-**更新日**: 2025-12-17
+**更新日**: 2025-12-18
 **プロジェクト状態**: Phase 1 (MVP) 完了 / Phase 2 完了 / 推奨実装順序 完了 / モジュール機能実装完了 / プロジェクトエクスポート/インポート完了 / 自動レイアウト機能完了 / キーボードショートカット & ズーム機能拡張完了 / サブツリーのコピー機能完了 / マルチユーザー認証完了 / プロジェクト管理完了 / ダイアグラムDB保存完了 / プロジェクトメンバー管理完了 / **リアルタイム同時編集完了** ✅
 
 ---
@@ -358,38 +358,92 @@ pnpm dev
 ## 現在の実装状況（gsn-editorフォルダ）
 
 ### 技術スタック（実装済み）
+
+#### フロントエンド (gsn-editor)
 - **フレームワーク**: React 19.2.0
 - **言語**: TypeScript 5.9.3
 - **状態管理**: Zustand 5.0.9
 - **ビルドツール**: Vite 7.2.4
+- **HTTPクライアント**: Axios 1.13.2
+- **リアルタイム通信**: Socket.IO Client 4.8.1
 - **描画**: SVG (ネイティブ)
 - **パッケージマネージャ**: npm
+
+#### バックエンド (backend)
+- **フレームワーク**: Express.js 5.2.1
+- **言語**: TypeScript 5.9.3
+- **ORM**: Prisma 6.19.1
+- **データベース**: SQLite (開発環境)
+- **認証**: JWT (jsonwebtoken 9.0.3) + bcrypt 6.0.0
+- **リアルタイム通信**: Socket.IO 4.8.1
+- **バリデーション**: express-validator 7.3.1
+- **開発ツール**: nodemon, ts-node
 
 ### アーキテクチャ
 
 #### ディレクトリ構造
 ```
-gsn-editor/
-├── src/
-│   ├── App.tsx                    # メインアプリケーション
-│   ├── main.tsx                   # エントリーポイント
-│   ├── components/
-│   │   ├── Canvas/
-│   │   │   ├── Canvas.tsx         # SVGキャンバス（ノード・リンク描画、ユーザー操作）
-│   │   │   ├── Node.tsx           # ノード描画（8種類の形状に対応、Moduleノード含む）
-│   │   │   ├── Link.tsx           # リンク描画（実線・破線対応、GSN標準準拠）
-│   │   │   ├── NodeEditor.tsx    # ノード内容編集モーダル
-│   │   │   └── ContextMenu.tsx   # 右クリックメニュー
-│   │   ├── Header/
-│   │   │   └── Header.tsx         # タイトル編集・ズーム・エクスポート/インポート
-│   │   └── Sidebar/
-│   │       ├── Sidebar.tsx        # サイドバーコンテナ
-│   │       └── NodePalette.tsx   # ノードタイプ選択パレット
-│   ├── stores/
-│   │   └── diagramStore.ts        # Zustandストア（状態管理）
-│   ├── types/
-│   │   └── diagram.ts             # TypeScript型定義・定数
-│   └── utils/                     # （空・将来拡張用）
+newD-CaseCommunicatorM1/
+├── gsn-editor/                    # フロントエンド（React）
+│   └── src/
+│       ├── App.tsx                # メインアプリケーション（認証・画面遷移）
+│       ├── main.tsx               # エントリーポイント
+│       ├── components/
+│       │   ├── Auth/              # 認証UI
+│       │   │   ├── LoginForm.tsx      # ログインフォーム
+│       │   │   └── RegisterForm.tsx   # 新規登録フォーム
+│       │   ├── Canvas/            # GSNキャンバス
+│       │   │   ├── Canvas.tsx         # SVGキャンバス（ノード・リンク描画、ユーザー操作）
+│       │   │   ├── Node.tsx           # ノード描画（8種類の形状に対応、Moduleノード含む）
+│       │   │   ├── Link.tsx           # リンク描画（実線・破線対応、GSN標準準拠）
+│       │   │   ├── NodeEditor.tsx     # ノード内容編集モーダル（リッチテキスト）
+│       │   │   └── ContextMenu.tsx    # 右クリックメニュー
+│       │   ├── Header/
+│       │   │   └── Header.tsx         # タイトル編集・ズーム・エクスポート/インポート・オンラインユーザー表示
+│       │   ├── Sidebar/
+│       │   │   ├── Sidebar.tsx        # サイドバーコンテナ
+│       │   │   └── NodePalette.tsx    # ノードタイプ選択パレット
+│       │   └── Projects/          # プロジェクト管理
+│       │       ├── ProjectList.tsx    # プロジェクト一覧（カードグリッド）
+│       │       └── ProjectMembers.tsx # メンバー管理（テーブル形式）
+│       ├── stores/
+│       │   ├── diagramStore.ts        # Zustandストア（ダイアグラム状態管理、DB同期）
+│       │   └── authStore.ts           # Zustandストア（認証状態管理）
+│       ├── services/
+│       │   ├── api.ts                 # axios HTTPクライアント（JWT自動付与）
+│       │   └── websocket.ts           # Socket.IOクライアント（リアルタイム同期）
+│       ├── api/
+│       │   ├── diagrams.ts            # ダイアグラムAPI
+│       │   └── projectMembers.ts      # メンバー管理API
+│       ├── types/
+│       │   └── diagram.ts             # TypeScript型定義・定数
+│       └── utils/
+│           └── autoLayout.ts          # 自動レイアウト（Reingold-Tilford）
+│
+├── backend/                       # バックエンド（Express + TypeScript）
+│   ├── src/
+│   │   ├── server.ts                  # メインサーバー（Express + Socket.IO）
+│   │   ├── controllers/               # ビジネスロジック
+│   │   │   ├── authController.ts          # 認証（register/login/logout）
+│   │   │   ├── projectController.ts       # プロジェクトCRUD
+│   │   │   ├── diagramController.ts       # ダイアグラムCRUD
+│   │   │   └── projectMemberController.ts # メンバー管理
+│   │   ├── routes/                    # APIルート定義
+│   │   │   ├── auth.ts                    # /api/auth/*
+│   │   │   ├── projects.ts                # /api/projects/*
+│   │   │   └── diagrams.ts                # /api/projects/:id/diagrams/*
+│   │   ├── middleware/
+│   │   │   ├── auth.ts                    # JWT認証ミドルウェア
+│   │   │   └── errorHandler.ts            # エラーハンドリング
+│   │   ├── websocket/
+│   │   │   └── handlers.ts                # WebSocketイベントハンドラー
+│   │   └── db/
+│   │       └── prisma.ts                  # Prisma Client
+│   └── prisma/
+│       ├── schema.prisma              # データベーススキーマ（6テーブル）
+│       └── dev.db                     # SQLite データベース
+│
+└── dcase_com-main/                # レガシー参照コード（AngularJS版）
 ```
 
 ### 実装済み機能の詳細
@@ -1429,7 +1483,7 @@ App.tsx (認証後)
 
 ---
 
-**更新日**: 2025-12-17
+**更新日**: 2025-12-18
 **プロジェクト状態**:
 - フロントエンド: Phase 1-2 完了、モジュール機能完了、キーボードショートカット & ズーム拡張完了
 - バックエンド: 認証機能完了、プロジェクト管理完了、ダイアグラムDB保存完了、**プロジェクトメンバー管理完了（テーブルUI改善済み）** ✅
@@ -1437,9 +1491,53 @@ App.tsx (認証後)
 - UI改善: プロジェクトメンバーモーダルをテーブル形式に変更（見やすさ向上）✅
 - 次のステップ: ユーザーカーソル表示、CRDT導入、またはメール通知機能
 
+---
+
+## 実装完了サマリー
+
+### 完成度
+- **Phase 1 (MVP)**: ✅ 100%
+- **Phase 2 (拡張機能)**: ✅ 100%
+- **Phase 3 (DB保存)**: ✅ 100%
+- **Phase 4 (マルチユーザー共有)**: ✅ 100%
+- **Phase 5 (リアルタイム同時編集)**: ✅ 100%
+- **総合進捗**: ~83% (計画5フェーズ完了、残りは高度な機能)
+
+### コードベース統計
+- **フロントエンド**: TypeScript/TSXファイル 24個、主要ファイル ~10,000行
+- **バックエンド**: TypeScriptファイル 13個、~1,474行
+- **データベース**: SQLite 168KB、6テーブル
+- **主要依存関係**:
+  - フロントエンド: React, Zustand, Axios, Socket.IO Client
+  - バックエンド: Express, Prisma, Socket.IO, JWT, bcrypt
+
+### 今後の拡張候補（Phase 6）
+1. ❌ **ユーザーカーソル表示**: 他のユーザーのマウスカーソル位置をリアルタイム表示
+2. ❌ **CRDT導入**: 高度な競合解決（Yjs, Automerge等）
+3. ❌ **メール通知機能**: Nodemailerでメンバー招待時にメール送信
+4. ❌ **テンプレート機能**: よく使うGSNパターンを保存・再利用
+5. ❌ **検証機能**: ルートノード存在チェック、循環参照検出、孤立ノード警告
+6. ❌ **コミット/履歴管理**: バージョン管理とロールバック
+
+---
+
 ## 最近の変更履歴
 
-### 2025-12-17 (最新)
+### 2025-12-18
+
+- ✅ **CLAUDE.md / README.md 更新**
+  - 技術スタック情報の最新化（パッケージバージョン更新）
+  - ディレクトリ構造の完全な反映
+  - 実装完了サマリーの追加
+  - コードベース統計の追加
+
+### 2025-12-17
+
+- ✅ **Phase 5: リアルタイム同時編集完了**
+  - ノード移動のWebSocketブロードキャスト
+  - 複数ノード移動の同期
+  - オンラインユーザー表示UI
+  - WebSocket再接続ステータス表示
 
 - ✅ **プロジェクトメンバーUIの大幅改善**
   - Tailwind CSS grid から HTML `<table>` 要素に変更
