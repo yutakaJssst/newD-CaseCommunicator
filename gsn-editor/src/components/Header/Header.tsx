@@ -10,6 +10,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects }) => {
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showModuleList, setShowModuleList] = useState(false);
 
   const {
     title,
@@ -90,6 +91,28 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
   };
 
   const breadcrumbs = getBreadcrumbs();
+
+  // すべてのモジュールを取得（rootを除く）
+  const getAllModules = () => {
+    return Object.entries(modules)
+      .filter(([id]) => id !== 'root')
+      .map(([id, data]) => ({ id, title: data.title }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  };
+
+  const allModules = getAllModules();
+
+  // ドロップダウンを閉じる
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showModuleList || showExportMenu) {
+        setShowModuleList(false);
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showModuleList, showExportMenu]);
 
   // キーボードショートカット（Ctrl+Z / Ctrl+Y）
   useEffect(() => {
@@ -293,6 +316,96 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         onFocus={(e) => (e.target.style.borderColor = '#3B82F6')}
         onBlur={(e) => (e.target.style.borderColor = '#D1D5DB')}
       />
+
+      {/* モジュール一覧ドロップダウン */}
+      {allModules.length > 0 && (
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowModuleList(!showModuleList);
+            }}
+            style={{
+              padding: '6px 10px',
+              fontSize: '12px',
+              fontWeight: '500',
+              border: '1px solid #D1D5DB',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              backgroundColor: '#FFFFFF',
+              color: '#374151',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#F3F4F6';
+              e.currentTarget.style.borderColor = '#9CA3AF';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#FFFFFF';
+              e.currentTarget.style.borderColor = '#D1D5DB';
+            }}
+          >
+            <span>📁</span>
+            <span>モジュール ({allModules.length})</span>
+          </button>
+
+          {showModuleList && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                marginTop: '4px',
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #D1D5DB',
+                borderRadius: '6px',
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                minWidth: '200px',
+                maxHeight: '300px',
+                overflowY: 'auto',
+                zIndex: 1000,
+              }}
+            >
+              {allModules.map((module) => (
+                <button
+                  key={module.id}
+                  onClick={() => {
+                    switchToDiagram(module.id);
+                    setShowModuleList(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    fontSize: '13px',
+                    border: 'none',
+                    backgroundColor: module.id === currentDiagramId ? '#EFF6FF' : '#FFFFFF',
+                    color: module.id === currentDiagramId ? '#3B82F6' : '#374151',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s',
+                    fontWeight: module.id === currentDiagramId ? '600' : '400',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (module.id !== currentDiagramId) {
+                      e.currentTarget.style.backgroundColor = '#F9FAFB';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (module.id !== currentDiagramId) {
+                      e.currentTarget.style.backgroundColor = '#FFFFFF';
+                    }
+                  }}
+                >
+                  {module.title}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
         {/* Undo/Redoボタン */}
