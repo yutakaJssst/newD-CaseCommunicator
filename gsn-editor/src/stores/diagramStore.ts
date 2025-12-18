@@ -114,7 +114,7 @@ const getDefaultLabelCounters = (): Record<NodeType, number> => ({
   Module: 0,
 });
 
-const createEmptyDiagramData = (title = '新しいGSN図', id = 'root'): DiagramData => {
+const createEmptyDiagramData = (title = 'ルート', id = 'root'): DiagramData => {
   const now = new Date().toISOString();
   return {
     version: '1.0.0',
@@ -384,7 +384,7 @@ export const useDiagramStore = create<DiagramStore>()(
       onlineUsers: [],
       isReconnecting: false,
       reconnectAttempts: 0,
-      title: '新しいGSN図',
+      title: 'ルート',
       nodes: [],
       links: [],
       canvasState: DEFAULT_CANVAS_STATE,
@@ -635,11 +635,11 @@ export const useDiagramStore = create<DiagramStore>()(
             return;
           }
 
-          const emptyProjectData = normalizeProjectData(null, '新しいGSN図');
+          const emptyProjectData = normalizeProjectData(null, 'ルート');
           const rootDiagram = emptyProjectData.modules[emptyProjectData.currentDiagramId];
           set({
             currentDiagramDbId: null,
-            title: rootDiagram?.title || '新しいGSN図',
+            title: rootDiagram?.title || 'ルート',
             nodes: rootDiagram?.nodes || [],
             links: rootDiagram?.links || [],
             currentDiagramId: emptyProjectData.currentDiagramId,
@@ -663,7 +663,7 @@ export const useDiagramStore = create<DiagramStore>()(
               try {
                 const data = JSON.parse(stored);
                 const stateData = data.state || {};
-                const fallbackTitle = stateData.title || '新しいGSN図';
+                const fallbackTitle = stateData.title || 'ルート';
                 const normalized = buildProjectDataFromLegacyState(stateData, fallbackTitle);
                 const activeDiagram =
                   normalized.modules[normalized.currentDiagramId] ||
@@ -872,12 +872,12 @@ export const useDiagramStore = create<DiagramStore>()(
 
               if (!migrated) {
                 // 移行するデータもない場合は空の状態で開始
-                const emptyProjectData = normalizeProjectData(null, '新しいGSN図');
+                const emptyProjectData = normalizeProjectData(null, 'ルート');
                 const rootDiagram =
                   emptyProjectData.modules[emptyProjectData.currentDiagramId];
                 set({
                   currentDiagramDbId: null,
-                  title: rootDiagram?.title || '新しいGSN図',
+                  title: rootDiagram?.title || 'ルート',
                   nodes: rootDiagram?.nodes || [],
                   links: rootDiagram?.links || [],
                   currentDiagramId: emptyProjectData.currentDiagramId,
@@ -899,7 +899,7 @@ export const useDiagramStore = create<DiagramStore>()(
               try {
                 const data = JSON.parse(stored);
                 const stateData = data.state;
-                const fallbackTitle = stateData?.title || '新しいGSN図';
+                const fallbackTitle = stateData?.title || 'ルート';
                 const normalized = buildProjectDataFromLegacyState(stateData, fallbackTitle);
                 const activeDiagram =
                   normalized.modules[normalized.currentDiagramId] ||
@@ -924,7 +924,7 @@ export const useDiagramStore = create<DiagramStore>()(
           set({
             currentProjectId: null,
             currentDiagramDbId: null,
-            title: '新しいGSN図',
+            title: 'ルート',
             nodes: [],
             links: [],
             currentDiagramId: 'root',
@@ -968,7 +968,7 @@ export const useDiagramStore = create<DiagramStore>()(
           const moduleId = generateModuleId();
           const moduleData: DiagramData = {
             version: '1.0.0',
-            title: '新しいモジュール',
+            title: label, // ラベル（M1, M2など）をタイトルに
             nodes: [],
             links: [],
             metadata: {
@@ -982,7 +982,7 @@ export const useDiagramStore = create<DiagramStore>()(
 
           newNode.moduleId = moduleId;
           newNode.moduleName = moduleData.title;
-          newNode.content = '新しいモジュール';
+          newNode.content = label; // ラベルをコンテンツに
 
           set({
             nodes: [...state.nodes, newNode],
@@ -1033,12 +1033,30 @@ export const useDiagramStore = create<DiagramStore>()(
 
       updateNode: (id, updates) => {
         saveToHistory(get, set);
-        const updatedNode = get().nodes.find(n => n.id === id);
-        set((state) => ({
-          nodes: state.nodes.map((node) =>
-            node.id === id ? { ...node, ...updates } : node
-          ),
-        }));
+        const state = get();
+        const updatedNode = state.nodes.find(n => n.id === id);
+
+        // Moduleノードのラベルが変更された場合、モジュールタイトルも更新
+        if (updatedNode && updatedNode.type === 'Module' && updates.label && updatedNode.moduleId) {
+          set((state) => ({
+            nodes: state.nodes.map((node) =>
+              node.id === id ? { ...node, ...updates, moduleName: updates.label, content: updates.label } : node
+            ),
+            modules: {
+              ...state.modules,
+              [updatedNode.moduleId!]: {
+                ...state.modules[updatedNode.moduleId!],
+                title: updates.label,
+              },
+            },
+          }));
+        } else {
+          set((state) => ({
+            nodes: state.nodes.map((node) =>
+              node.id === id ? { ...node, ...updates } : node
+            ),
+          }));
+        }
 
         // WebSocketでブロードキャスト
         const projectId = get().currentProjectId;
@@ -1754,7 +1772,7 @@ export const useDiagramStore = create<DiagramStore>()(
             };
 
             set({
-              title: rootData?.title || '新しいGSN図',
+              title: rootData?.title || 'ルート',
               nodes: rootData?.nodes || [],
               links: rootData?.links || [],
               currentDiagramId: 'root',
