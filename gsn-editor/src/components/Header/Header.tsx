@@ -43,6 +43,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
     reconnectAttempts,
     nodes,
     links,
+    setShowPatternLibrary,
   } = useDiagramStore();
   const { viewport, gridSnapEnabled } = canvasState;
 
@@ -544,6 +545,38 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
           }}
         >
           ⚡
+        </button>
+
+        {/* パターンライブラリボタン */}
+        <button
+          onClick={() => setShowPatternLibrary(true)}
+          title="パターンライブラリ"
+          style={{
+            height: '30px',
+            padding: '0 10px',
+            fontSize: '12px',
+            border: '1px solid #059669',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            backgroundColor: '#ECFDF5',
+            color: '#059669',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '4px',
+            transition: 'all 0.2s',
+            fontWeight: '500',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#D1FAE5';
+            e.currentTarget.style.borderColor = '#047857';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#ECFDF5';
+            e.currentTarget.style.borderColor = '#059669';
+          }}
+        >
+          📋 パターン
         </button>
 
         {/* 検証ボタン */}

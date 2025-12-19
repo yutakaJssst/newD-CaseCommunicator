@@ -101,6 +101,15 @@ interface DiagramStore {
   // コメント関連
   addComment: (nodeId: string, authorId: string, authorName: string, content: string) => void;
   deleteComment: (nodeId: string, commentId: string) => void;
+
+  // パターン機能用のダイレクト追加（履歴保存なし）
+  addNodeDirect: (node: Node) => void;
+  addLinkDirect: (link: Link) => void;
+  generateLabel: (type: NodeType) => string;
+
+  // パターンライブラリ表示状態
+  showPatternLibrary: boolean;
+  setShowPatternLibrary: (show: boolean) => void;
 }
 
 type ProjectStateSlice = Pick<
@@ -390,6 +399,7 @@ export const useDiagramStore = create<DiagramStore>()(
       onlineUsers: [],
       isReconnecting: false,
       reconnectAttempts: 0,
+      showPatternLibrary: false,
       title: 'ルート',
       nodes: [],
       links: [],
@@ -2305,6 +2315,48 @@ export const useDiagramStore = create<DiagramStore>()(
 
         // DB保存をデバウンス
         debouncedSaveToDB(() => get().saveDiagramToDB());
+      },
+
+      // パターン機能用：履歴保存なしでノードを直接追加
+      addNodeDirect: (node) => {
+        set((state) => ({
+          nodes: [...state.nodes, node],
+        }));
+
+        // DB保存をデバウンス
+        debouncedSaveToDB(() => get().saveDiagramToDB());
+      },
+
+      // パターン機能用：履歴保存なしでリンクを直接追加
+      addLinkDirect: (link) => {
+        set((state) => ({
+          links: [...state.links, link],
+        }));
+
+        // DB保存をデバウンス
+        debouncedSaveToDB(() => get().saveDiagramToDB());
+      },
+
+      // ラベル生成（パターン適用時に使用）
+      generateLabel: (type) => {
+        const state = get();
+        const newCounter = state.labelCounters[type] + 1;
+        const label = `${getLabelPrefix(type)}${newCounter}`;
+
+        // ラベルカウンターを更新
+        set({
+          labelCounters: {
+            ...state.labelCounters,
+            [type]: newCounter,
+          },
+        });
+
+        return label;
+      },
+
+      // パターンライブラリ表示状態
+      setShowPatternLibrary: (show) => {
+        set({ showPatternLibrary: show });
       },
     }),
     {

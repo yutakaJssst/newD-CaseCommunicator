@@ -6,8 +6,12 @@ import { Link, ArrowMarker } from './Link';
 import { ContextMenu } from './ContextMenu';
 import { NodeEditor } from './NodeEditor';
 import { CommentPopover } from './CommentPopover';
-import type { Node as NodeType } from '../../types/diagram';
+import { SavePatternModal } from './SavePatternModal';
+import { PatternLibrary } from '../Sidebar/PatternLibrary';
+import type { Node as NodeType, Link as LinkType } from '../../types/diagram';
 import { GRID_SIZE } from '../../types/diagram';
+import { patternsApi } from '../../api/patterns';
+import type { PatternData } from '../../api/patterns';
 
 export const Canvas: React.FC = () => {
   const {
@@ -35,6 +39,11 @@ export const Canvas: React.FC = () => {
     modules,
     addComment,
     deleteComment,
+    showPatternLibrary,
+    setShowPatternLibrary,
+    addNodeDirect,
+    addLinkDirect,
+    generateLabel,
   } = useDiagramStore();
 
   const { user } = useAuthStore();
@@ -78,6 +87,11 @@ export const Canvas: React.FC = () => {
     x: number;
     y: number;
   } | null>(null);
+
+  // パターン関連
+  const [showSavePatternModal, setShowSavePatternModal] = useState(false);
+  const [patternNodes, setPatternNodes] = useState<NodeType[]>([]);
+  const [patternLinks, setPatternLinks] = useState<LinkType[]>([]);
 
   const { viewport, selectedNodeType, mode, selectedNodes, gridSnapEnabled } = canvasState;
 
@@ -531,8 +545,43 @@ export const Canvas: React.FC = () => {
               ? () => switchToParent()
               : undefined
           }
+          onSaveAsPattern={() => {
+            // 右クリックしたノードからサブツリー全体を取得
+            const getSubtree = (rootId: string): { nodes: NodeType[], links: LinkType[] } => {
+              const subtreeNodes: NodeType[] = [];
+              const subtreeLinks: LinkType[] = [];
+              const visited = new Set<string>();
+
+              const traverse = (nodeId: string) => {
+                if (visited.has(nodeId)) return;
+                visited.add(nodeId);
+
+                const node = nodes.find(n => n.id === nodeId);
+                if (node) {
+                  subtreeNodes.push(node);
+
+                  // このノードから出るリンク（子ノードへのリンク）を探す
+                  const childLinks = links.filter(l => l.source === nodeId);
+                  childLinks.forEach(link => {
+                    subtreeLinks.push(link);
+                    traverse(link.target);
+                  });
+                }
+              };
+
+              traverse(rootId);
+              return { nodes: subtreeNodes, links: subtreeLinks };
+            };
+
+            // 右クリックしたノードをルートとしてサブツリーを取得
+            const subtree = getSubtree(contextMenu.nodeId);
+            setPatternNodes(subtree.nodes);
+            setPatternLinks(subtree.links);
+            setShowSavePatternModal(true);
+          }}
           isGoalNode={nodes.find(n => n.id === contextMenu.nodeId)?.type === 'Goal'}
           isTopGoal={isTopGoal(contextMenu.nodeId) && hasParentModule}
+          hasSelection={true}
         />
       )}
 
@@ -637,6 +686,109 @@ export const Canvas: React.FC = () => {
           />
         );
       })()}
+
+      {/* パターン保存モーダル */}
+      {showSavePatternModal && (
+        <SavePatternModal
+          nodes={patternNodes}
+          links={patternLinks}
+          onSave={async (name, description, isPublic) => {
+            try {
+              // ノードの位置を相対座標に変換
+              const minX = Math.min(...patternNodes.map(n => n.position.x));
+              const minY = Math.min(...patternNodes.map(n => n.position.y));
+              const relativeNodes = patternNodes.map(n => ({
+                ...n,
+                position: {
+                  x: n.position.x - minX,
+                  y: n.position.y - minY,
+                },
+              }));
+
+              await patternsApi.create({
+                name,
+                description,
+                data: {
+                  nodes: relativeNodes,
+                  links: patternLinks,
+                },
+                isPublic,
+              });
+              setShowSavePatternModal(false);
+              setPatternNodes([]);
+              setPatternLinks([]);
+            } catch (error) {
+              console.error('パターン保存エラー:', error);
+              alert('パターンの保存に失敗しました');
+            }
+          }}
+          onClose={() => {
+            setShowSavePatternModal(false);
+            setPatternNodes([]);
+            setPatternLinks([]);
+          }}
+        />
+      )}
+
+      {/* パターンライブラリ */}
+      {showPatternLibrary && (
+        <PatternLibrary
+          onApplyPattern={(patternData: PatternData) => {
+            // 既存ノードの境界ボックスを計算
+            let offsetX = 100;
+            let offsetY = 100;
+
+            if (nodes.length > 0) {
+              // 既存ノードの右端を計算
+              const existingMaxX = Math.max(...nodes.map(n => n.position.x + n.size.width));
+              const existingMinY = Math.min(...nodes.map(n => n.position.y));
+
+              // 既存ノードの右側に配置（50pxの間隔）
+              offsetX = existingMaxX + 50;
+              offsetY = existingMinY;
+            }
+
+            // 新しいIDを生成してノードをコピー
+            const idMap: Record<string, string> = {};
+            const newNodes: NodeType[] = patternData.nodes.map((node: NodeType) => {
+              const newId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+              idMap[node.id] = newId;
+
+              // 新しいラベルを生成
+              const newLabel = generateLabel(node.type);
+
+              return {
+                ...node,
+                id: newId,
+                label: newLabel,
+                position: {
+                  x: node.position.x + offsetX,
+                  y: node.position.y + offsetY,
+                },
+              };
+            });
+
+            // リンクのIDを新しいIDに置き換え
+            const newLinks: LinkType[] = patternData.links.map((link: LinkType) => ({
+              ...link,
+              id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              source: idMap[link.source] || link.source,
+              target: idMap[link.target] || link.target,
+            }));
+
+            // ストアに追加
+            newNodes.forEach(node => {
+              addNodeDirect(node);
+            });
+            newLinks.forEach(link => {
+              addLinkDirect(link);
+            });
+
+            setShowPatternLibrary(false);
+          }}
+          onClose={() => setShowPatternLibrary(false)}
+        />
+      )}
     </>
   );
 };

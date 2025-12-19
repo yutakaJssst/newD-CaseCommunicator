@@ -9,8 +9,10 @@ interface ContextMenuProps {
   onCopyTree?: () => void;
   onConvertToModule?: () => void;
   onOpenParentModule?: () => void;
+  onSaveAsPattern?: () => void;
   isGoalNode?: boolean;
   isTopGoal?: boolean;
+  hasSelection?: boolean;
 }
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -22,8 +24,10 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onCopyTree,
   onConvertToModule,
   onOpenParentModule,
+  onSaveAsPattern,
   isGoalNode = false,
   isTopGoal = false,
+  hasSelection = false,
 }) => {
   useEffect(() => {
     const handleClick = () => onClose();
@@ -156,6 +160,32 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           }}
         >
           親モジュールを開く
+        </div>
+      )}
+      {hasSelection && onSaveAsPattern && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onSaveAsPattern();
+            onClose();
+          }}
+          style={{
+            padding: '12px 16px',
+            cursor: 'pointer',
+            borderBottom: '1px solid #F3F4F6',
+            fontSize: '14px',
+            fontWeight: '500',
+            color: '#059669',
+            transition: 'background-color 0.15s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#ECFDF5';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+        >
+          パターンとして保存
         </div>
       )}
       <div

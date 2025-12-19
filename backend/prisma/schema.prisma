@@ -24,6 +24,7 @@ model User {
   memberships    ProjectMember[]
   sessions       Session[]
   activityLogs   ActivityLog[]
+  patterns       Pattern[]
 
   @@index([email])
   @@map("users")
@@ -110,4 +111,22 @@ model ActivityLog {
 
   @@index([projectId])
   @@map("activity_logs")
+}
+
+model Pattern {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  data        Json     // { nodes: Node[], links: Link[] }
+  isPublic    Boolean  @default(false)
+  authorId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId])
+  @@index([isPublic])
+  @@map("patterns")
 }
