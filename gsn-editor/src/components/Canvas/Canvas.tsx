@@ -1,9 +1,11 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useDiagramStore } from '../../stores/diagramStore';
+import { useAuthStore } from '../../stores/authStore';
 import { Node } from './Node';
 import { Link, ArrowMarker } from './Link';
 import { ContextMenu } from './ContextMenu';
 import { NodeEditor } from './NodeEditor';
+import { CommentPopover } from './CommentPopover';
 import type { Node as NodeType } from '../../types/diagram';
 import { GRID_SIZE } from '../../types/diagram';
 
@@ -31,7 +33,11 @@ export const Canvas: React.FC = () => {
     switchToParent,
     currentDiagramId,
     modules,
+    addComment,
+    deleteComment,
   } = useDiagramStore();
+
+  const { user } = useAuthStore();
 
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -66,6 +72,13 @@ export const Canvas: React.FC = () => {
   // ノード編集モーダル
   const [editingNode, setEditingNode] = useState<NodeType | null>(null);
 
+  // コメントポップオーバー
+  const [commentPopover, setCommentPopover] = useState<{
+    nodeId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
   const { viewport, selectedNodeType, mode, selectedNodes, gridSnapEnabled } = canvasState;
 
   // グリッドスナップ関数
@@ -77,8 +90,8 @@ export const Canvas: React.FC = () => {
   // キーボードショートカット
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // ノード編集中は無効化
-      if (editingNode) return;
+      // ノード編集中またはコメントポップオーバー表示中は無効化
+      if (editingNode || commentPopover) return;
 
       // ESC: リンクモードをキャンセル
       if (e.key === 'Escape') {
@@ -133,7 +146,7 @@ export const Canvas: React.FC = () => {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [editingNode, deleteSelectedNodes, selectAll, clearSelection, moveSelectedNodes, copySelectedNodes, pasteNodes]);
+  }, [editingNode, commentPopover, deleteSelectedNodes, selectAll, clearSelection, moveSelectedNodes, copySelectedNodes, pasteNodes]);
 
   // SVG座標系に変換
   const screenToSvgCoordinates = (clientX: number, clientY: number) => {
@@ -170,6 +183,18 @@ export const Canvas: React.FC = () => {
     }
   };
 
+  // コメントアイコンクリック
+  const handleCommentClick = (nodeId: string) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCommentPopover({
+      nodeId,
+      x: e.clientX,
+      y: e.clientY,
+    });
+    setContextMenu(null);
+    setLinkContextMenu(null);
+  };
+
   // ノード右クリック
   const handleNodeContextMenu = (nodeId: string) => (e: React.MouseEvent) => {
     e.preventDefault();
@@ -180,6 +205,7 @@ export const Canvas: React.FC = () => {
       nodeId,
     });
     setLinkContextMenu(null); // リンクメニューを閉じる
+    setCommentPopover(null); // コメントポップオーバーを閉じる
   };
 
   // リンク右クリック
@@ -476,6 +502,7 @@ export const Canvas: React.FC = () => {
               onDragStart={handleNodeDragStart(node.id)}
               onContextMenu={handleNodeContextMenu(node.id)}
               onResizeStart={(e, direction) => handleResizeStart(node.id, direction)(e)}
+              onCommentClick={handleCommentClick(node.id)}
             />
           ))}
         </g>
@@ -582,6 +609,34 @@ export const Canvas: React.FC = () => {
           onClose={() => setEditingNode(null)}
         />
       )}
+
+      {/* コメントポップオーバー */}
+      {commentPopover && user && (() => {
+        const node = nodes.find(n => n.id === commentPopover.nodeId);
+        if (!node) return null;
+
+        const userName = user.firstName && user.lastName
+          ? `${user.firstName} ${user.lastName}`
+          : user.email.split('@')[0];
+
+        return (
+          <CommentPopover
+            nodeId={node.id}
+            nodeLabel={node.label || node.type}
+            comments={node.comments || []}
+            position={{ x: commentPopover.x, y: commentPopover.y }}
+            currentUserId={user.id}
+            currentUserName={userName}
+            onAddComment={(nodeId, content) => {
+              addComment(nodeId, user.id, userName, content);
+            }}
+            onDeleteComment={(nodeId, commentId) => {
+              deleteComment(nodeId, commentId);
+            }}
+            onClose={() => setCommentPopover(null)}
+          />
+        );
+      })()}
     </>
   );
 };

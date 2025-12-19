@@ -109,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
 
   // ドロップダウンを閉じる
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = () => {
       if (showModuleList || showExportMenu) {
         setShowModuleList(false);
         setShowExportMenu(false);

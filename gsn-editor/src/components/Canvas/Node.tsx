@@ -10,6 +10,7 @@ interface NodeProps {
   onDragStart: (e: React.MouseEvent) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   onResizeStart?: (e: React.MouseEvent, direction: string) => void;
+  onCommentClick?: (e: React.MouseEvent) => void;
 }
 
 export const Node: React.FC<NodeProps> = ({
@@ -20,6 +21,7 @@ export const Node: React.FC<NodeProps> = ({
   onDragStart,
   onContextMenu,
   onResizeStart,
+  onCommentClick,
 }) => {
   const renderShape = () => {
     const { width, height } = node.size;
@@ -262,6 +264,62 @@ export const Node: React.FC<NodeProps> = ({
         >
           {node.type === 'Assumption' ? 'A' : 'J'}
         </text>
+      )}
+
+      {/* コメントアイコン（右上） */}
+      {onCommentClick && (
+        <g
+          transform={`translate(${node.size.width / 2 - 10}, ${-node.size.height / 2 - 14})`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCommentClick(e);
+          }}
+          style={{ cursor: 'pointer' }}
+        >
+          {/* コメントがある場合は青背景、ない場合は灰色背景 */}
+          <circle
+            cx={0}
+            cy={0}
+            r={12}
+            fill={(node.comments && node.comments.length > 0) ? '#3B82F6' : '#9CA3AF'}
+            stroke="white"
+            strokeWidth={2}
+          />
+          {/* 吹き出しアイコン */}
+          <text
+            x={0}
+            y={4}
+            fill="white"
+            fontSize={12}
+            textAnchor="middle"
+            style={{ pointerEvents: 'none' }}
+          >
+            💬
+          </text>
+          {/* コメント数バッジ */}
+          {node.comments && node.comments.length > 0 && (
+            <>
+              <circle
+                cx={8}
+                cy={-8}
+                r={8}
+                fill="#EF4444"
+                stroke="white"
+                strokeWidth={1}
+              />
+              <text
+                x={8}
+                y={-5}
+                fill="white"
+                fontSize={9}
+                fontWeight="bold"
+                textAnchor="middle"
+              >
+                {node.comments.length > 9 ? '9+' : node.comments.length}
+              </text>
+            </>
+          )}
+        </g>
       )}
 
       {/* リサイズハンドル（選択時のみ表示） */}

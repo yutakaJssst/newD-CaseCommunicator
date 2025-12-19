@@ -42,6 +42,18 @@ export interface NodeStyle {
 }
 
 /**
+ * コメント
+ */
+export interface NodeComment {
+  id: string;
+  authorId: string;
+  authorName: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
  * GSNノード
  */
 export interface Node {
@@ -55,6 +67,8 @@ export interface Node {
   // モジュール専用プロパティ
   moduleId?: string;      // 参照先モジュールのID
   moduleName?: string;    // モジュール名
+  // コメント
+  comments?: NodeComment[];
 }
 
 /**

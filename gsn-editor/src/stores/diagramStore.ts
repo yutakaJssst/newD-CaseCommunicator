@@ -7,6 +7,7 @@ import type {
   ProjectData,
   CanvasState,
   NodeType,
+  NodeComment,
 } from '../types/diagram';
 import {
   DEFAULT_CANVAS_STATE,
@@ -96,6 +97,10 @@ interface DiagramStore {
   exportAsImage: (format: 'png' | 'svg') => void;
   applyAutoLayout: () => void;
   reset: () => void;
+
+  // コメント関連
+  addComment: (nodeId: string, authorId: string, authorName: string, content: string) => void;
+  deleteComment: (nodeId: string, commentId: string) => void;
 }
 
 type ProjectStateSlice = Pick<
@@ -263,6 +268,7 @@ const buildProjectDataFromLegacyState = (stateData: any, fallbackTitle: string):
 const generateId = () => `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 const generateLinkId = () => `link_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 const generateModuleId = () => `module_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+const generateCommentId = () => `comment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
 // デバウンス用のタイマー
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1038,15 +1044,16 @@ export const useDiagramStore = create<DiagramStore>()(
 
         // Moduleノードのラベルが変更された場合、モジュールタイトルも更新
         if (updatedNode && updatedNode.type === 'Module' && updates.label && updatedNode.moduleId) {
+          const newLabel = updates.label;
           set((state) => ({
             nodes: state.nodes.map((node) =>
-              node.id === id ? { ...node, ...updates, moduleName: updates.label, content: updates.label } : node
+              node.id === id ? { ...node, ...updates, moduleName: newLabel, content: newLabel } : node
             ),
             modules: {
               ...state.modules,
               [updatedNode.moduleId!]: {
                 ...state.modules[updatedNode.moduleId!],
-                title: updates.label,
+                title: newLabel,
               },
             },
           }));
@@ -2261,6 +2268,43 @@ export const useDiagramStore = create<DiagramStore>()(
           modules: emptyProjectData.modules,
           labelCounters: emptyProjectData.labelCounters,
         });
+      },
+
+      // コメント関連アクション
+      addComment: (nodeId, authorId, authorName, content) => {
+        const now = new Date().toISOString();
+        const newComment: NodeComment = {
+          id: generateCommentId(),
+          authorId,
+          authorName,
+          content,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        set((state) => ({
+          nodes: state.nodes.map((node) =>
+            node.id === nodeId
+              ? { ...node, comments: [...(node.comments || []), newComment] }
+              : node
+          ),
+        }));
+
+        // DB保存をデバウンス
+        debouncedSaveToDB(() => get().saveDiagramToDB());
+      },
+
+      deleteComment: (nodeId, commentId) => {
+        set((state) => ({
+          nodes: state.nodes.map((node) =>
+            node.id === nodeId
+              ? { ...node, comments: (node.comments || []).filter((c) => c.id !== commentId) }
+              : node
+          ),
+        }));
+
+        // DB保存をデバウンス
+        debouncedSaveToDB(() => get().saveDiagramToDB());
       },
     }),
     {

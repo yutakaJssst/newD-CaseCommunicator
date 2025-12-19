@@ -94,13 +94,6 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
     }
   };
 
-  const getUserName = (user: User) => {
-    if (user.firstName || user.lastName) {
-      return `${user.firstName || ''} ${user.lastName || ''}`.trim();
-    }
-    return user.email;
-  };
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
