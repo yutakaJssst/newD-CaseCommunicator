@@ -281,6 +281,26 @@ const SvgDiagram: React.FC<SvgDiagramProps> = ({ nodes, links }) => {
 
   const getNode = (id: string) => nodes.find((node) => node.id === id);
 
+  const stripHtml = (html?: string) => {
+    if (!html) return '';
+    return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  };
+
+  const wrapText = (text: string, maxChars: number, maxLines: number) => {
+    if (!text) return [];
+    const chars = [...text];
+    const lines: string[] = [];
+    for (let i = 0; i < chars.length; i += maxChars) {
+      lines.push(chars.slice(i, i + maxChars).join(''));
+      if (lines.length >= maxLines) break;
+    }
+    if (chars.length > maxChars * maxLines) {
+      const last = lines[lines.length - 1];
+      lines[lines.length - 1] = `${last.slice(0, Math.max(0, last.length - 1))}…`;
+    }
+    return lines;
+  };
+
   const renderShape = (node: SvgDiagramProps['nodes'][0]) => {
     const { width: w, height: h } = node.size;
     const stroke = '#374151';
@@ -387,15 +407,38 @@ const SvgDiagram: React.FC<SvgDiagramProps> = ({ nodes, links }) => {
       {nodes.map((node) => (
         <g key={node.id} transform={`translate(${node.position.x}, ${node.position.y})`}>
           {renderShape(node)}
+          <rect
+            x={-node.size.width / 2 + 6}
+            y={-node.size.height / 2 + 6}
+            width={40}
+            height={16}
+            rx={3}
+            ry={3}
+            fill="#FFFFFF"
+            stroke="#374151"
+            strokeWidth={1}
+          />
           <text
-            x={0}
-            y={4}
+            x={-node.size.width / 2 + 26}
+            y={-node.size.height / 2 + 18}
             textAnchor="middle"
-            fontSize={12}
+            fontSize={10}
             fill="#111827"
           >
             {node.label || node.type}
           </text>
+          {wrapText(stripHtml(node.content), 12, 3).map((line, index) => (
+            <text
+              key={`${node.id}-line-${index}`}
+              x={0}
+              y={index * 14 - 2}
+              textAnchor="middle"
+              fontSize={12}
+              fill="#111827"
+            >
+              {line}
+            </text>
+          ))}
         </g>
       ))}
     </svg>
