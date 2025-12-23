@@ -350,8 +350,8 @@ pnpm dev
 
 ---
 
-**更新日**: 2025-12-19
-**プロジェクト状態**: Phase 1 (MVP) 完了 / Phase 2 完了 / 推奨実装順序 完了 / モジュール機能実装完了 / プロジェクトエクスポート/インポート完了 / 自動レイアウト機能完了 / キーボードショートカット & ズーム機能拡張完了 / サブツリーのコピー機能完了 / マルチユーザー認証完了 / プロジェクト管理完了 / ダイアグラムDB保存完了 / プロジェクトメンバー管理完了 / リアルタイム同時編集完了 / GSN検証機能完了 / **コメント機能完了** ✅
+**更新日**: 2025-12-23
+**プロジェクト状態**: Phase 1 (MVP) 完了 / Phase 2 完了 / 推奨実装順序 完了 / モジュール機能実装完了 / プロジェクトエクスポート/インポート完了 / 自動レイアウト機能完了 / キーボードショートカット & ズーム機能拡張完了 / サブツリーのコピー機能完了 / マルチユーザー認証完了 / プロジェクト管理完了 / ダイアグラムDB保存完了 / プロジェクトメンバー管理完了 / リアルタイム同時編集完了 / GSN検証機能完了 / コメント機能完了 / **バージョン管理（履歴）機能完了** / **WebSocket同期修正完了** ✅
 
 ---
 
@@ -685,8 +685,9 @@ newD-CaseCommunicatorM1/
   - Delete/Backspaceキーがテキスト削除に使える
 
 #### 次のステップ候補（Phase 6）
-1. **Assumption/Justificationの視覚的区別の強化**: 右下の添え字に加えて、枠線を破線にするなどのオプション
-2. **テンプレート機能**: よく使うパターンを保存・再利用
+1. **ユーザーカーソル表示**: 他のユーザーのマウスカーソル位置をリアルタイム表示
+2. **テンプレート機能**: プロジェクトテンプレートの保存・再利用
+3. **外部連携**: Slack通知、Webhook等
 
 ### GSN標準との対応
 
@@ -1524,13 +1525,13 @@ App.tsx (認証後)
 
 ---
 
-**更新日**: 2025-12-19
+**更新日**: 2025-12-23
 **プロジェクト状態**:
-- フロントエンド: Phase 1-2 完了、モジュール機能完了、キーボードショートカット & ズーム拡張完了、GSN検証機能完了、コメント機能完了、**パターン機能完了** ✅
-- バックエンド: 認証機能完了、プロジェクト管理完了、ダイアグラムDB保存完了、プロジェクトメンバー管理完了、**パターンCRUD API完了** ✅
-- マルチユーザー: Phase 1 (認証) 完了、Phase 2 (プロジェクト管理) 完了、Phase 3 (ダイアグラムDB保存) 完了、Phase 4 (Multiuser Sharing) 完了、Phase 5 (リアルタイム同時編集) 完了 ✅
-- UI改善: プロジェクトメンバーモーダルをテーブル形式に変更、ノードパレット改善、コメントUI実装、パターンライブラリUI実装 ✅
-- 次のステップ: ユーザーカーソル表示、コミット/履歴管理
+- フロントエンド: Phase 1-2 完了、モジュール機能完了、キーボードショートカット & ズーム拡張完了、GSN検証機能完了、コメント機能完了、パターン機能完了、**バージョン管理UI完了** ✅
+- バックエンド: 認証機能完了、プロジェクト管理完了、ダイアグラムDB保存完了、プロジェクトメンバー管理完了、パターンCRUD API完了、**バージョン管理API完了** ✅
+- マルチユーザー: Phase 1 (認証) 完了、Phase 2 (プロジェクト管理) 完了、Phase 3 (ダイアグラムDB保存) 完了、Phase 4 (Multiuser Sharing) 完了、Phase 5 (リアルタイム同時編集) 完了、**WebSocket同期修正完了** ✅
+- UI改善: プロジェクトメンバーモーダルをテーブル形式に変更、ノードパレット改善、コメントUI実装、パターンライブラリUI実装、バージョン履歴モーダル実装 ✅
+- 次のステップ: ユーザーカーソル表示、テンプレート機能、外部連携（Slack等）
 
 ---
 
@@ -1558,12 +1559,69 @@ App.tsx (認証後)
 3. ❌ **メール通知機能**: Nodemailerでメンバー招待時にメール送信
 4. ✅ **パターン機能**: よく使うGSNパターンを保存・再利用 **← 実装完了**
 5. ✅ **検証機能**: ルートノード存在チェック、循環参照検出、孤立ノード警告 **← 実装完了**
-6. ❌ **コミット/履歴管理**: バージョン管理とロールバック
+6. ✅ **コミット/履歴管理**: バージョン管理とロールバック **← 実装完了**
 7. ✅ **コメント機能**: ノードにコメントを追加（レビュー時に便利）**← 実装完了**
+8. ✅ **WebSocket同期修正**: リアルタイム同期の確実性向上 **← 修正完了**
 
 ---
 
 ## 最近の変更履歴
+
+### 2025-12-23
+
+- ✅ **バージョン管理（履歴）機能の実装**
+  - ダイアグラムのコミット、履歴表示、ロールバック機能
+  - **バックエンドAPI**: [versionController.ts](backend/src/controllers/versionController.ts)
+    - GET /api/projects/:projectId/diagrams/:diagramId/versions - バージョン一覧取得
+    - GET /api/projects/:projectId/diagrams/:diagramId/versions/:id - バージョン詳細取得
+    - POST /api/projects/:projectId/diagrams/:diagramId/versions - コミット作成
+    - POST /api/projects/:projectId/diagrams/:diagramId/versions/:id/restore - バージョン復元
+    - DELETE /api/projects/:projectId/diagrams/:diagramId/versions/:id - バージョン削除
+  - **フロントエンドAPI**: [versions.ts](gsn-editor/src/api/versions.ts)
+    - DiagramVersion型定義
+    - versionsApi（getAll, getById, create, restore, delete）
+  - **コミットモーダル**: [CommitModal.tsx](gsn-editor/src/components/Canvas/CommitModal.tsx)
+    - コミットメッセージ入力
+    - Ctrl+Enterで送信
+  - **履歴モーダル**: [VersionHistoryModal.tsx](gsn-editor/src/components/Canvas/VersionHistoryModal.tsx)
+    - バージョン一覧表示（テーブル形式）
+    - バージョン番号、タイトル、コミットメッセージ、作成者、日時
+    - 復元ボタン（確認ダイアログ付き）
+    - 削除ボタン（確認ダイアログ付き）
+  - **ヘッダー統合**: 💾コミットボタン、📜履歴ボタン追加
+  - **DB保存**: DiagramVersionテーブルにバージョン管理
+  - **WebSocket統合**: バージョン復元時に他ユーザーへ通知（diagram_reload イベント）
+
+- ✅ **WebSocket同期の修正**
+  - **問題**: 2人のユーザーが同じダイアグラムを見ている時に同期が失敗
+  - **原因**: WebSocketコールバックで`currentDiagramId`が一致する場合のみ更新していた
+  - **修正内容**: 全てのWebSocketコールバック（6つ）を修正
+    - `onNodeCreated`, `onNodeUpdated`, `onNodeDeleted`
+    - `onNodeMoved`, `onLinkCreated`, `onLinkDeleted`
+  - **修正箇所**: [diagramStore.ts:451-605](gsn-editor/src/stores/diagramStore.ts#L451-L605)
+  - **変更点**:
+    ```typescript
+    // 修正前: currentDiagramIdが一致する場合のみ更新
+    if (state.currentDiagramId === diagramId) {
+      // 表示を更新
+    } else {
+      // modulesを更新
+    }
+
+    // 修正後: 両方を更新
+    if (state.currentDiagramId === diagramId) {
+      // 現在の表示を更新
+    }
+    // 常にmodulesデータも更新（全ダイアグラムのデータを保持）
+    const targetModule = state.modules[diagramId];
+    if (targetModule) {
+      // modulesを更新
+    }
+    ```
+  - **効果**:
+    - ✅ 同じダイアグラムを見ている2人のユーザー間でリアルタイム同期が確実に動作
+    - ✅ 異なるダイアグラム（モジュール）を見ていても、裏側でデータが正しく更新される
+    - ✅ ダイアグラム切り替え時に最新の状態が反映される
 
 ### 2025-12-19
 
