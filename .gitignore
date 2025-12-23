@@ -27,6 +27,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.log
 
 # Editor directories and files
 .vscode/*
@@ -41,5 +42,8 @@ lerna-debug.log*
 # Database files
 *.db
 *.db-journal
-backend/prisma/dev.db
-backend/prisma/dev.db-journal
+
+# Temporary files
+/tmp/
+*.tmp
+*.temp
