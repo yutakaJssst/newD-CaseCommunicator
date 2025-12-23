@@ -7,6 +7,7 @@ import { RegisterForm } from './components/Auth/RegisterForm';
 import { ProjectList } from './components/Projects/ProjectList';
 import { useAuthStore } from './stores/authStore';
 import { useDiagramStore } from './stores/diagramStore';
+import { projectAPI } from './services/api';
 import { websocketService } from './services/websocket';
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
   const setCurrentProject = useDiagramStore((state) => state.setCurrentProject);
   const initializeWebSocket = useDiagramStore((state) => state.initializeWebSocket);
   const disconnectWebSocket = useDiagramStore((state) => state.disconnectWebSocket);
+  const setProjectRole = useDiagramStore((state) => state.setProjectRole);
 
   const [showRegister, setShowRegister] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -85,9 +87,44 @@ function App() {
     } else {
       localStorage.removeItem('selectedProjectId');
       setCurrentProject(null);
+      setProjectRole(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectId]); // setCurrentProject は Zustand の安定したアクションなので依存配列に含めない
+
+  // Load project role for permission-aware UI
+  useEffect(() => {
+    if (!selectedProjectId || !user) {
+      setProjectRole(null);
+      return;
+    }
+
+    let canceled = false;
+    const loadRole = async () => {
+      try {
+        const response = await projectAPI.getById(selectedProjectId);
+        const project = response.project;
+        const role =
+          project.ownerId === user.id
+            ? 'owner'
+            : project.members?.find((member) => member.user.id === user.id)?.role || null;
+        if (!canceled) {
+          setProjectRole(role);
+        }
+      } catch (error) {
+        console.error('Failed to load project role:', error);
+        if (!canceled) {
+          setProjectRole(null);
+        }
+      }
+    };
+
+    loadRole();
+
+    return () => {
+      canceled = true;
+    };
+  }, [selectedProjectId, user, setProjectRole]);
 
   console.log('App render:', { isAuthenticated, isLoading, user, selectedProjectId });
 

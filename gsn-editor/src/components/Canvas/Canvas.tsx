@@ -49,6 +49,7 @@ export const Canvas: React.FC = () => {
     userCursors,
     currentProjectId,
     clearOldCursors,
+    projectRole,
   } = useDiagramStore();
 
   const { user } = useAuthStore();
@@ -100,6 +101,7 @@ export const Canvas: React.FC = () => {
   const [patternLinks, setPatternLinks] = useState<LinkType[]>([]);
 
   const { viewport, selectedNodeType, mode, selectedNodes, gridSnapEnabled } = canvasState;
+  const isReadOnly = projectRole === 'viewer';
 
   // グリッドスナップ関数
   const snapToGrid = (value: number): number => {
@@ -211,6 +213,7 @@ export const Canvas: React.FC = () => {
     setLinkContextMenu(null);
 
     if (mode === 'addNode' && selectedNodeType) {
+      if (isReadOnly) return;
       const coords = screenToSvgCoordinates(e.clientX, e.clientY);
       const snappedX = snapToGrid(coords.x);
       const snappedY = snapToGrid(coords.y);
@@ -223,6 +226,7 @@ export const Canvas: React.FC = () => {
 
   // コメントアイコンクリック
   const handleCommentClick = (nodeId: string) => (e: React.MouseEvent) => {
+    if (isReadOnly) return;
     e.stopPropagation();
     setCommentPopover({
       nodeId,
@@ -235,6 +239,7 @@ export const Canvas: React.FC = () => {
 
   // ノード右クリック
   const handleNodeContextMenu = (nodeId: string) => (e: React.MouseEvent) => {
+    if (isReadOnly) return;
     e.preventDefault();
     e.stopPropagation();
     setContextMenu({
@@ -248,6 +253,7 @@ export const Canvas: React.FC = () => {
 
   // リンク右クリック
   const handleLinkContextMenu = (linkId: string) => (e: React.MouseEvent) => {
+    if (isReadOnly) return;
     e.preventDefault();
     e.stopPropagation();
     setLinkContextMenu({
@@ -260,6 +266,9 @@ export const Canvas: React.FC = () => {
 
   // ノードクリック
   const handleNodeClick = (nodeId: string, e?: React.MouseEvent) => {
+    if (isReadOnly && (linkSourceId || mode === 'delete')) {
+      return;
+    }
     // リンク追加モード中の場合
     if (linkSourceId) {
       if (linkSourceId !== nodeId) {
@@ -292,6 +301,7 @@ export const Canvas: React.FC = () => {
 
   // ノードドラッグ開始
   const handleNodeDragStart = (nodeId: string) => (e: React.MouseEvent) => {
+    if (isReadOnly) return;
     e.stopPropagation();
     setDraggedNodeId(nodeId);
     setIsDragging(true);
@@ -301,6 +311,7 @@ export const Canvas: React.FC = () => {
 
   // リサイズ開始
   const handleResizeStart = (nodeId: string, direction: string) => (e: React.MouseEvent) => {
+    if (isReadOnly) return;
     e.stopPropagation();
     const node = nodes.find((n) => n.id === nodeId);
     if (!node) return;
@@ -523,7 +534,7 @@ export const Canvas: React.FC = () => {
                 sourceNode={sourceNode}
                 targetNode={targetNode}
                 onClick={() => {
-                  if (mode === 'delete') {
+                  if (mode === 'delete' && !isReadOnly) {
                     deleteLink(link.id);
                   }
                 }}
@@ -542,7 +553,7 @@ export const Canvas: React.FC = () => {
               onDoubleClick={() => {
                 if (node.type === 'Module' && node.moduleId) {
                   switchToModule(node.moduleId);
-                } else {
+                } else if (!isReadOnly) {
                   setEditingNode(node);
                 }
               }}

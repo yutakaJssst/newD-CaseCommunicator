@@ -74,8 +74,9 @@ const NodeIcon: React.FC<{ type: NodeType }> = ({ type }) => {
 };
 
 export const NodePalette: React.FC = () => {
-  const { canvasState, setSelectedNodeType } = useDiagramStore();
+  const { canvasState, setSelectedNodeType, projectRole } = useDiagramStore();
   const { selectedNodeType } = canvasState;
+  const isReadOnly = projectRole === 'viewer';
 
   const handleNodeTypeClick = (type: NodeType) => {
     if (selectedNodeType === type) {
@@ -102,12 +103,13 @@ export const NodePalette: React.FC = () => {
           <button
             key={type}
             onClick={() => handleNodeTypeClick(type)}
+            disabled={isReadOnly}
             style={{
               padding: '12px 16px',
               border: selectedNodeType === type ? '2px solid #3B82F6' : '1px solid #E5E7EB',
               backgroundColor: selectedNodeType === type ? '#EFF6FF' : '#FFFFFF',
               borderRadius: '8px',
-              cursor: 'pointer',
+              cursor: isReadOnly ? 'not-allowed' : 'pointer',
               fontSize: '14px',
               fontWeight: selectedNodeType === type ? '600' : '500',
               color: selectedNodeType === type ? '#3B82F6' : '#374151',
@@ -116,15 +118,16 @@ export const NodePalette: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              opacity: isReadOnly ? 0.6 : 1,
             }}
             onMouseEnter={(e) => {
-              if (selectedNodeType !== type) {
+              if (selectedNodeType !== type && !isReadOnly) {
                 e.currentTarget.style.backgroundColor = '#F9FAFB';
                 e.currentTarget.style.borderColor = '#D1D5DB';
               }
             }}
             onMouseLeave={(e) => {
-              if (selectedNodeType !== type) {
+              if (selectedNodeType !== type && !isReadOnly) {
                 e.currentTarget.style.backgroundColor = '#FFFFFF';
                 e.currentTarget.style.borderColor = '#E5E7EB';
               }

@@ -52,8 +52,10 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
     restoreVersion,
     currentProjectId,
     currentDiagramDbId,
+    projectRole,
   } = useDiagramStore();
   const { viewport, gridSnapEnabled } = canvasState;
+  const canEdit = projectRole !== 'viewer';
 
   // パンくずリスト生成
   const getBreadcrumbs = () => {
@@ -105,6 +107,13 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
   };
 
   const breadcrumbs = getBreadcrumbs();
+  const roleLabel = projectRole
+    ? projectRole === 'owner'
+      ? 'Owner'
+      : projectRole === 'editor'
+        ? 'Editor'
+        : 'Viewer'
+    : null;
 
   // すべてのモジュールを取得（rootを除く）
   const getAllModules = () => {
@@ -191,6 +200,10 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
   };
 
   const handleImport = () => {
+    if (!canEdit) {
+      alert('このプロジェクトは閲覧専用です');
+      return;
+    }
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
@@ -223,6 +236,10 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
   };
 
   const handleReset = () => {
+    if (!canEdit) {
+      alert('このプロジェクトは閲覧専用です');
+      return;
+    }
     if (confirm('すべてのデータをリセットしますか？')) {
       reset();
     }
@@ -235,6 +252,10 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
 
   const handleCommit = async (message: string) => {
     try {
+      if (!canEdit) {
+        alert('このプロジェクトは閲覧専用です');
+        return;
+      }
       await commitVersion(message);
       setShowCommitModal(false);
       alert('コミットが完了しました');
@@ -452,7 +473,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         {/* Undo/Redoボタン */}
         <button
           onClick={undo}
-          disabled={!canUndo()}
+          disabled={!canUndo() || !canEdit}
           title="元に戻す (Ctrl+Z)"
           style={{
             width: '30px',
@@ -460,16 +481,16 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
             fontSize: '16px',
             border: '1px solid #D1D5DB',
             borderRadius: '6px',
-            cursor: canUndo() ? 'pointer' : 'not-allowed',
+            cursor: canUndo() && canEdit ? 'pointer' : 'not-allowed',
             backgroundColor: '#FFFFFF',
-            color: canUndo() ? '#374151' : '#D1D5DB',
+            color: canUndo() && canEdit ? '#374151' : '#D1D5DB',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             transition: 'all 0.2s',
           }}
           onMouseEnter={(e) => {
-            if (canUndo()) {
+            if (canUndo() && canEdit) {
               e.currentTarget.style.backgroundColor = '#F3F4F6';
               e.currentTarget.style.borderColor = '#9CA3AF';
             }
@@ -483,7 +504,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         </button>
         <button
           onClick={redo}
-          disabled={!canRedo()}
+          disabled={!canRedo() || !canEdit}
           title="やり直す (Ctrl+Y)"
           style={{
             width: '30px',
@@ -491,16 +512,16 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
             fontSize: '16px',
             border: '1px solid #D1D5DB',
             borderRadius: '6px',
-            cursor: canRedo() ? 'pointer' : 'not-allowed',
+            cursor: canRedo() && canEdit ? 'pointer' : 'not-allowed',
             backgroundColor: '#FFFFFF',
-            color: canRedo() ? '#374151' : '#D1D5DB',
+            color: canRedo() && canEdit ? '#374151' : '#D1D5DB',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             transition: 'all 0.2s',
           }}
           onMouseEnter={(e) => {
-            if (canRedo()) {
+            if (canRedo() && canEdit) {
               e.currentTarget.style.backgroundColor = '#F3F4F6';
               e.currentTarget.style.borderColor = '#9CA3AF';
             }
@@ -516,23 +537,23 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         {/* コミットボタン */}
         <button
           onClick={() => setShowCommitModal(true)}
-          disabled={!currentProjectId || !currentDiagramDbId}
+          disabled={!currentProjectId || !currentDiagramDbId || !canEdit}
           title="コミット"
           style={{
             padding: '6px 12px',
             fontSize: '13px',
             border: '1px solid #D1D5DB',
             borderRadius: '6px',
-            cursor: currentProjectId && currentDiagramDbId ? 'pointer' : 'not-allowed',
+            cursor: currentProjectId && currentDiagramDbId && canEdit ? 'pointer' : 'not-allowed',
             backgroundColor: '#FFFFFF',
-            color: currentProjectId && currentDiagramDbId ? '#374151' : '#D1D5DB',
+            color: currentProjectId && currentDiagramDbId && canEdit ? '#374151' : '#D1D5DB',
             display: 'flex',
             alignItems: 'center',
             gap: '4px',
             transition: 'all 0.2s',
           }}
           onMouseEnter={(e) => {
-            if (currentProjectId && currentDiagramDbId) {
+            if (currentProjectId && currentDiagramDbId && canEdit) {
               e.currentTarget.style.backgroundColor = '#F3F4F6';
               e.currentTarget.style.borderColor = '#9CA3AF';
             }
@@ -617,23 +638,26 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         <button
           onClick={applyAutoLayout}
           title="自動レイアウト"
+          disabled={!canEdit}
           style={{
             width: '30px',
             height: '30px',
             fontSize: '16px',
             border: '1px solid #D1D5DB',
             borderRadius: '6px',
-            cursor: 'pointer',
+            cursor: canEdit ? 'pointer' : 'not-allowed',
             backgroundColor: '#FFFFFF',
-            color: '#374151',
+            color: canEdit ? '#374151' : '#D1D5DB',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             transition: 'all 0.2s',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#F3F4F6';
-            e.currentTarget.style.borderColor = '#9CA3AF';
+            if (canEdit) {
+              e.currentTarget.style.backgroundColor = '#F3F4F6';
+              e.currentTarget.style.borderColor = '#9CA3AF';
+            }
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = '#FFFFFF';
@@ -647,25 +671,29 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         <button
           onClick={() => setShowPatternLibrary(true)}
           title="パターンライブラリ"
+          disabled={!canEdit}
           style={{
             height: '30px',
             padding: '0 10px',
             fontSize: '12px',
             border: '1px solid #059669',
             borderRadius: '6px',
-            cursor: 'pointer',
+            cursor: canEdit ? 'pointer' : 'not-allowed',
             backgroundColor: '#ECFDF5',
-            color: '#059669',
+            color: canEdit ? '#059669' : '#9CA3AF',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '4px',
             transition: 'all 0.2s',
             fontWeight: '500',
+            opacity: canEdit ? 1 : 0.6,
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#D1FAE5';
-            e.currentTarget.style.borderColor = '#047857';
+            if (canEdit) {
+              e.currentTarget.style.backgroundColor = '#D1FAE5';
+              e.currentTarget.style.borderColor = '#047857';
+            }
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = '#ECFDF5';
@@ -870,6 +898,19 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         {/* ユーザー情報 */}
         {user && onLogout && (
           <>
+            {roleLabel && (
+              <span style={{
+                fontSize: '10px',
+                padding: '2px 6px',
+                borderRadius: '10px',
+                backgroundColor: projectRole === 'viewer' ? '#FEF3C7' : '#E0F2FE',
+                color: projectRole === 'viewer' ? '#92400E' : '#0369A1',
+                fontWeight: '600',
+                textTransform: 'uppercase',
+              }}>
+                {roleLabel}
+              </span>
+            )}
             <span style={{
               fontSize: '11px',
               color: '#6B7280',
@@ -1035,20 +1076,23 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         </div>
         <button
           onClick={handleImport}
+          disabled={!canEdit}
           style={{
             padding: '5px 10px',
             fontSize: '11px',
             fontWeight: '500',
             border: '1px solid #D1D5DB',
             borderRadius: '6px',
-            cursor: 'pointer',
+            cursor: canEdit ? 'pointer' : 'not-allowed',
             backgroundColor: '#FFFFFF',
-            color: '#374151',
+            color: canEdit ? '#374151' : '#D1D5DB',
             transition: 'all 0.2s',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#F3F4F6';
-            e.currentTarget.style.borderColor = '#9CA3AF';
+            if (canEdit) {
+              e.currentTarget.style.backgroundColor = '#F3F4F6';
+              e.currentTarget.style.borderColor = '#9CA3AF';
+            }
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = '#FFFFFF';
@@ -1059,20 +1103,23 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
         </button>
         <button
           onClick={handleReset}
+          disabled={!canEdit}
           style={{
             padding: '5px 10px',
             fontSize: '11px',
             fontWeight: '500',
             border: '1px solid #D1D5DB',
             borderRadius: '6px',
-            cursor: 'pointer',
+            cursor: canEdit ? 'pointer' : 'not-allowed',
             backgroundColor: '#FFFFFF',
-            color: '#EF4444',
+            color: canEdit ? '#EF4444' : '#D1D5DB',
             transition: 'all 0.2s',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#FEF2F2';
-            e.currentTarget.style.borderColor = '#EF4444';
+            if (canEdit) {
+              e.currentTarget.style.backgroundColor = '#FEF2F2';
+              e.currentTarget.style.borderColor = '#EF4444';
+            }
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = '#FFFFFF';

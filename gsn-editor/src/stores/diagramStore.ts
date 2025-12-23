@@ -40,6 +40,9 @@ interface DiagramStore {
   isSyncing: boolean; // DB同期中フラグ
   lastSyncedAt: string | null; // 最後の同期日時
   isWebSocketConnected: boolean; // WebSocket接続状態
+  wsUserId: string | null;
+  wsUserName: string | null;
+  projectRole: 'owner' | 'editor' | 'viewer' | null;
   onlineUsers: OnlineUser[]; // プロジェクトに接続中のユーザー
   userCursors: Map<string, UserCursor>; // 他のユーザーのカーソル位置
   title: string;
@@ -57,6 +60,7 @@ interface DiagramStore {
 
   // Actions
   setCurrentProject: (projectId: string | null) => void;
+  setProjectRole: (role: 'owner' | 'editor' | 'viewer' | null) => void;
   initializeWebSocket: (userId: string, userName: string) => void;
   disconnectWebSocket: () => void;
   loadDiagramFromDB: (projectId: string, diagramId?: string) => Promise<void>;
@@ -161,6 +165,8 @@ const createEmptyDiagramData = (title = 'ルート', id = 'root'): DiagramData =
     },
   };
 };
+
+const canEditProject = (role: DiagramStore['projectRole']) => role !== 'viewer';
 
 const ensureRootModuleExists = (
   modules: Record<string, DiagramData>,
@@ -414,6 +420,9 @@ export const useDiagramStore = create<DiagramStore>()(
       isSyncing: false,
       lastSyncedAt: null,
       isWebSocketConnected: false,
+      wsUserId: null,
+      wsUserName: null,
+      projectRole: null,
       onlineUsers: [],
       userCursors: new Map(),
       isReconnecting: false,
@@ -432,6 +441,7 @@ export const useDiagramStore = create<DiagramStore>()(
 
       // WebSocket Actions
       initializeWebSocket: (userId: string, userName: string) => {
+        set({ wsUserId: userId, wsUserName: userName });
         // Connect to WebSocket
         websocketService.connect();
 
@@ -606,21 +616,37 @@ export const useDiagramStore = create<DiagramStore>()(
             set({ onlineUsers: users });
           },
           onConnectionStatusChange: ({ connected, reconnecting, attempts }) => {
+            const wasReconnecting = get().isReconnecting;
+            const wasConnected = get().isWebSocketConnected;
             set({
               isWebSocketConnected: connected,
               isReconnecting: reconnecting,
               reconnectAttempts: attempts,
+              ...(connected ? {} : { onlineUsers: [], userCursors: new Map() }),
             });
             if (!connected && !reconnecting && attempts >= 5) {
               console.warn('[DiagramStore] WebSocket reconnect exhausted, consider manual refresh');
+            }
+            if (connected && (wasReconnecting || (!wasConnected && attempts > 0))) {
+              const {
+                currentProjectId,
+                currentDiagramDbId,
+                wsUserId,
+                wsUserName,
+                isSyncing,
+              } = get();
+              if (currentProjectId && wsUserId && wsUserName) {
+                websocketService.joinProject(currentProjectId, wsUserId, wsUserName);
+              }
+              if (currentProjectId && !isSyncing) {
+                get().loadDiagramFromDB(currentProjectId, currentDiagramDbId || undefined);
+              }
             }
           },
           onCursorMoved: (cursor) => {
             get().updateUserCursor(cursor.userId, cursor.userName, cursor.x, cursor.y);
           },
         });
-
-        set({ isWebSocketConnected: true });
 
         // プロジェクトに参加している場合は自動join
         const projectId = get().currentProjectId;
@@ -629,9 +655,22 @@ export const useDiagramStore = create<DiagramStore>()(
         }
       },
 
+      setProjectRole: (role) => {
+        set({ projectRole: role });
+      },
+
       disconnectWebSocket: () => {
         websocketService.disconnect();
-        set({ isWebSocketConnected: false, onlineUsers: [] });
+        set({
+          isWebSocketConnected: false,
+          isReconnecting: false,
+          reconnectAttempts: 0,
+          wsUserId: null,
+          wsUserName: null,
+          projectRole: null,
+          onlineUsers: [],
+          userCursors: new Map(),
+        });
       },
 
       // Actions
@@ -962,6 +1001,7 @@ export const useDiagramStore = create<DiagramStore>()(
           set({
             currentProjectId: null,
             currentDiagramDbId: null,
+            projectRole: null,
             title: 'ルート',
             nodes: [],
             links: [],
@@ -973,6 +1013,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       setTitle: (title) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         saveToHistory(get, set);
         set({ title });
         // DB保存をデバウンス
@@ -980,6 +1023,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       addNode: (type, x, y) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         saveToHistory(get, set);
         const state = get();
 
@@ -1070,6 +1116,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       updateNode: (id, updates) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         saveToHistory(get, set);
         const state = get();
         const updatedNode = state.nodes.find(n => n.id === id);
@@ -1108,6 +1157,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       deleteNode: (id) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         saveToHistory(get, set);
         set((state) => ({
           nodes: state.nodes.filter((node) => node.id !== id),
@@ -1129,6 +1181,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       moveNode: (id, x, y) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         // 移動は履歴に保存しない（頻繁すぎるため）
         set((state) => ({
           nodes: state.nodes.map((node) =>
@@ -1144,6 +1199,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       addLink: (sourceId, targetId, type) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         // Check if link already exists
         const existingLink = get().links.find(
           (link) => link.source === sourceId && link.target === targetId
@@ -1181,6 +1239,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       deleteLink: (id) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         saveToHistory(get, set);
         set((state) => ({
           links: state.links.filter((link) => link.id !== id),
@@ -1197,6 +1258,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       setCanvasMode: (mode) => {
+        if (!canEditProject(get().projectRole) && mode !== 'select') {
+          return;
+        }
         set((state) => ({
           canvasState: {
             ...state.canvasState,
@@ -1207,6 +1271,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       setSelectedNodeType: (type) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         set((state) => ({
           canvasState: {
             ...state.canvasState,
@@ -1266,6 +1333,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       deleteSelectedNodes: () => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         const state = get();
         if (state.canvasState.selectedNodes.length === 0) return;
 
@@ -1283,6 +1353,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       moveSelectedNodes: (dx: number, dy: number) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         const state = get();
         if (state.canvasState.selectedNodes.length === 0) return;
 
@@ -1332,6 +1405,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       pasteNodes: () => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         const state = get();
         if (state.clipboard.length === 0) return;
 
@@ -1530,6 +1606,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       undo: () => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         const state = get();
         if (state.historyIndex > 0) {
           const previousState = state.history[state.historyIndex - 1];
@@ -1543,6 +1622,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       redo: () => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         const state = get();
         if (state.historyIndex < state.history.length - 1) {
           const nextState = state.history[state.historyIndex + 1];
@@ -1566,6 +1648,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       convertToModule: (goalId) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         saveToHistory(get, set);
         const state = get();
         const goalNode = state.nodes.find(n => n.id === goalId && n.type === 'Goal');
@@ -1879,6 +1964,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       importData: (data) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         saveToHistory(get, set);
         set({
           title: data.title,
@@ -1894,6 +1982,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       importProjectData: (data) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         saveToHistory(get, set);
 
         const fallbackTitle =
@@ -1918,6 +2009,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       applyAutoLayout: () => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         const state = get();
         if (state.nodes.length === 0) {
           alert('レイアウトするノードがありません');
@@ -2287,6 +2381,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       reset: () => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         const emptyProjectData = normalizeProjectData(null, '新しいGSN図');
         const rootDiagram = emptyProjectData.modules[emptyProjectData.currentDiagramId];
         set({
@@ -2304,6 +2401,9 @@ export const useDiagramStore = create<DiagramStore>()(
 
       // コメント関連アクション
       addComment: (nodeId, authorId, authorName, content) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         const now = new Date().toISOString();
         const newComment: NodeComment = {
           id: generateCommentId(),
@@ -2327,6 +2427,9 @@ export const useDiagramStore = create<DiagramStore>()(
       },
 
       deleteComment: (nodeId, commentId) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         set((state) => ({
           nodes: state.nodes.map((node) =>
             node.id === nodeId
@@ -2341,6 +2444,9 @@ export const useDiagramStore = create<DiagramStore>()(
 
       // パターン機能用：履歴保存なしでノードを直接追加
       addNodeDirect: (node) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         set((state) => ({
           nodes: [...state.nodes, node],
         }));
@@ -2351,6 +2457,9 @@ export const useDiagramStore = create<DiagramStore>()(
 
       // パターン機能用：履歴保存なしでリンクを直接追加
       addLinkDirect: (link) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
         set((state) => ({
           links: [...state.links, link],
         }));
@@ -2420,6 +2529,10 @@ export const useDiagramStore = create<DiagramStore>()(
 
       // バージョン管理
       commitVersion: async (message: string) => {
+        if (!canEditProject(get().projectRole)) {
+          console.warn('Cannot commit: project is read-only');
+          return;
+        }
         const { currentProjectId } = get();
         if (!currentProjectId) {
           console.warn('Cannot commit: no project selected');

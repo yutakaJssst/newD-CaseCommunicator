@@ -8,6 +8,7 @@ import projectRoutes from './routes/projects';
 import patternRoutes from './routes/patterns';
 import { errorHandler } from './middleware/errorHandler';
 import { setupWebSocket } from './websocket/handlers';
+import { requestContext } from './middleware/requestContext';
 
 // Load environment variables
 dotenv.config();
@@ -28,6 +29,7 @@ const io = new Server(httpServer, {
 });
 
 // Middleware
+app.use(requestContext);
 app.use(cors({
   origin: corsOrigins,
   credentials: true,
