@@ -162,6 +162,7 @@ class WebSocketService {
     });
 
     this.socket.on('cursor_moved', (data) => {
+      console.log('[WebSocket] Cursor moved received:', data.userName, data.x, data.y);
       this.callbacks.onCursorMoved?.(data);
     });
   }
@@ -250,7 +251,11 @@ class WebSocketService {
 
   // Emit cursor movement
   emitCursorMoved(projectId: string, x: number, y: number) {
-    this.socket?.emit('cursor_moved', { projectId, x, y });
+    if (!this.socket?.connected) {
+      console.warn('[WebSocket] Cannot emit cursor - not connected');
+      return;
+    }
+    this.socket.emit('cursor_moved', { projectId, x, y });
   }
 
   // Register callbacks

@@ -545,13 +545,14 @@ export const Canvas: React.FC = () => {
           ))}
 
           {/* 他のユーザーのカーソルを描画 */}
-          {Array.from(userCursors.values()).map((cursor, index) => {
+          {userCursors instanceof Map && Array.from(userCursors.values()).map((cursor) => {
             // 自分のカーソルは表示しない
             if (user && cursor.userId === user.id) return null;
 
-            // ユーザーごとに異なる色を生成
-            const colors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
-            const color = colors[index % colors.length];
+            // ユーザーIDから一貫した色を生成（ハッシュベース）
+            const colors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316'];
+            const hash = cursor.userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            const color = colors[hash % colors.length];
 
             return (
               <UserCursor

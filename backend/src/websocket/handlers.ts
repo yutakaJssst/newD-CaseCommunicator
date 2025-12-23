@@ -88,12 +88,20 @@ export const setupWebSocket = (io: Server) => {
 
       socket.leave(projectId);
 
+      // Get updated online users
+      const currentUsers = getOnlineUsers(projectId);
+
       // Notify other users
       socket.to(projectId).emit('user_left', {
         userId: socket.userId,
         userName: socket.userName,
         timestamp: new Date().toISOString(),
       });
+
+      // Broadcast updated online users list
+      io.to(projectId).emit('online_users', currentUsers);
+
+      console.log(`[WebSocket] Project ${projectId} now has ${currentUsers.length} users online`);
     });
 
     // Handle node operations
@@ -147,13 +155,22 @@ export const setupWebSocket = (io: Server) => {
       console.log(`[WebSocket] Client disconnected: ${socket.id}`);
 
       if (socket.currentProjectId) {
-        removeOnlineUser(socket.currentProjectId, socket.id);
+        const projectId = socket.currentProjectId;
+        removeOnlineUser(projectId, socket.id);
 
-        socket.to(socket.currentProjectId).emit('user_left', {
+        // Get updated online users
+        const currentUsers = getOnlineUsers(projectId);
+
+        socket.to(projectId).emit('user_left', {
           userId: socket.userId,
           userName: socket.userName,
           timestamp: new Date().toISOString(),
         });
+
+        // Broadcast updated online users list
+        io.to(projectId).emit('online_users', currentUsers);
+
+        console.log(`[WebSocket] Project ${projectId} now has ${currentUsers.length} users online after disconnect`);
       }
     });
   });

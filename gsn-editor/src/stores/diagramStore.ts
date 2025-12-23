@@ -2417,6 +2417,11 @@ export const useDiagramStore = create<DiagramStore>()(
     {
       name: 'gsn-diagram-storage',
       // LocalStorageはデフォルトで使用される（プロジェクトIDベースの保存は setCurrentProject 内で処理）
+      partialize: (state) => {
+        // userCursors（Map）とWebSocket関連の一時的な状態は永続化から除外
+        const { userCursors, isWebSocketConnected, onlineUsers, isReconnecting, reconnectAttempts, ...rest } = state;
+        return rest;
+      },
     }
   )
 );
