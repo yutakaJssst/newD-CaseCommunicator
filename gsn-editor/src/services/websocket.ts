@@ -32,8 +32,12 @@ class WebSocketService {
   private callbacks: WebSocketCallbacks = {};
 
   connect() {
-    if (this.socket?.connected) {
-      console.log('[WebSocket] Already connected');
+    if (this.socket) {
+      if (this.socket.connected) {
+        console.log('[WebSocket] Already connected');
+      } else {
+        this.socket.connect();
+      }
       return;
     }
 
@@ -177,7 +181,10 @@ class WebSocketService {
 
   joinProject(projectId: string, userId: string, userName: string) {
     if (!this.socket?.connected) {
-      console.error('[WebSocket] Not connected');
+      // Queue the join and ensure a connection attempt is in-flight.
+      this.lastJoinPayload = { projectId, userId, userName };
+      console.warn('[WebSocket] Not connected, will join after connect');
+      this.connect();
       return;
     }
 

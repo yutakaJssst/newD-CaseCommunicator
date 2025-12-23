@@ -87,14 +87,13 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
 
-        set({ isLoading: true });
+        set({ isLoading: true, error: null });
         try {
           const response = await authAPI.getMe();
           set({
             user: response.user,
             token,
             isAuthenticated: true,
-            isLoading: false,
           });
         } catch (error) {
           localStorage.removeItem('authToken');
@@ -103,8 +102,10 @@ export const useAuthStore = create<AuthState>()(
             user: null,
             token: null,
             isAuthenticated: false,
-            isLoading: false,
+            error: '認証の確認に失敗しました',
           });
+        } finally {
+          set({ isLoading: false });
         }
       },
 

@@ -110,6 +110,15 @@ export const Canvas: React.FC = () => {
   // キーボードショートカット
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
       // ノード編集中またはコメントポップオーバー表示中は無効化
       if (editingNode || commentPopover) return;
 

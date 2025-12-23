@@ -3,6 +3,8 @@ import { useDiagramStore } from '../../stores/diagramStore';
 import type { User } from '../../services/api';
 import { validateDiagram, type ValidationResult } from '../../utils/validation';
 import { ValidationModal } from '../Canvas/ValidationModal';
+import { CommitModal } from '../Canvas/CommitModal';
+import { VersionHistoryModal } from '../Canvas/VersionHistoryModal';
 
 interface HeaderProps {
   user?: User | null;
@@ -14,6 +16,8 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showModuleList, setShowModuleList] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [showCommitModal, setShowCommitModal] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
 
   const {
     title,
@@ -44,6 +48,10 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
     nodes,
     links,
     setShowPatternLibrary,
+    commitVersion,
+    restoreVersion,
+    currentProjectId,
+    currentDiagramDbId,
   } = useDiagramStore();
   const { viewport, gridSnapEnabled } = canvasState;
 
@@ -223,6 +231,28 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
   const handleValidate = () => {
     const result = validateDiagram(nodes, links);
     setValidationResult(result);
+  };
+
+  const handleCommit = async (message: string) => {
+    try {
+      await commitVersion(message);
+      setShowCommitModal(false);
+      alert('コミットが完了しました');
+    } catch (error) {
+      console.error('Commit error:', error);
+      alert('コミットに失敗しました');
+    }
+  };
+
+  const handleRestore = async (versionId: string) => {
+    try {
+      await restoreVersion(versionId);
+      setShowVersionHistory(false);
+      alert('バージョンの復元が完了しました');
+    } catch (error) {
+      console.error('Restore error:', error);
+      alert('復元に失敗しました');
+    }
   };
 
   return (
@@ -481,6 +511,72 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
           }}
         >
           ↷
+        </button>
+
+        {/* コミットボタン */}
+        <button
+          onClick={() => setShowCommitModal(true)}
+          disabled={!currentProjectId || !currentDiagramDbId}
+          title="コミット"
+          style={{
+            padding: '6px 12px',
+            fontSize: '13px',
+            border: '1px solid #D1D5DB',
+            borderRadius: '6px',
+            cursor: currentProjectId && currentDiagramDbId ? 'pointer' : 'not-allowed',
+            backgroundColor: '#FFFFFF',
+            color: currentProjectId && currentDiagramDbId ? '#374151' : '#D1D5DB',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            if (currentProjectId && currentDiagramDbId) {
+              e.currentTarget.style.backgroundColor = '#F3F4F6';
+              e.currentTarget.style.borderColor = '#9CA3AF';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#D1D5DB';
+          }}
+        >
+          <span>💾</span>
+          <span>コミット</span>
+        </button>
+
+        {/* 履歴ボタン */}
+        <button
+          onClick={() => setShowVersionHistory(true)}
+          disabled={!currentProjectId || !currentDiagramDbId}
+          title="履歴"
+          style={{
+            padding: '6px 12px',
+            fontSize: '13px',
+            border: '1px solid #D1D5DB',
+            borderRadius: '6px',
+            cursor: currentProjectId && currentDiagramDbId ? 'pointer' : 'not-allowed',
+            backgroundColor: '#FFFFFF',
+            color: currentProjectId && currentDiagramDbId ? '#374151' : '#D1D5DB',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            if (currentProjectId && currentDiagramDbId) {
+              e.currentTarget.style.backgroundColor = '#F3F4F6';
+              e.currentTarget.style.borderColor = '#9CA3AF';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#D1D5DB';
+          }}
+        >
+          <span>📜</span>
+          <span>履歴</span>
         </button>
 
         {/* グリッドスナップトグル */}
@@ -994,6 +1090,22 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
           onClose={() => setValidationResult(null)}
         />
       )}
+
+      {/* コミットモーダル */}
+      <CommitModal
+        isOpen={showCommitModal}
+        onClose={() => setShowCommitModal(false)}
+        onCommit={handleCommit}
+      />
+
+      {/* バージョン履歴モーダル */}
+      <VersionHistoryModal
+        isOpen={showVersionHistory}
+        onClose={() => setShowVersionHistory(false)}
+        projectId={currentProjectId || ''}
+        diagramId={currentDiagramDbId || ''}
+        onRestore={handleRestore}
+      />
     </div>
   );
 };

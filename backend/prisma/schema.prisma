@@ -77,9 +77,28 @@ model Diagram {
 
   // Relations
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions  DiagramVersion[]
 
   @@index([projectId])
   @@map("diagrams")
+}
+
+model DiagramVersion {
+  id             String   @id @default(uuid())
+  diagramId      String
+  versionNumber  Int
+  title          String
+  data           Json     // GSN diagram data snapshot
+  commitMessage  String?  // ユーザーのコミットメッセージ
+  createdBy      String?  // 作成者のユーザーID
+  createdAt      DateTime @default(now())
+
+  // Relations
+  diagram        Diagram  @relation(fields: [diagramId], references: [id], onDelete: Cascade)
+
+  @@unique([diagramId, versionNumber])
+  @@index([diagramId])
+  @@map("diagram_versions")
 }
 
 model Session {

@@ -124,6 +124,10 @@ interface DiagramStore {
   updateUserCursor: (userId: string, userName: string, x: number, y: number) => void;
   removeUserCursor: (userId: string) => void;
   clearOldCursors: () => void;
+
+  // バージョン管理関連
+  commitVersion: (message: string) => Promise<void>;
+  restoreVersion: (versionId: string) => Promise<void>;
 }
 
 type ProjectStateSlice = Pick<
@@ -2412,6 +2416,58 @@ export const useDiagramStore = create<DiagramStore>()(
           }
           return { userCursors: newCursors };
         });
+      },
+
+      // バージョン管理
+      commitVersion: async (message: string) => {
+        const { currentProjectId } = get();
+        if (!currentProjectId) {
+          console.warn('Cannot commit: no project selected');
+          return;
+        }
+
+        try {
+          // まず現在の状態をDBに保存
+          await get().saveDiagramToDB();
+
+          const { currentDiagramDbId } = get();
+          if (!currentDiagramDbId) {
+            throw new Error('Diagram has not been saved to DB yet');
+          }
+
+          // バージョンを作成
+          const { versionsApi } = await import('../api/versions');
+          await versionsApi.create(currentProjectId, currentDiagramDbId, {
+            commitMessage: message,
+          });
+
+          console.log('Version committed successfully');
+        } catch (error) {
+          console.error('Failed to commit version:', error);
+          throw error;
+        }
+      },
+
+      restoreVersion: async (versionId: string) => {
+        const { currentProjectId, currentDiagramDbId } = get();
+        if (!currentProjectId || !currentDiagramDbId) {
+          console.warn('Cannot restore: no project or diagram selected');
+          return;
+        }
+
+        try {
+          // バージョンを復元
+          const { versionsApi } = await import('../api/versions');
+          await versionsApi.restore(currentProjectId, currentDiagramDbId, versionId);
+
+          // ダイアグラムデータを再読み込み
+          await get().loadDiagramFromDB(currentProjectId, currentDiagramDbId);
+
+          console.log('Version restored successfully');
+        } catch (error) {
+          console.error('Failed to restore version:', error);
+          throw error;
+        }
       },
     }),
     {

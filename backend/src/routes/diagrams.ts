@@ -7,6 +7,7 @@ import {
   updateDiagram,
   deleteDiagram,
 } from '../controllers/diagramController';
+import versionRoutes from './versions';
 
 const router = Router({ mergeParams: true }); // Allow access to :projectId from parent router
 
@@ -19,5 +20,8 @@ router.get('/:diagramId', getDiagram);
 router.post('/', createDiagram);
 router.put('/:diagramId', updateDiagram);
 router.delete('/:diagramId', deleteDiagram);
+
+// Version management routes
+router.use('/:diagramId/versions', versionRoutes);
 
 export default router;
