@@ -6,6 +6,8 @@ import { Server } from 'socket.io';
 import authRoutes from './routes/auth';
 import projectRoutes from './routes/projects';
 import patternRoutes from './routes/patterns';
+import surveyRoutes from './routes/surveys';
+import surveyPublicRoutes from './routes/surveysPublic';
 import { errorHandler } from './middleware/errorHandler';
 import { setupWebSocket } from './websocket/handlers';
 import { requestContext } from './middleware/requestContext';
@@ -45,6 +47,8 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/patterns', patternRoutes);
+app.use('/api/surveys/public', surveyPublicRoutes);
+app.use('/api/surveys', surveyRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);

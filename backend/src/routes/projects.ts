@@ -9,6 +9,7 @@ import {
 } from '../controllers/projectController';
 import diagramRoutes from './diagrams';
 import memberRoutes from './projectMembers';
+import projectSurveyRoutes from './projectSurveys';
 
 const router = Router();
 
@@ -27,5 +28,8 @@ router.use('/:projectId/diagrams', diagramRoutes);
 
 // Nested member routes
 router.use('/:projectId/members', memberRoutes);
+
+// Nested survey routes
+router.use('/:projectId/surveys', projectSurveyRoutes);
 
 export default router;

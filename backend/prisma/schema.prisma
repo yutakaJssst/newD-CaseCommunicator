@@ -10,6 +10,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum SurveyStatus {
+  draft
+  published
+  closed
+}
+
 model User {
   id            String          @id @default(uuid())
   email         String          @unique
@@ -25,6 +31,7 @@ model User {
   sessions       Session[]
   activityLogs   ActivityLog[]
   patterns       Pattern[]
+  surveys        Survey[]
 
   @@index([email])
   @@map("users")
@@ -43,6 +50,7 @@ model Project {
   owner       User            @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   members     ProjectMember[]
   diagrams    Diagram[]
+  surveys     Survey[]
   activityLogs ActivityLog[]
 
   @@index([ownerId])
@@ -78,6 +86,7 @@ model Diagram {
   // Relations
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   versions  DiagramVersion[]
+  surveys   Survey[]
 
   @@index([projectId])
   @@map("diagrams")
@@ -148,4 +157,78 @@ model Pattern {
   @@index([authorId])
   @@index([isPublic])
   @@map("patterns")
+}
+
+model Survey {
+  id           String        @id @default(uuid())
+  projectId    String
+  diagramId    String?
+  title        String
+  description  String?
+  status       SurveyStatus  @default(draft)
+  publicToken  String?       @unique
+  gsnSnapshot  Json
+  createdById  String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // Relations
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  diagram      Diagram?      @relation(fields: [diagramId], references: [id], onDelete: SetNull)
+  createdBy    User          @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  questions    SurveyQuestion[]
+  responses    SurveyResponse[]
+
+  @@index([projectId])
+  @@index([diagramId])
+  @@index([createdById])
+  @@map("surveys")
+}
+
+model SurveyQuestion {
+  id           String   @id @default(uuid())
+  surveyId     String
+  nodeId       String
+  nodeType     String
+  questionText String
+  scaleMin     Int      @default(0)
+  scaleMax     Int      @default(3)
+  order        Int
+
+  // Relations
+  survey       Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  answers      SurveyAnswer[]
+
+  @@index([surveyId])
+  @@map("survey_questions")
+}
+
+model SurveyResponse {
+  id             String    @id @default(uuid())
+  surveyId       String
+  respondentHash String?
+  submittedAt    DateTime  @default(now())
+
+  // Relations
+  survey         Survey    @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  answers        SurveyAnswer[]
+
+  @@index([surveyId])
+  @@map("survey_responses")
+}
+
+model SurveyAnswer {
+  id          String   @id @default(uuid())
+  responseId  String
+  questionId  String
+  score       Int
+  comment     String?
+
+  // Relations
+  response    SurveyResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  question    SurveyQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([responseId, questionId])
+  @@index([questionId])
+  @@map("survey_answers")
 }
