@@ -10,9 +10,15 @@ interface HeaderProps {
   user?: User | null;
   onLogout?: () => void;
   onBackToProjects?: () => void;
+  onOpenSurveyManager?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects }) => {
+export const Header: React.FC<HeaderProps> = ({
+  user,
+  onLogout,
+  onBackToProjects,
+  onOpenSurveyManager,
+}) => {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showModuleList, setShowModuleList] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
@@ -535,6 +541,38 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
           }}
         >
           ↷
+        </button>
+
+        <button
+          onClick={() => onOpenSurveyManager?.()}
+          disabled={!currentProjectId}
+          title="アンケート"
+          style={{
+            padding: '6px 12px',
+            fontSize: '13px',
+            border: '1px solid #D1D5DB',
+            borderRadius: '6px',
+            cursor: currentProjectId ? 'pointer' : 'not-allowed',
+            backgroundColor: '#FFFFFF',
+            color: currentProjectId ? '#374151' : '#D1D5DB',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            if (currentProjectId) {
+              e.currentTarget.style.backgroundColor = '#F3F4F6';
+              e.currentTarget.style.borderColor = '#9CA3AF';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#D1D5DB';
+          }}
+        >
+          <span>📝</span>
+          <span>アンケート</span>
         </button>
 
         {/* コミットボタン */}

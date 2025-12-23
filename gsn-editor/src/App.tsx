@@ -6,6 +6,8 @@ import { LoginForm } from './components/Auth/LoginForm';
 import { RegisterForm } from './components/Auth/RegisterForm';
 import { ProjectList } from './components/Projects/ProjectList';
 import { LoadingState } from './components/Status/LoadingState';
+import { SurveyManagerModal } from './components/Surveys/SurveyManagerModal';
+import { PublicSurveyPage } from './components/Surveys/PublicSurveyPage';
 import { useAuthStore } from './stores/authStore';
 import { useDiagramStore } from './stores/diagramStore';
 import { projectAPI } from './services/api';
@@ -23,12 +25,24 @@ function App() {
   const disconnectWebSocket = useDiagramStore((state) => state.disconnectWebSocket);
   const setProjectRole = useDiagramStore((state) => state.setProjectRole);
   const checkForRemoteUpdate = useDiagramStore((state) => state.checkForRemoteUpdate);
+  const currentProjectId = useDiagramStore((state) => state.currentProjectId);
 
   const [showRegister, setShowRegister] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [showSurveyManager, setShowSurveyManager] = useState(false);
 
   // Memoize user ID to prevent infinite loops
   const userId = useMemo(() => user?.id, [user?.id]);
+  const publicSurveyToken = useMemo(() => {
+    const path = window.location.pathname;
+    if (!path.startsWith('/survey/')) return null;
+    const token = path.replace('/survey/', '').replace(/\/$/, '');
+    return token || null;
+  }, []);
+
+  if (publicSurveyToken) {
+    return <PublicSurveyPage token={publicSurveyToken} />;
+  }
 
   useEffect(() => {
     console.log('App mounted, checking auth...');
@@ -161,6 +175,7 @@ function App() {
         user={user}
         onLogout={logout}
         onBackToProjects={() => setSelectedProjectId(null)}
+        onOpenSurveyManager={() => setShowSurveyManager(true)}
       />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar />
@@ -168,6 +183,13 @@ function App() {
           <Canvas />
         </div>
       </div>
+      {currentProjectId && (
+        <SurveyManagerModal
+          isOpen={showSurveyManager}
+          onClose={() => setShowSurveyManager(false)}
+          projectId={currentProjectId}
+        />
+      )}
     </div>
   );
 }
