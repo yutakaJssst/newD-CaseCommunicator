@@ -204,6 +204,7 @@ export const updateDiagram = async (req: AuthRequest, res: Response): Promise<vo
       data: {
         ...(title !== undefined && { title }),
         ...(data !== undefined && { data }),
+        version: { increment: 1 },
       },
     });
 

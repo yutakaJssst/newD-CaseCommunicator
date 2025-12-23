@@ -43,6 +43,9 @@ interface DiagramStore {
   wsUserId: string | null;
   wsUserName: string | null;
   projectRole: 'owner' | 'editor' | 'viewer' | null;
+  diagramDbVersion: number | null;
+  hasLocalChanges: boolean;
+  remoteOutOfSync: boolean;
   onlineUsers: OnlineUser[]; // プロジェクトに接続中のユーザー
   userCursors: Map<string, UserCursor>; // 他のユーザーのカーソル位置
   title: string;
@@ -65,6 +68,7 @@ interface DiagramStore {
   disconnectWebSocket: () => void;
   loadDiagramFromDB: (projectId: string, diagramId?: string) => Promise<void>;
   reloadDiagramFromDB: (projectId: string, diagramId?: string) => Promise<void>;
+  checkForRemoteUpdate: () => Promise<void>;
   saveDiagramToDB: () => Promise<void>;
   createDiagramInDB: (title: string) => Promise<void>;
   migrateLocalStorageToDB: (projectId: string) => Promise<boolean>; // 移行が成功したらtrue
@@ -409,6 +413,7 @@ const saveToHistory = (get: () => DiagramStore, set: (state: Partial<DiagramStor
   set({
     history: newHistory,
     historyIndex: newHistory.length - 1,
+    hasLocalChanges: true,
   });
 };
 
@@ -424,6 +429,9 @@ export const useDiagramStore = create<DiagramStore>()(
       wsUserId: null,
       wsUserName: null,
       projectRole: null,
+      diagramDbVersion: null,
+      hasLocalChanges: false,
+      remoteOutOfSync: false,
       onlineUsers: [],
       userCursors: new Map(),
       isReconnecting: false,
@@ -778,6 +786,7 @@ export const useDiagramStore = create<DiagramStore>()(
 
             set({
               currentDiagramDbId: diagram.id,
+              diagramDbVersion: diagram.version,
               title: activeDiagram.title,
               nodes: activeDiagram.nodes || [],
               links: activeDiagram.links || [],
@@ -788,6 +797,8 @@ export const useDiagramStore = create<DiagramStore>()(
               historyIndex: -1,
               lastSyncedAt: new Date().toISOString(),
               isSyncing: false,
+              hasLocalChanges: false,
+              remoteOutOfSync: false,
             });
           };
 
@@ -806,6 +817,7 @@ export const useDiagramStore = create<DiagramStore>()(
           const rootDiagram = emptyProjectData.modules[emptyProjectData.currentDiagramId];
           set({
             currentDiagramDbId: null,
+            diagramDbVersion: null,
             title: rootDiagram?.title || 'ルート',
             nodes: rootDiagram?.nodes || [],
             links: rootDiagram?.links || [],
@@ -816,6 +828,8 @@ export const useDiagramStore = create<DiagramStore>()(
             historyIndex: -1,
             lastSyncedAt: null,
             isSyncing: false,
+            hasLocalChanges: false,
+            remoteOutOfSync: false,
           });
         } catch (error) {
           console.error('Failed to load diagram from DB:', error);
@@ -879,6 +893,7 @@ export const useDiagramStore = create<DiagramStore>()(
 
           set({
             currentDiagramDbId: diagram.id,
+            diagramDbVersion: diagram.version,
             title: activeDiagram.title,
             nodes: activeDiagram.nodes || [],
             links: activeDiagram.links || [],
@@ -889,10 +904,38 @@ export const useDiagramStore = create<DiagramStore>()(
             historyIndex: -1,
             lastSyncedAt: new Date().toISOString(),
             isSyncing: false,
+            hasLocalChanges: false,
+            remoteOutOfSync: false,
           });
         } catch (error) {
           console.error('Failed to reload diagram from DB:', error);
           set({ isSyncing: false });
+        }
+      },
+
+      checkForRemoteUpdate: async () => {
+        const state = get();
+        if (!state.currentProjectId || !state.currentDiagramDbId) return;
+        if (state.isSyncing) return;
+
+        try {
+          const diagram = await diagramsApi.getDiagram(
+            state.currentProjectId,
+            state.currentDiagramDbId
+          );
+
+          if (
+            state.diagramDbVersion !== null &&
+            diagram.version > state.diagramDbVersion
+          ) {
+            if (state.hasLocalChanges) {
+              set({ remoteOutOfSync: true });
+              return;
+            }
+            await get().reloadDiagramFromDB(state.currentProjectId, state.currentDiagramDbId);
+          }
+        } catch (error) {
+          console.error('Failed to check remote updates:', error);
         }
       },
 
@@ -914,7 +957,7 @@ export const useDiagramStore = create<DiagramStore>()(
 
           if (state.currentDiagramDbId) {
             // 既存のダイアグラムを更新
-            await diagramsApi.updateDiagram(
+            const updated = await diagramsApi.updateDiagram(
               state.currentProjectId,
               state.currentDiagramDbId,
               {
@@ -922,6 +965,7 @@ export const useDiagramStore = create<DiagramStore>()(
                 data: projectData,
               }
             );
+            set({ diagramDbVersion: updated.version, hasLocalChanges: false, remoteOutOfSync: false });
           } else {
             // 新規作成
             const created = await diagramsApi.createDiagram(
@@ -931,7 +975,12 @@ export const useDiagramStore = create<DiagramStore>()(
                 data: projectData,
               }
             );
-            set({ currentDiagramDbId: created.id });
+            set({
+              currentDiagramDbId: created.id,
+              diagramDbVersion: created.version,
+              hasLocalChanges: false,
+              remoteOutOfSync: false,
+            });
           }
 
           set({
@@ -976,6 +1025,7 @@ export const useDiagramStore = create<DiagramStore>()(
 
           set({
             currentDiagramDbId: created.id,
+            diagramDbVersion: created.version,
             title: created.title,
             nodes: rootDiagram.nodes,
             links: rootDiagram.links,
@@ -986,6 +1036,8 @@ export const useDiagramStore = create<DiagramStore>()(
             historyIndex: -1,
             lastSyncedAt: new Date().toISOString(),
             isSyncing: false,
+            hasLocalChanges: false,
+            remoteOutOfSync: false,
           });
         } catch (error) {
           console.error('Failed to create diagram in DB:', error);
@@ -1065,11 +1117,18 @@ export const useDiagramStore = create<DiagramStore>()(
         // 現在のプロジェクトのデータをDBに保存
         if (currentProjectId) {
           await get().saveDiagramToDB();
+          if (websocketService.isConnected()) {
+            websocketService.leaveProject(currentProjectId);
+          }
         }
 
         // 新しいプロジェクトに切り替え
         if (projectId) {
           set({ currentProjectId: projectId });
+          const { wsUserId, wsUserName } = get();
+          if (wsUserId && wsUserName) {
+            websocketService.joinProject(projectId, wsUserId, wsUserName);
+          }
 
           // DBからダイアグラムを読み込む
           try {
@@ -1135,6 +1194,9 @@ export const useDiagramStore = create<DiagramStore>()(
             currentProjectId: null,
             currentDiagramDbId: null,
             projectRole: null,
+            diagramDbVersion: null,
+            hasLocalChanges: false,
+            remoteOutOfSync: false,
             title: 'ルート',
             nodes: [],
             links: [],
@@ -1322,6 +1384,7 @@ export const useDiagramStore = create<DiagramStore>()(
           nodes: state.nodes.map((node) =>
             node.id === id ? { ...node, position: { x, y } } : node
           ),
+          hasLocalChanges: true,
         }));
 
         // WebSocketでブロードキャスト
@@ -1329,6 +1392,9 @@ export const useDiagramStore = create<DiagramStore>()(
         if (projectId && websocketService.isConnected()) {
           websocketService.emitNodeMoved(projectId, id, { x, y }, get().currentDiagramId);
         }
+
+        // DB保存をデバウンス
+        debouncedSaveToDB(() => get().saveDiagramToDB());
       },
 
       addLink: (sourceId, targetId, type) => {
@@ -1513,6 +1579,7 @@ export const useDiagramStore = create<DiagramStore>()(
               ? { ...node, position: { x: node.position.x + dx, y: node.position.y + dy } }
               : node
           ),
+          hasLocalChanges: true,
         });
 
         // WebSocketでブロードキャスト（各ノードの移動を通知）
@@ -1526,6 +1593,9 @@ export const useDiagramStore = create<DiagramStore>()(
             }
           });
         }
+
+        // DB保存をデバウンス
+        debouncedSaveToDB(() => get().saveDiagramToDB());
       },
 
       copySelectedNodes: () => {
@@ -2579,6 +2649,7 @@ export const useDiagramStore = create<DiagramStore>()(
               ? { ...node, comments: [...(node.comments || []), newComment] }
               : node
           ),
+          hasLocalChanges: true,
         }));
 
         const state = get();
@@ -2606,6 +2677,7 @@ export const useDiagramStore = create<DiagramStore>()(
               ? { ...node, comments: (node.comments || []).filter((c) => c.id !== commentId) }
               : node
           ),
+          hasLocalChanges: true,
         }));
 
         const state = get();
@@ -2630,6 +2702,7 @@ export const useDiagramStore = create<DiagramStore>()(
         }
         set((state) => ({
           nodes: [...state.nodes, node],
+          hasLocalChanges: true,
         }));
 
         // DB保存をデバウンス
@@ -2643,6 +2716,7 @@ export const useDiagramStore = create<DiagramStore>()(
         }
         set((state) => ({
           links: [...state.links, link],
+          hasLocalChanges: true,
         }));
 
         // DB保存をデバウンス

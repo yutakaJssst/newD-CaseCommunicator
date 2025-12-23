@@ -9,7 +9,6 @@ import { LoadingState } from './components/Status/LoadingState';
 import { useAuthStore } from './stores/authStore';
 import { useDiagramStore } from './stores/diagramStore';
 import { projectAPI } from './services/api';
-import { websocketService } from './services/websocket';
 
 function App() {
   // Use individual selectors to avoid unnecessary re-renders
@@ -23,6 +22,7 @@ function App() {
   const initializeWebSocket = useDiagramStore((state) => state.initializeWebSocket);
   const disconnectWebSocket = useDiagramStore((state) => state.disconnectWebSocket);
   const setProjectRole = useDiagramStore((state) => state.setProjectRole);
+  const checkForRemoteUpdate = useDiagramStore((state) => state.checkForRemoteUpdate);
 
   const [showRegister, setShowRegister] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -59,26 +59,6 @@ function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, userId]); // Only re-run when authentication status or user ID changes
-
-  // Join/leave project room when selectedProjectId changes
-  useEffect(() => {
-    if (isAuthenticated && user && userId && selectedProjectId) {
-      const userName = user.firstName || user.lastName
-        ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
-        : user.email;
-
-      websocketService.joinProject(selectedProjectId, userId, userName);
-      console.log('[App] Joined project room:', selectedProjectId);
-
-      return () => {
-        if (selectedProjectId) {
-          websocketService.leaveProject(selectedProjectId);
-          console.log('[App] Left project room:', selectedProjectId);
-        }
-      };
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, userId, selectedProjectId]); // user is only used to get userName, safe to omit
 
   // Save selected project to localStorage and update diagram store
   useEffect(() => {
@@ -126,6 +106,15 @@ function App() {
       canceled = true;
     };
   }, [selectedProjectId, user, setProjectRole]);
+
+  // Periodic refresh to detect missed events
+  useEffect(() => {
+    if (!isAuthenticated || !selectedProjectId) return;
+    const intervalId = window.setInterval(() => {
+      checkForRemoteUpdate();
+    }, 10000);
+    return () => window.clearInterval(intervalId);
+  }, [isAuthenticated, selectedProjectId, checkForRemoteUpdate]);
 
   console.log('App render:', { isAuthenticated, isLoading, user, selectedProjectId });
 

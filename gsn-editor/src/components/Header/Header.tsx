@@ -53,6 +53,9 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
     currentProjectId,
     currentDiagramDbId,
     projectRole,
+    remoteOutOfSync,
+    hasLocalChanges,
+    reloadDiagramFromDB,
   } = useDiagramStore();
   const { viewport, gridSnapEnabled } = canvasState;
   const canEdit = projectRole !== 'viewer';
@@ -893,6 +896,29 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onBackToProjects
               {onlineUsers.length}人
             </span>
           </div>
+        )}
+
+        {remoteOutOfSync && currentProjectId && currentDiagramDbId && (
+          <button
+            onClick={() => reloadDiagramFromDB(currentProjectId, currentDiagramDbId)}
+            style={{
+              padding: '4px 8px',
+              fontSize: '11px',
+              fontWeight: '600',
+              border: '1px solid #F59E0B',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              backgroundColor: '#FFFBEB',
+              color: '#92400E',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+            title={hasLocalChanges ? '未保存の変更があるため自動同期を停止しています' : '最新状態に再読み込み'}
+          >
+            <span>同期差分</span>
+            <span>再読み込み</span>
+          </button>
         )}
 
         {/* ユーザー情報 */}
