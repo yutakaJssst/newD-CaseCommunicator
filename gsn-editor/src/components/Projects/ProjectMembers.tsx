@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { projectMembersApi, type ProjectMember, type User } from '../../api/projectMembers';
+import { LoadingState } from '../Status/LoadingState';
+import { ErrorState } from '../Status/ErrorState';
 
 interface ProjectMembersProps {
   projectId: string;
@@ -117,11 +119,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {/* Error message */}
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700">
-              {error}
-            </div>
-          )}
+          {error && <ErrorState message={error} />}
 
           {/* Invite button (owner only) */}
           {isOwner && !showInviteForm && (
@@ -188,11 +186,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
           )}
 
           {/* Loading state */}
-          {loading && (
-            <div className="text-center py-8 text-gray-500">
-              読み込み中...
-            </div>
-          )}
+          {loading && <LoadingState />}
 
           {/* Members list */}
           {!loading && (

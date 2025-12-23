@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { projectAPI } from '../../services/api';
 import type { Project } from '../../services/api';
 import ProjectMembers from './ProjectMembers';
+import { LoadingState } from '../Status/LoadingState';
+import { ErrorState } from '../Status/ErrorState';
 
 interface ProjectListProps {
   onSelectProject: (projectId: string) => void;
@@ -83,19 +85,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
   };
 
   if (isLoading) {
-    return (
-      <div style={{
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '18px',
-        color: '#666',
-      }}>
-        読み込み中...
-      </div>
-    );
+    return <LoadingState fullScreen />;
   }
 
   return (
@@ -182,17 +172,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
           </div>
         </div>
 
-        {error && (
-          <div style={{
-            backgroundColor: '#fee',
-            color: '#c00',
-            padding: '12px',
-            borderRadius: '8px',
-            marginBottom: '24px',
-          }}>
-            {error}
-          </div>
-        )}
+        {error && <ErrorState message={error} />}
 
         {projects.length === 0 ? (
           <div style={{

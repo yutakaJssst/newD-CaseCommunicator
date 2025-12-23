@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { patternsApi } from '../../api/patterns';
 import type { Pattern, PatternData } from '../../api/patterns';
 import { useAuthStore } from '../../stores/authStore';
+import { LoadingState } from '../Status/LoadingState';
+import { ErrorState } from '../Status/ErrorState';
 
 interface PatternLibraryProps {
   onApplyPattern: (patternData: PatternData) => void;
@@ -189,12 +191,10 @@ export const PatternLibrary: React.FC<PatternLibraryProps> = ({
             }}
           >
             {loading ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: '#6B7280' }}>
-                読み込み中...
-              </div>
+              <LoadingState />
             ) : error ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: '#EF4444' }}>
-                {error}
+              <div style={{ padding: '0 16px' }}>
+                <ErrorState message={error} />
               </div>
             ) : filteredPatterns.length === 0 ? (
               <div style={{ padding: '20px', textAlign: 'center', color: '#6B7280' }}>

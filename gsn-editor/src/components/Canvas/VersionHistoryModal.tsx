@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { versionsApi } from '../../api/versions';
 import type { DiagramVersion } from '../../api/versions';
+import { LoadingState } from '../Status/LoadingState';
+import { ErrorState } from '../Status/ErrorState';
 
 interface VersionHistoryModalProps {
   isOpen: boolean;
@@ -122,21 +124,9 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
 
         {/* コンテンツ */}
         <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-          {loading && <div style={{ textAlign: 'center', color: '#6B7280' }}>読み込み中...</div>}
+          {loading && <LoadingState />}
 
-          {error && (
-            <div
-              style={{
-                padding: '12px',
-                backgroundColor: '#FEE2E2',
-                color: '#991B1B',
-                borderRadius: '6px',
-                marginBottom: '16px',
-              }}
-            >
-              {error}
-            </div>
-          )}
+          {error && <ErrorState message={error} />}
 
           {!loading && versions.length === 0 && (
             <div style={{ textAlign: 'center', color: '#6B7280', padding: '40px' }}>

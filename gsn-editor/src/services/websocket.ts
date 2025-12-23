@@ -21,6 +21,9 @@ interface WebSocketCallbacks {
   onOnlineUsers?: (users: OnlineUser[]) => void;
   onConnectionStatusChange?: (status: { connected: boolean; reconnecting: boolean; attempts: number }) => void;
   onCursorMoved?: (cursor: { userId: string; userName: string; x: number; y: number }) => void;
+  onDiagramReload?: (data: { projectId: string; diagramId: string }) => void;
+  onCommentAdded?: (data: { nodeId: string; comment: any; diagramId: string }) => void;
+  onCommentDeleted?: (data: { nodeId: string; commentId: string; diagramId: string }) => void;
 }
 
 class WebSocketService {
@@ -169,6 +172,19 @@ class WebSocketService {
       console.log('[WebSocket] Cursor moved received:', data.userName, data.x, data.y);
       this.callbacks.onCursorMoved?.(data);
     });
+
+    this.socket.on('diagram_reload', (data) => {
+      console.log('[WebSocket] Diagram reload:', data);
+      this.callbacks.onDiagramReload?.(data);
+    });
+
+    this.socket.on('comment_added', (data) => {
+      this.callbacks.onCommentAdded?.(data);
+    });
+
+    this.socket.on('comment_deleted', (data) => {
+      this.callbacks.onCommentDeleted?.(data);
+    });
   }
 
   disconnect() {
@@ -254,6 +270,18 @@ class WebSocketService {
   emitModuleCreated(projectId: string, moduleId: string, moduleData: any, parentDiagramId: string) {
     console.log('[WebSocket Client] Emitting module_created:', { projectId, moduleId, parentDiagramId });
     this.socket?.emit('module_created', { projectId, moduleId, moduleData, parentDiagramId });
+  }
+
+  emitDiagramReload(projectId: string, diagramId: string) {
+    this.socket?.emit('diagram_reload', { projectId, diagramId });
+  }
+
+  emitCommentAdded(projectId: string, nodeId: string, comment: any, diagramId: string) {
+    this.socket?.emit('comment_added', { projectId, nodeId, comment, diagramId });
+  }
+
+  emitCommentDeleted(projectId: string, nodeId: string, commentId: string, diagramId: string) {
+    this.socket?.emit('comment_deleted', { projectId, nodeId, commentId, diagramId });
   }
 
   // Emit cursor movement

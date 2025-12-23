@@ -133,6 +133,15 @@ export const setupWebSocket = (io: Server) => {
       socket.to(data.projectId).emit('link_deleted', data);
     });
 
+    // Handle comment operations
+    socket.on('comment_added', (data) => {
+      socket.to(data.projectId).emit('comment_added', data);
+    });
+
+    socket.on('comment_deleted', (data) => {
+      socket.to(data.projectId).emit('comment_deleted', data);
+    });
+
     // Handle cursor movement
     socket.on('cursor_moved', (data) => {
       // console.log(`[WebSocket] Cursor moved: ${socket.userName} at (${data.x}, ${data.y})`);
@@ -148,6 +157,11 @@ export const setupWebSocket = (io: Server) => {
     socket.on('module_created', (data) => {
       console.log(`[WebSocket] Module created in project ${data.projectId}`);
       socket.to(data.projectId).emit('module_created', data);
+    });
+
+    // Handle diagram reload requests (e.g. version restore)
+    socket.on('diagram_reload', (data) => {
+      socket.to(data.projectId).emit('diagram_reload', data);
     });
 
     // Handle disconnect

@@ -64,6 +64,7 @@ interface DiagramStore {
   initializeWebSocket: (userId: string, userName: string) => void;
   disconnectWebSocket: () => void;
   loadDiagramFromDB: (projectId: string, diagramId?: string) => Promise<void>;
+  reloadDiagramFromDB: (projectId: string, diagramId?: string) => Promise<void>;
   saveDiagramToDB: () => Promise<void>;
   createDiagramInDB: (title: string) => Promise<void>;
   migrateLocalStorageToDB: (projectId: string) => Promise<boolean>; // 移行が成功したらtrue
@@ -450,16 +451,18 @@ export const useDiagramStore = create<DiagramStore>()(
           onNodeCreated: (node, diagramId) => {
             const state = get();
 
-            // 現在のダイアグラムと同じ場合のみ更新
+            // 現在のダイアグラムと同じ場合のみ表示を更新
             if (state.currentDiagramId === diagramId) {
-              // 自分が作成したノードでない場合のみ追加
+              // 自分が作成したノードでない場合のみ追加（重複回避）
               if (!state.nodes.find(n => n.id === node.id)) {
                 set({ nodes: [...state.nodes, node] });
               }
-            } else {
-              // 別のダイアグラムの変更は、modulesに保存されたデータを更新
-              const targetModule = state.modules[diagramId];
-              if (targetModule && !targetModule.nodes.find(n => n.id === node.id)) {
+            }
+
+            // 全てのダイアグラム（モジュール含む）のデータを更新
+            const targetModule = state.modules[diagramId];
+            if (targetModule) {
+              if (!targetModule.nodes.find(n => n.id === node.id)) {
                 set({
                   modules: {
                     ...state.modules,
@@ -475,85 +478,95 @@ export const useDiagramStore = create<DiagramStore>()(
           onNodeUpdated: (node, diagramId) => {
             const state = get();
 
+            // 現在のダイアグラムと同じ場合のみ表示を更新
             if (state.currentDiagramId === diagramId) {
               set({
                 nodes: state.nodes.map(n => n.id === node.id ? node : n),
               });
-            } else {
-              const targetModule = state.modules[diagramId];
-              if (targetModule) {
-                set({
-                  modules: {
-                    ...state.modules,
-                    [diagramId]: {
-                      ...targetModule,
-                      nodes: targetModule.nodes.map(n => n.id === node.id ? node : n),
-                    },
+            }
+
+            // 全てのダイアグラム（モジュール含む）のデータを更新
+            const targetModule = state.modules[diagramId];
+            if (targetModule) {
+              set({
+                modules: {
+                  ...state.modules,
+                  [diagramId]: {
+                    ...targetModule,
+                    nodes: targetModule.nodes.map(n => n.id === node.id ? node : n),
                   },
-                });
-              }
+                },
+              });
             }
           },
           onNodeDeleted: (nodeId, diagramId) => {
             const state = get();
 
+            // 現在のダイアグラムと同じ場合のみ表示を更新
             if (state.currentDiagramId === diagramId) {
               set({
                 nodes: state.nodes.filter(n => n.id !== nodeId),
                 links: state.links.filter(l => l.source !== nodeId && l.target !== nodeId),
               });
-            } else {
-              const targetModule = state.modules[diagramId];
-              if (targetModule) {
-                set({
-                  modules: {
-                    ...state.modules,
-                    [diagramId]: {
-                      ...targetModule,
-                      nodes: targetModule.nodes.filter(n => n.id !== nodeId),
-                      links: targetModule.links.filter(l => l.source !== nodeId && l.target !== nodeId),
-                    },
+            }
+
+            // 全てのダイアグラム（モジュール含む）のデータを更新
+            const targetModule = state.modules[diagramId];
+            if (targetModule) {
+              set({
+                modules: {
+                  ...state.modules,
+                  [diagramId]: {
+                    ...targetModule,
+                    nodes: targetModule.nodes.filter(n => n.id !== nodeId),
+                    links: targetModule.links.filter(l => l.source !== nodeId && l.target !== nodeId),
                   },
-                });
-              }
+                },
+              });
             }
           },
           onNodeMoved: (nodeId, position, diagramId) => {
             const state = get();
 
+            // 現在のダイアグラムと同じ場合のみ表示を更新
             if (state.currentDiagramId === diagramId) {
               set({
                 nodes: state.nodes.map(n =>
                   n.id === nodeId ? { ...n, position } : n
                 ),
               });
-            } else {
-              const targetModule = state.modules[diagramId];
-              if (targetModule) {
-                set({
-                  modules: {
-                    ...state.modules,
-                    [diagramId]: {
-                      ...targetModule,
-                      nodes: targetModule.nodes.map(n =>
-                        n.id === nodeId ? { ...n, position } : n
-                      ),
-                    },
+            }
+
+            // 全てのダイアグラム（モジュール含む）のデータを更新
+            const targetModule = state.modules[diagramId];
+            if (targetModule) {
+              set({
+                modules: {
+                  ...state.modules,
+                  [diagramId]: {
+                    ...targetModule,
+                    nodes: targetModule.nodes.map(n =>
+                      n.id === nodeId ? { ...n, position } : n
+                    ),
                   },
-                });
-              }
+                },
+              });
             }
           },
           onLinkCreated: (link, diagramId) => {
             const state = get();
 
+            // 現在のダイアグラムと同じ場合のみ表示を更新
             if (state.currentDiagramId === diagramId) {
               if (!state.links.find(l => l.id === link.id)) {
                 set({ links: [...state.links, link] });
               }
-            } else {
-              const targetModule = state.modules[diagramId];
-              if (targetModule && !targetModule.links.find(l => l.id === link.id)) {
+            }
+
+            // 全てのダイアグラム（モジュール含む）のデータを更新
+            const targetModule = state.modules[diagramId];
+            if (targetModule) {
+              if (!targetModule.links.find(l => l.id === link.id)) {
                 set({
                   modules: {
                     ...state.modules,
@@ -569,23 +582,25 @@ export const useDiagramStore = create<DiagramStore>()(
           onLinkDeleted: (linkId, diagramId) => {
             const state = get();
 
+            // 現在のダイアグラムと同じ場合のみ表示を更新
             if (state.currentDiagramId === diagramId) {
               set({
                 links: state.links.filter(l => l.id !== linkId),
               });
-            } else {
-              const targetModule = state.modules[diagramId];
-              if (targetModule) {
-                set({
-                  modules: {
-                    ...state.modules,
-                    [diagramId]: {
-                      ...targetModule,
-                      links: targetModule.links.filter(l => l.id !== linkId),
-                    },
+            }
+
+            // 全てのダイアグラム（モジュール含む）のデータを更新
+            const targetModule = state.modules[diagramId];
+            if (targetModule) {
+              set({
+                modules: {
+                  ...state.modules,
+                  [diagramId]: {
+                    ...targetModule,
+                    links: targetModule.links.filter(l => l.id !== linkId),
                   },
-                });
-              }
+                },
+              });
             }
           },
           onModuleCreated: (moduleId, moduleData, parentDiagramId) => {
@@ -639,12 +654,87 @@ export const useDiagramStore = create<DiagramStore>()(
                 websocketService.joinProject(currentProjectId, wsUserId, wsUserName);
               }
               if (currentProjectId && !isSyncing) {
-                get().loadDiagramFromDB(currentProjectId, currentDiagramDbId || undefined);
+                get().reloadDiagramFromDB(currentProjectId, currentDiagramDbId || undefined);
               }
             }
           },
           onCursorMoved: (cursor) => {
             get().updateUserCursor(cursor.userId, cursor.userName, cursor.x, cursor.y);
+          },
+          onDiagramReload: ({ projectId, diagramId }) => {
+            const state = get();
+            if (state.currentProjectId !== projectId) return;
+            if (!state.isSyncing) {
+              get().reloadDiagramFromDB(projectId, diagramId);
+            }
+          },
+          onCommentAdded: ({ nodeId, comment, diagramId }) => {
+            const state = get();
+            if (state.currentDiagramId === diagramId) {
+              if (!state.nodes.find((n) => n.id === nodeId)) return;
+              set({
+                nodes: state.nodes.map((node) =>
+                  node.id === nodeId
+                    ? { ...node, comments: [...(node.comments || []), comment] }
+                    : node
+                ),
+              });
+              return;
+            }
+
+            const targetModule = state.modules[diagramId];
+            if (!targetModule) return;
+            if (!targetModule.nodes.find((n) => n.id === nodeId)) return;
+            set({
+              modules: {
+                ...state.modules,
+                [diagramId]: {
+                  ...targetModule,
+                  nodes: targetModule.nodes.map((node) =>
+                    node.id === nodeId
+                      ? { ...node, comments: [...(node.comments || []), comment] }
+                      : node
+                  ),
+                },
+              },
+            });
+          },
+          onCommentDeleted: ({ nodeId, commentId, diagramId }) => {
+            const state = get();
+            if (state.currentDiagramId === diagramId) {
+              if (!state.nodes.find((n) => n.id === nodeId)) return;
+              set({
+                nodes: state.nodes.map((node) =>
+                  node.id === nodeId
+                    ? {
+                        ...node,
+                        comments: (node.comments || []).filter((c) => c.id !== commentId),
+                      }
+                    : node
+                ),
+              });
+              return;
+            }
+
+            const targetModule = state.modules[diagramId];
+            if (!targetModule) return;
+            if (!targetModule.nodes.find((n) => n.id === nodeId)) return;
+            set({
+              modules: {
+                ...state.modules,
+                [diagramId]: {
+                  ...targetModule,
+                  nodes: targetModule.nodes.map((node) =>
+                    node.id === nodeId
+                      ? {
+                          ...node,
+                          comments: (node.comments || []).filter((c) => c.id !== commentId),
+                        }
+                      : node
+                  ),
+                },
+              },
+            });
           },
         });
 
@@ -760,6 +850,49 @@ export const useDiagramStore = create<DiagramStore>()(
               }
             }
           }
+        }
+      },
+
+      reloadDiagramFromDB: async (projectId: string, diagramId?: string) => {
+        try {
+          set({ isSyncing: true });
+
+          const targetDiagramId = diagramId || get().currentDiagramDbId;
+          if (!targetDiagramId) {
+            set({ isSyncing: false });
+            return;
+          }
+
+          const diagram = await diagramsApi.getDiagram(projectId, targetDiagramId);
+          const projectData = normalizeProjectData(diagram.data, diagram.title);
+
+          const state = get();
+          const currentId = state.currentDiagramId;
+          const activeDiagram =
+            projectData.modules[currentId] ||
+            projectData.modules[projectData.currentDiagramId] ||
+            projectData.modules.root ||
+            createEmptyDiagramData(diagram.title);
+
+          const nextDiagramId =
+            projectData.modules[currentId] ? currentId : projectData.currentDiagramId;
+
+          set({
+            currentDiagramDbId: diagram.id,
+            title: activeDiagram.title,
+            nodes: activeDiagram.nodes || [],
+            links: activeDiagram.links || [],
+            currentDiagramId: nextDiagramId,
+            modules: projectData.modules,
+            labelCounters: projectData.labelCounters || getDefaultLabelCounters(),
+            history: [],
+            historyIndex: -1,
+            lastSyncedAt: new Date().toISOString(),
+            isSyncing: false,
+          });
+        } catch (error) {
+          console.error('Failed to reload diagram from DB:', error);
+          set({ isSyncing: false });
         }
       },
 
@@ -1341,6 +1474,9 @@ export const useDiagramStore = create<DiagramStore>()(
 
         saveToHistory(get, set);
         const selectedIds = new Set(state.canvasState.selectedNodes);
+        const removedLinks = state.links.filter(
+          (l) => selectedIds.has(l.source) || selectedIds.has(l.target)
+        );
 
         set({
           nodes: state.nodes.filter(n => !selectedIds.has(n.id)),
@@ -1350,6 +1486,16 @@ export const useDiagramStore = create<DiagramStore>()(
             selectedNodes: [],
           },
         });
+
+        const projectId = state.currentProjectId;
+        if (projectId && websocketService.isConnected()) {
+          state.canvasState.selectedNodes.forEach((nodeId) => {
+            websocketService.emitNodeDeleted(projectId, nodeId, state.currentDiagramId);
+          });
+          removedLinks.forEach((link) => {
+            websocketService.emitLinkDeleted(projectId, link.id, state.currentDiagramId);
+          });
+        }
       },
 
       moveSelectedNodes: (dx: number, dy: number) => {
@@ -1461,6 +1607,16 @@ export const useDiagramStore = create<DiagramStore>()(
             selectedNodes: newNodeIds,
           },
         });
+
+        const projectId = state.currentProjectId;
+        if (projectId && websocketService.isConnected()) {
+          newNodes.forEach((node) => {
+            websocketService.emitNodeCreated(projectId, node, state.currentDiagramId);
+          });
+          newLinks.forEach((link) => {
+            websocketService.emitLinkCreated(projectId, link, state.currentDiagramId);
+          });
+        }
       },
 
       toggleGridSnap: () => {
@@ -1974,6 +2130,7 @@ export const useDiagramStore = create<DiagramStore>()(
           links: data.links,
           canvasState: DEFAULT_CANVAS_STATE,
         });
+        debouncedSaveToDB(() => get().saveDiagramToDB());
       },
 
       exportProjectData: () => {
@@ -2006,6 +2163,7 @@ export const useDiagramStore = create<DiagramStore>()(
           labelCounters: projectData.labelCounters,
           canvasState: DEFAULT_CANVAS_STATE,
         });
+        debouncedSaveToDB(() => get().saveDiagramToDB());
       },
 
       applyAutoLayout: () => {
@@ -2397,6 +2555,7 @@ export const useDiagramStore = create<DiagramStore>()(
           modules: emptyProjectData.modules,
           labelCounters: emptyProjectData.labelCounters,
         });
+        debouncedSaveToDB(() => get().saveDiagramToDB());
       },
 
       // コメント関連アクション
@@ -2422,6 +2581,17 @@ export const useDiagramStore = create<DiagramStore>()(
           ),
         }));
 
+        const state = get();
+        const projectId = state.currentProjectId;
+        if (projectId && websocketService.isConnected()) {
+          websocketService.emitCommentAdded(
+            projectId,
+            nodeId,
+            newComment,
+            state.currentDiagramId
+          );
+        }
+
         // DB保存をデバウンス
         debouncedSaveToDB(() => get().saveDiagramToDB());
       },
@@ -2437,6 +2607,17 @@ export const useDiagramStore = create<DiagramStore>()(
               : node
           ),
         }));
+
+        const state = get();
+        const projectId = state.currentProjectId;
+        if (projectId && websocketService.isConnected()) {
+          websocketService.emitCommentDeleted(
+            projectId,
+            nodeId,
+            commentId,
+            state.currentDiagramId
+          );
+        }
 
         // DB保存をデバウンス
         debouncedSaveToDB(() => get().saveDiagramToDB());
@@ -2575,6 +2756,10 @@ export const useDiagramStore = create<DiagramStore>()(
 
           // ダイアグラムデータを再読み込み
           await get().loadDiagramFromDB(currentProjectId, currentDiagramDbId);
+
+          if (websocketService.isConnected()) {
+            websocketService.emitDiagramReload(currentProjectId, currentDiagramDbId);
+          }
 
           console.log('Version restored successfully');
         } catch (error) {

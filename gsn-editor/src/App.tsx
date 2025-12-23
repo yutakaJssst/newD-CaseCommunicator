@@ -5,6 +5,7 @@ import { Canvas } from './components/Canvas/Canvas';
 import { LoginForm } from './components/Auth/LoginForm';
 import { RegisterForm } from './components/Auth/RegisterForm';
 import { ProjectList } from './components/Projects/ProjectList';
+import { LoadingState } from './components/Status/LoadingState';
 import { useAuthStore } from './stores/authStore';
 import { useDiagramStore } from './stores/diagramStore';
 import { projectAPI } from './services/api';
@@ -130,19 +131,7 @@ function App() {
 
   // Show loading state while checking authentication
   if (isLoading) {
-    return (
-      <div style={{
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '18px',
-        color: '#666',
-      }}>
-        読み込み中...
-      </div>
-    );
+    return <LoadingState fullScreen />;
   }
 
   // Show auth forms if not authenticated
