@@ -36,6 +36,22 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     return `${window.location.origin}/survey/${selectedSurvey.publicToken}`;
   }, [selectedSurvey?.publicToken]);
 
+  const nodeMap = useMemo(() => {
+    const snapshot = selectedSurvey?.gsnSnapshot as any;
+    if (!snapshot || typeof snapshot !== 'object') return new Map<string, any>();
+    const modules = snapshot.modules && typeof snapshot.modules === 'object'
+      ? snapshot.modules
+      : { root: snapshot };
+    const allNodes = Object.values(modules)
+      .flatMap((module: any) => (Array.isArray(module?.nodes) ? module.nodes : []));
+    return new Map(allNodes.map((node: any) => [String(node.id), node]));
+  }, [selectedSurvey?.gsnSnapshot]);
+
+  const stripHtml = (html?: string) => {
+    if (!html) return '';
+    return html.replace(/<[^>]*>/g, '').trim();
+  };
+
   const loadSurveys = async () => {
     setLoading(true);
     setError(null);
@@ -350,7 +366,11 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                   <h4 style={{ margin: '0 0 8px 0' }}>質問一覧</h4>
                   {selectedSurvey.questions?.length ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {selectedSurvey.questions.map((question) => (
+                      {selectedSurvey.questions.map((question) => {
+                        const node = nodeMap.get(question.nodeId);
+                        const descriptionText = stripHtml(node?.content) || '-';
+                        const nodeLabel = node?.label || '-';
+                        return (
                         <div
                           key={question.id}
                           style={{
@@ -363,10 +383,14 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                             {question.questionText}
                           </div>
                           <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                            {question.nodeType} / {question.nodeId}
+                            {question.nodeType} / {nodeLabel}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#374151', marginTop: '4px' }}>
+                            説明: {descriptionText}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div style={{ fontSize: '12px', color: '#6B7280' }}>

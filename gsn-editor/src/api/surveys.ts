@@ -22,6 +22,7 @@ export interface Survey {
   description: string | null;
   status: SurveyStatus;
   publicToken: string | null;
+  gsnSnapshot?: unknown;
   createdAt: string;
   updatedAt: string;
   questions?: SurveyQuestion[];
@@ -56,6 +57,7 @@ export interface PublicSurveyResponse {
     title: string;
     description: string | null;
     status: SurveyStatus;
+    gsnSnapshot: unknown;
     questions: SurveyQuestion[];
   };
 }
