@@ -20,6 +20,7 @@ interface WebSocketCallbacks {
   onUserLeft?: (user: { userId: string; userName: string; timestamp: string }) => void;
   onOnlineUsers?: (users: OnlineUser[]) => void;
   onConnectionStatusChange?: (status: { connected: boolean; reconnecting: boolean; attempts: number }) => void;
+  onCursorMoved?: (cursor: { userId: string; userName: string; x: number; y: number }) => void;
 }
 
 class WebSocketService {
@@ -159,6 +160,10 @@ class WebSocketService {
       console.log('[WebSocket] Online users:', users);
       this.callbacks.onOnlineUsers?.(users);
     });
+
+    this.socket.on('cursor_moved', (data) => {
+      this.callbacks.onCursorMoved?.(data);
+    });
   }
 
   disconnect() {
@@ -241,6 +246,11 @@ class WebSocketService {
   emitModuleCreated(projectId: string, moduleId: string, moduleData: any, parentDiagramId: string) {
     console.log('[WebSocket Client] Emitting module_created:', { projectId, moduleId, parentDiagramId });
     this.socket?.emit('module_created', { projectId, moduleId, moduleData, parentDiagramId });
+  }
+
+  // Emit cursor movement
+  emitCursorMoved(projectId: string, x: number, y: number) {
+    this.socket?.emit('cursor_moved', { projectId, x, y });
   }
 
   // Register callbacks

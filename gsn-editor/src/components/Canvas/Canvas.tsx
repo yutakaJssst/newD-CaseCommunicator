@@ -8,10 +8,12 @@ import { NodeEditor } from './NodeEditor';
 import { CommentPopover } from './CommentPopover';
 import { SavePatternModal } from './SavePatternModal';
 import { PatternLibrary } from '../Sidebar/PatternLibrary';
+import { UserCursor } from './UserCursor';
 import type { Node as NodeType, Link as LinkType } from '../../types/diagram';
 import { GRID_SIZE } from '../../types/diagram';
 import { patternsApi } from '../../api/patterns';
 import type { PatternData } from '../../api/patterns';
+import { websocketService } from '../../services/websocket';
 
 export const Canvas: React.FC = () => {
   const {
@@ -44,11 +46,15 @@ export const Canvas: React.FC = () => {
     addNodeDirect,
     addLinkDirect,
     generateLabel,
+    userCursors,
+    currentProjectId,
+    clearOldCursors,
   } = useDiagramStore();
 
   const { user } = useAuthStore();
 
   const svgRef = useRef<SVGSVGElement>(null);
+  const lastCursorSentRef = useRef<number>(0);
   const [isDragging, setIsDragging] = useState(false);
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -161,6 +167,15 @@ export const Canvas: React.FC = () => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [editingNode, commentPopover, deleteSelectedNodes, selectAll, clearSelection, moveSelectedNodes, copySelectedNodes, pasteNodes]);
+
+  // 古いカーソルを定期的にクリア
+  useEffect(() => {
+    const interval = setInterval(() => {
+      clearOldCursors();
+    }, 1000); // 1秒ごとにチェック
+
+    return () => clearInterval(interval);
+  }, [clearOldCursors]);
 
   // SVG座標系に変換
   const screenToSvgCoordinates = (clientX: number, clientY: number) => {
@@ -295,8 +310,18 @@ export const Canvas: React.FC = () => {
 
   // マウス移動
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const coords = screenToSvgCoordinates(e.clientX, e.clientY);
+
+    // カーソル位置をWebSocketで送信（スロットリング: 50ms）
+    if (currentProjectId && websocketService.isConnected()) {
+      const now = Date.now();
+      if (now - lastCursorSentRef.current > 50) {
+        websocketService.emitCursorMoved(currentProjectId, coords.x, coords.y);
+        lastCursorSentRef.current = now;
+      }
+    }
+
     if (isDragging && draggedNodeId) {
-      const coords = screenToSvgCoordinates(e.clientX, e.clientY);
       const node = nodes.find((n) => n.id === draggedNodeId);
       if (node) {
         const dx = coords.x - dragStart.x;
@@ -321,7 +346,6 @@ export const Canvas: React.FC = () => {
         setDragStart(coords);
       }
     } else if (isResizing && resizingNodeId && resizeDirection) {
-      const coords = screenToSvgCoordinates(e.clientX, e.clientY);
       const node = nodes.find((n) => n.id === resizingNodeId);
       if (!node) return;
 
@@ -519,6 +543,26 @@ export const Canvas: React.FC = () => {
               onCommentClick={handleCommentClick(node.id)}
             />
           ))}
+
+          {/* 他のユーザーのカーソルを描画 */}
+          {Array.from(userCursors.values()).map((cursor, index) => {
+            // 自分のカーソルは表示しない
+            if (user && cursor.userId === user.id) return null;
+
+            // ユーザーごとに異なる色を生成
+            const colors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
+            const color = colors[index % colors.length];
+
+            return (
+              <UserCursor
+                key={cursor.userId}
+                userName={cursor.userName}
+                x={cursor.x}
+                y={cursor.y}
+                color={color}
+              />
+            );
+          })}
         </g>
       </svg>
 

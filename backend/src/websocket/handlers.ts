@@ -125,6 +125,17 @@ export const setupWebSocket = (io: Server) => {
       socket.to(data.projectId).emit('link_deleted', data);
     });
 
+    // Handle cursor movement
+    socket.on('cursor_moved', (data) => {
+      // console.log(`[WebSocket] Cursor moved: ${socket.userName} at (${data.x}, ${data.y})`);
+      socket.to(data.projectId).emit('cursor_moved', {
+        userId: socket.userId,
+        userName: socket.userName,
+        x: data.x,
+        y: data.y,
+      });
+    });
+
     // Handle module operations
     socket.on('module_created', (data) => {
       console.log(`[WebSocket] Module created in project ${data.projectId}`);

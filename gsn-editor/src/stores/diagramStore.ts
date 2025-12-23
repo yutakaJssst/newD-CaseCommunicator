@@ -25,6 +25,14 @@ interface OnlineUser {
   joinedAt: string;
 }
 
+interface UserCursor {
+  userId: string;
+  userName: string;
+  x: number;
+  y: number;
+  lastUpdate: number;
+}
+
 interface DiagramStore {
   // State
   currentProjectId: string | null;
@@ -33,6 +41,7 @@ interface DiagramStore {
   lastSyncedAt: string | null; // 最後の同期日時
   isWebSocketConnected: boolean; // WebSocket接続状態
   onlineUsers: OnlineUser[]; // プロジェクトに接続中のユーザー
+  userCursors: Map<string, UserCursor>; // 他のユーザーのカーソル位置
   title: string;
   nodes: Node[];
   links: Link[];
@@ -110,6 +119,11 @@ interface DiagramStore {
   // パターンライブラリ表示状態
   showPatternLibrary: boolean;
   setShowPatternLibrary: (show: boolean) => void;
+
+  // カーソル関連
+  updateUserCursor: (userId: string, userName: string, x: number, y: number) => void;
+  removeUserCursor: (userId: string) => void;
+  clearOldCursors: () => void;
 }
 
 type ProjectStateSlice = Pick<
@@ -397,6 +411,7 @@ export const useDiagramStore = create<DiagramStore>()(
       lastSyncedAt: null,
       isWebSocketConnected: false,
       onlineUsers: [],
+      userCursors: new Map(),
       isReconnecting: false,
       reconnectAttempts: 0,
       showPatternLibrary: false,
@@ -595,6 +610,9 @@ export const useDiagramStore = create<DiagramStore>()(
             if (!connected && !reconnecting && attempts >= 5) {
               console.warn('[DiagramStore] WebSocket reconnect exhausted, consider manual refresh');
             }
+          },
+          onCursorMoved: (cursor) => {
+            get().updateUserCursor(cursor.userId, cursor.userName, cursor.x, cursor.y);
           },
         });
 
@@ -2357,6 +2375,43 @@ export const useDiagramStore = create<DiagramStore>()(
       // パターンライブラリ表示状態
       setShowPatternLibrary: (show) => {
         set({ showPatternLibrary: show });
+      },
+
+      // カーソル関連アクション
+      updateUserCursor: (userId, userName, x, y) => {
+        set((state) => {
+          const newCursors = new Map(state.userCursors);
+          newCursors.set(userId, {
+            userId,
+            userName,
+            x,
+            y,
+            lastUpdate: Date.now(),
+          });
+          return { userCursors: newCursors };
+        });
+      },
+
+      removeUserCursor: (userId) => {
+        set((state) => {
+          const newCursors = new Map(state.userCursors);
+          newCursors.delete(userId);
+          return { userCursors: newCursors };
+        });
+      },
+
+      clearOldCursors: () => {
+        const now = Date.now();
+        const timeout = 5000; // 5秒間更新がないカーソルを削除
+        set((state) => {
+          const newCursors = new Map(state.userCursors);
+          for (const [userId, cursor] of newCursors.entries()) {
+            if (now - cursor.lastUpdate > timeout) {
+              newCursors.delete(userId);
+            }
+          }
+          return { userCursors: newCursors };
+        });
       },
     }),
     {
