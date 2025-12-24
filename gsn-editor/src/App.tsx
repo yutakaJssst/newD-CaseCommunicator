@@ -47,12 +47,6 @@ function App() {
   useEffect(() => {
     console.log('App mounted, checking auth...');
     checkAuth();
-    // Load selected project from localStorage if exists
-    const savedProjectId = localStorage.getItem('selectedProjectId');
-    if (savedProjectId) {
-      setSelectedProjectId(savedProjectId);
-      setCurrentProject(savedProjectId);
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

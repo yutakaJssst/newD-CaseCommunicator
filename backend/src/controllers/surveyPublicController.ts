@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../db/prisma';
+import { emitSurveyResponseCreated } from '../websocket/emitter';
 
 export const getPublicSurvey = async (req: Request, res: Response): Promise<void> => {
   const { token } = req.params;
@@ -107,6 +108,8 @@ export const submitPublicResponse = async (req: Request, res: Response): Promise
       },
     },
   });
+
+  emitSurveyResponseCreated(survey.projectId, survey.id);
 
   res.status(201).json({ result: 'OK' });
 };

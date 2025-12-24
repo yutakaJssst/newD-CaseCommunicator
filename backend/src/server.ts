@@ -10,6 +10,7 @@ import surveyRoutes from './routes/surveys';
 import surveyPublicRoutes from './routes/surveysPublic';
 import { errorHandler } from './middleware/errorHandler';
 import { setupWebSocket } from './websocket/handlers';
+import { setWebSocketServer } from './websocket/emitter';
 import { requestContext } from './middleware/requestContext';
 
 // Load environment variables
@@ -54,6 +55,7 @@ app.use('/api/surveys', surveyRoutes);
 app.use(errorHandler);
 
 // Setup WebSocket handlers
+setWebSocketServer(io);
 setupWebSocket(io);
 
 // Start server

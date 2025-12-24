@@ -24,6 +24,7 @@ interface WebSocketCallbacks {
   onDiagramReload?: (data: { projectId: string; diagramId: string }) => void;
   onCommentAdded?: (data: { nodeId: string; comment: any; diagramId: string }) => void;
   onCommentDeleted?: (data: { nodeId: string; commentId: string; diagramId: string }) => void;
+  onSurveyResponseCreated?: (data: { projectId: string; surveyId: string; timestamp?: string }) => void;
 }
 
 class WebSocketService {
@@ -184,6 +185,10 @@ class WebSocketService {
 
     this.socket.on('comment_deleted', (data) => {
       this.callbacks.onCommentDeleted?.(data);
+    });
+
+    this.socket.on('survey_response_created', (data) => {
+      this.callbacks.onSurveyResponseCreated?.(data);
     });
   }
 

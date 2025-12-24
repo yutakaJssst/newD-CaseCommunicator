@@ -48,6 +48,7 @@ interface DiagramStore {
   remoteOutOfSync: boolean;
   onlineUsers: OnlineUser[]; // プロジェクトに接続中のユーザー
   userCursors: Map<string, UserCursor>; // 他のユーザーのカーソル位置
+  surveyResponseEvent: { projectId: string; surveyId: string; receivedAt: string } | null;
   title: string;
   nodes: Node[];
   links: Link[];
@@ -434,6 +435,7 @@ export const useDiagramStore = create<DiagramStore>()(
       remoteOutOfSync: false,
       onlineUsers: [],
       userCursors: new Map(),
+      surveyResponseEvent: null,
       isReconnecting: false,
       reconnectAttempts: 0,
       showPatternLibrary: false,
@@ -744,6 +746,17 @@ export const useDiagramStore = create<DiagramStore>()(
               },
             });
           },
+          onSurveyResponseCreated: ({ projectId, surveyId, timestamp }) => {
+            const state = get();
+            if (state.currentProjectId !== projectId) return;
+            set({
+              surveyResponseEvent: {
+                projectId,
+                surveyId,
+                receivedAt: timestamp || new Date().toISOString(),
+              },
+            });
+          },
         });
 
         // プロジェクトに参加している場合は自動join
@@ -768,6 +781,7 @@ export const useDiagramStore = create<DiagramStore>()(
           projectRole: null,
           onlineUsers: [],
           userCursors: new Map(),
+          surveyResponseEvent: null,
         });
       },
 
@@ -2847,7 +2861,15 @@ export const useDiagramStore = create<DiagramStore>()(
       // LocalStorageはデフォルトで使用される（プロジェクトIDベースの保存は setCurrentProject 内で処理）
       partialize: (state) => {
         // userCursors（Map）とWebSocket関連の一時的な状態は永続化から除外
-        const { userCursors, isWebSocketConnected, onlineUsers, isReconnecting, reconnectAttempts, ...rest } = state;
+        const {
+          userCursors,
+          isWebSocketConnected,
+          onlineUsers,
+          isReconnecting,
+          reconnectAttempts,
+          surveyResponseEvent,
+          ...rest
+        } = state;
         return rest;
       },
     }

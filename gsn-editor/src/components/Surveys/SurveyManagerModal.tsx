@@ -18,6 +18,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   const exportProjectData = useDiagramStore((state) => state.exportProjectData);
   const currentDiagramDbId = useDiagramStore((state) => state.currentDiagramDbId);
   const projectRole = useDiagramStore((state) => state.projectRole);
+  const surveyResponseEvent = useDiagramStore((state) => state.surveyResponseEvent);
   const canEdit = projectRole !== 'viewer';
 
   const [surveys, setSurveys] = useState<Survey[]>([]);
@@ -104,6 +105,53 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       setAnalytics(null);
     }
   }, [selectedSurvey?.id]);
+
+  useEffect(() => {
+    if (!isOpen || !surveyResponseEvent) return;
+    if (surveyResponseEvent.projectId !== projectId) return;
+
+    let matched = false;
+    setSurveys((prev) =>
+      prev.map((survey) => {
+        if (survey.id !== surveyResponseEvent.surveyId) return survey;
+        matched = true;
+        const currentCount = survey.responseCount ?? 0;
+        return {
+          ...survey,
+          responseCount: currentCount + 1,
+        };
+      })
+    );
+    if (!matched) {
+      loadSurveys();
+    }
+    if (selectedSurvey?.id === surveyResponseEvent.surveyId) {
+      loadAnalytics(selectedSurvey.id);
+    }
+  }, [surveyResponseEvent?.receivedAt, isOpen, projectId, selectedSurvey?.id]);
+
+  useEffect(() => {
+    if (!isOpen || !selectedSurvey?.id) return;
+    let active = true;
+    const refresh = async () => {
+      try {
+        const response = await surveysApi.getSurveyAnalytics(selectedSurvey.id);
+        if (active) {
+          setAnalytics(response);
+        }
+      } catch (err: any) {
+        if (active) {
+          setError(err.response?.data?.error || '集計の取得に失敗しました');
+        }
+      }
+    };
+
+    const intervalId = window.setInterval(refresh, 5000);
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [isOpen, selectedSurvey?.id]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
