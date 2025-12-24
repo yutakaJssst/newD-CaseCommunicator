@@ -59,10 +59,105 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     return new Map(allNodes.map((node: any) => [String(node.id), node]));
   }, [selectedSurvey?.gsnSnapshot]);
 
+  const diagramData = useMemo(() => {
+    const snapshot = selectedSurvey?.gsnSnapshot as any;
+    if (!snapshot || typeof snapshot !== 'object') return null;
+    const currentId = snapshot.currentDiagramId || 'root';
+    const modules = snapshot.modules && typeof snapshot.modules === 'object'
+      ? snapshot.modules
+      : { root: snapshot };
+    const moduleData = modules[currentId] || modules.root || null;
+    if (!moduleData) return null;
+    return {
+      nodes: Array.isArray(moduleData.nodes) ? moduleData.nodes : [],
+      links: Array.isArray(moduleData.links) ? moduleData.links : [],
+    };
+  }, [selectedSurvey?.gsnSnapshot]);
+
   const stripHtml = (html?: string) => {
     if (!html) return '';
     return html.replace(/<[^>]*>/g, '').trim();
   };
+
+  const consensusScore = useMemo(() => {
+    if (!analytics || analytics.responseCount === 0 || !diagramData) return null;
+    const avgRatings = new Map<string, number>();
+    analytics.stats.forEach((stat) => {
+      if (typeof stat.averageScore === 'number') {
+        avgRatings.set(String(stat.nodeId), stat.averageScore);
+      }
+    });
+
+    const nodesById = new Map<string, any>(
+      diagramData.nodes.map((node: any) => [String(node.id), node])
+    );
+    const childrenById = new Map<string, string[]>();
+    const incoming = new Set<string>();
+    diagramData.links.forEach((link: any) => {
+      const source = String(link.source);
+      const target = String(link.target);
+      const list = childrenById.get(source) || [];
+      list.push(target);
+      childrenById.set(source, list);
+      incoming.add(target);
+    });
+
+    const memo = new Map<string, number | null>();
+    const calcGoalConsensus = (goalId: string, trail: Set<string>): number | null => {
+      if (memo.has(goalId)) return memo.get(goalId) ?? null;
+      if (trail.has(goalId)) return null;
+      const node = nodesById.get(goalId);
+      if (!node || node.type !== 'Goal') return null;
+      const avg = avgRatings.get(goalId);
+      if (typeof avg !== 'number') return null;
+      const nextTrail = new Set(trail);
+      nextTrail.add(goalId);
+
+      const A = avg / 3;
+      const strategyIds = (childrenById.get(goalId) || [])
+        .filter((childId) => nodesById.get(childId)?.type === 'Strategy');
+      if (strategyIds.length === 0) {
+        memo.set(goalId, A);
+        return A;
+      }
+
+      const bottomValues: number[] = [];
+      strategyIds.forEach((strategyId) => {
+        if (nextTrail.has(strategyId)) return;
+        const strategyAvg = avgRatings.get(strategyId);
+        if (typeof strategyAvg !== 'number') return;
+        const B = strategyAvg / 3;
+        const subGoals = (childrenById.get(strategyId) || [])
+          .filter((childId) => nodesById.get(childId)?.type === 'Goal');
+        const subScores = subGoals
+          .map((subId) => calcGoalConsensus(subId, new Set([...nextTrail, strategyId])))
+          .filter((score): score is number => typeof score === 'number');
+        if (subScores.length === 0) return;
+        const C = subScores.reduce((sum, value) => sum + value, 0) / subScores.length;
+        bottomValues.push(B * C);
+      });
+
+      if (bottomValues.length === 0) {
+        memo.set(goalId, A);
+        return A;
+      }
+      const bottom = bottomValues.reduce((sum, value) => sum + value, 0) / bottomValues.length;
+      const score = (A + bottom) / 2;
+      memo.set(goalId, score);
+      return score;
+    };
+
+    const rootGoals = diagramData.nodes
+      .filter((node: any) => node?.type === 'Goal')
+      .map((node: any) => String(node.id))
+      .filter((nodeId: string) => !incoming.has(nodeId));
+
+    const scores = rootGoals
+      .map((goalId) => calcGoalConsensus(goalId, new Set()))
+      .filter((score): score is number => typeof score === 'number');
+    if (scores.length === 0) return null;
+    return scores.reduce((sum, value) => sum + value, 0) / scores.length;
+  }, [analytics, diagramData]);
 
   const escapeCsv = (value: string | number | null | undefined) => {
     const text = value === null || value === undefined ? '' : String(value);
@@ -714,6 +809,25 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                     <>
                       <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '8px' }}>
                         回答数: {analytics.responseCount}
+                      </div>
+                      <div
+                        style={{
+                          marginBottom: '12px',
+                          padding: '12px',
+                          borderRadius: '10px',
+                          border: '1px solid #E5E7EB',
+                          backgroundColor: '#F8FAFC',
+                          display: 'flex',
+                          alignItems: 'baseline',
+                          gap: '12px',
+                        }}
+                      >
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 600 }}>
+                          合意形成点
+                        </div>
+                        <div style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
+                          {consensusScore === null ? '-' : `${Math.round(consensusScore * 100)}%`}
+                        </div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {analytics.stats.map((stat) => {
