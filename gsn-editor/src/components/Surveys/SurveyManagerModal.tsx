@@ -483,6 +483,9 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                     onChange={handleEditImageChange}
                     disabled={!canEdit}
                   />
+                  <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '4px' }}>
+                    画像は10MBまで
+                  </div>
                   {editImageUrl && (
                     <div style={{ marginTop: '8px' }}>
                       <img
@@ -582,10 +585,10 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                             {question.questionText}
                           </div>
                           <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                            {question.nodeType} / {nodeLabel}
+                            ID: {nodeLabel} / {question.nodeType}
                           </div>
                           <div style={{ fontSize: '12px', color: '#374151', marginTop: '4px' }}>
-                            説明: {descriptionText}
+                            文: {descriptionText}
                           </div>
                         </div>
                         );
@@ -608,26 +611,30 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                         回答数: {analytics.responseCount}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {analytics.stats.map((stat) => (
-                          <div
-                            key={stat.questionId}
-                            style={{
-                              padding: '10px 12px',
-                              border: '1px solid #E5E7EB',
-                              borderRadius: '6px',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                            }}
-                          >
-                            <div style={{ fontSize: '12px', color: '#374151' }}>
-                              {stat.nodeType} / {stat.nodeId}
+                        {analytics.stats.map((stat) => {
+                          const node = nodeMap.get(stat.nodeId);
+                          const nodeLabel = node?.label || stat.nodeId;
+                          return (
+                            <div
+                              key={stat.questionId}
+                              style={{
+                                padding: '10px 12px',
+                                border: '1px solid #E5E7EB',
+                                borderRadius: '6px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <div style={{ fontSize: '12px', color: '#374151' }}>
+                                {stat.nodeType}/{nodeLabel}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#111827' }}>
+                                平均: {stat.averageScore ?? '-'} ({stat.count}件)
+                              </div>
                             </div>
-                            <div style={{ fontSize: '12px', color: '#111827' }}>
-                              平均: {stat.averageScore ?? '-'} ({stat.count}件)
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </>
                   )}
