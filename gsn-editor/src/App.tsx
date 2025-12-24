@@ -147,7 +147,8 @@ function App() {
         width: '100vw',
         height: '100vh',
         backgroundColor: '#f5f5f5',
-        overflow: 'auto',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
       }}>
         {showRegister ? (
           <RegisterForm onSwitchToLogin={() => setShowRegister(false)} />

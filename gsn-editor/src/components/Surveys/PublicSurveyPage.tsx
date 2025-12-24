@@ -13,6 +13,7 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [answers, setAnswers] = useState<Record<string, PublicSurveyAnswer>>({});
+  const [missingScores, setMissingScores] = useState<Set<string>>(new Set());
 
   const nodeMap = useMemo(() => {
     const snapshot = survey?.gsnSnapshot as any;
@@ -52,6 +53,7 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
       try {
         const response = await publicSurveysApi.getSurvey(token);
         setSurvey(response.survey);
+        setMissingScores(new Set());
       } catch (err: any) {
         setError(err.response?.data?.error || 'アンケートの読み込みに失敗しました');
       } finally {
@@ -70,6 +72,12 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
         comment: prev[questionId]?.comment,
       },
     }));
+    setMissingScores((prev) => {
+      if (!prev.has(questionId)) return prev;
+      const next = new Set(prev);
+      next.delete(questionId);
+      return next;
+    });
   };
 
   const handleCommentChange = (questionId: string, comment: string) => {
@@ -88,10 +96,15 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
     if (!survey) return;
 
     const answerList = survey.questions.map((question) => answers[question.id]);
-    if (answerList.some((answer) => answer?.score === undefined)) {
-      setError('すべての質問に0〜3点で回答してください');
+    const missing = survey.questions
+      .filter((question) => answers[question.id]?.score === undefined)
+      .map((question) => question.id);
+    if (missing.length > 0) {
+      setMissingScores(new Set(missing));
+      setError('スコアが未入力の項目があります。0〜3点を選択してください。');
       return;
     }
+    setMissingScores(new Set());
 
     try {
       setError(null);
@@ -108,9 +121,11 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
     <div
       style={{
         width: '100vw',
-        minHeight: '100vh',
+        height: '100vh',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
         backgroundColor: '#F9FAFB',
-        padding: '40px 20px',
+        padding: '40px 20px 60px',
       }}
     >
       <div
@@ -164,7 +179,7 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
                   <div
                     key={question.id}
                     style={{
-                      border: '1px solid #E5E7EB',
+                      border: missingScores.has(question.id) ? '1px solid #DC2626' : '1px solid #E5E7EB',
                       borderRadius: '8px',
                       padding: '16px',
                     }}
@@ -207,6 +222,11 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
                         </label>
                       ))}
                     </div>
+                    {missingScores.has(question.id) && (
+                      <div style={{ color: '#DC2626', fontSize: '12px', marginBottom: '8px' }}>
+                        スコアを選択してください
+                      </div>
+                    )}
                     <textarea
                       placeholder="コメント（任意）"
                       value={answers[question.id]?.comment || ''}

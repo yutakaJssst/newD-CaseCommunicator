@@ -93,7 +93,8 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
       width: '100vw',
       height: '100vh',
       backgroundColor: '#f5f5f5',
-      overflow: 'auto',
+      overflowY: 'auto',
+      WebkitOverflowScrolling: 'touch',
     }}>
       <div style={{
         maxWidth: '1200px',
