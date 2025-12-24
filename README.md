@@ -99,6 +99,12 @@ npm run dev  # → http://localhost:5173
 4. ノード/リンク操作が同期されることを確認
 5. ヘッダーに「○人オンライン」と表示される
 
+## テスト結果 (2025-12-24)
+
+- `backend`: `npm run build` ✅
+- `gsn-editor`: `npm run build` ✅（Viteのdynamic import警告あり）
+- 実ブラウザでの機能テストは未実施
+
 ## ディレクトリ構成
 
 ```

@@ -403,6 +403,14 @@ model ActivityLog { id, projectId, userId, action, data (Json), createdAt }
 
 ---
 
+## テスト結果 (2025-12-24)
+
+- `backend`: `npm run build` ✅
+- `gsn-editor`: `npm run build` ✅（Viteのdynamic import警告あり）
+- 実ブラウザでの機能テストは未実施
+
+---
+
 ## 今後の拡張候補
 
 1. ❌ **CRDT導入**: 高度な競合解決（Yjs, Automerge等）

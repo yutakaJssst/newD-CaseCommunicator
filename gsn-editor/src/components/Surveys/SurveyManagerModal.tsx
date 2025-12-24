@@ -199,18 +199,19 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
         return score;
       };
 
-      const rootGoals = diagramData.nodes
+      const rootGoals: string[] = diagramData.nodes
         .filter((node: any) => node?.type === 'Goal')
         .map((node: any) => String(node.id))
         .filter((nodeId: string) => !incoming.has(nodeId));
 
       const consensusScores = rootGoals
-        .map((goalId) => calcGoalConsensus(goalId, new Set()))
+        .map((goalId: string) => calcGoalConsensus(goalId, new Set()))
         .filter((score): score is number => typeof score === 'number');
       if (consensusScores.length === 0) {
         setConsensusScore(null);
       } else {
-        const consensusAvg = consensusScores.reduce((sum, value) => sum + value, 0) / consensusScores.length;
+        const consensusAvg =
+          consensusScores.reduce((sum: number, value: number) => sum + value, 0) / consensusScores.length;
         setConsensusScore(consensusAvg);
       }
 
@@ -288,14 +289,16 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       };
 
       const confidenceScores = rootGoals
-        .map((goalId) => calcGoalConfidence(goalId, new Set()))
+        .map((goalId: string) => calcGoalConfidence(goalId, new Set()))
         .filter((stats): stats is { mean: number; variance: number } => stats !== null);
 
       if (confidenceScores.length === 0) {
         setConfidenceScore(null);
       } else {
-        const mean = confidenceScores.reduce((sum, stats) => sum + stats.mean, 0) / confidenceScores.length;
-        const variance = confidenceScores.reduce((sum, stats) => sum + stats.variance, 0) / confidenceScores.length;
+        const mean =
+          confidenceScores.reduce((sum: number, stats) => sum + stats.mean, 0) / confidenceScores.length;
+        const variance =
+          confidenceScores.reduce((sum: number, stats) => sum + stats.variance, 0) / confidenceScores.length;
         setConfidenceScore({ mean, variance });
       }
     } finally {
