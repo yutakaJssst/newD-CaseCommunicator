@@ -16,6 +16,16 @@ enum SurveyStatus {
   closed
 }
 
+enum SurveyAudience {
+  general
+  expert
+}
+
+enum SurveyScaleType {
+  likert_0_3
+  continuous_0_1
+}
+
 model User {
   id            String          @id @default(uuid())
   email         String          @unique
@@ -166,6 +176,7 @@ model Survey {
   title        String
   description  String?
   publicImageUrl String?
+  audience     SurveyAudience @default(general)
   status       SurveyStatus  @default(draft)
   publicToken  String?       @unique
   gsnSnapshot  Json
@@ -194,6 +205,7 @@ model SurveyQuestion {
   questionText String
   scaleMin     Int      @default(0)
   scaleMax     Int      @default(3)
+  scaleType    SurveyScaleType @default(likert_0_3)
   order        Int
 
   // Relations
@@ -222,7 +234,7 @@ model SurveyAnswer {
   id          String   @id @default(uuid())
   responseId  String
   questionId  String
-  score       Int
+  score       Float
   comment     String?
 
   // Relations

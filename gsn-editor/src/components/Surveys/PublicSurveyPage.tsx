@@ -7,12 +7,18 @@ interface PublicSurveyPageProps {
   token: string;
 }
 
+type DraftAnswer = {
+  questionId: string;
+  score?: number;
+  comment?: string;
+};
+
 export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => {
   const [survey, setSurvey] = useState<PublicSurveyResponse['survey'] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const [answers, setAnswers] = useState<Record<string, PublicSurveyAnswer>>({});
+  const [answers, setAnswers] = useState<Record<string, DraftAnswer>>({});
   const [missingScores, setMissingScores] = useState<Set<string>>(new Set());
 
   const nodeMap = useMemo(() => {
@@ -101,7 +107,7 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
       .map((question) => question.id);
     if (missing.length > 0) {
       setMissingScores(new Set(missing));
-      setError('スコアが未入力の項目があります。0〜3点を選択してください。');
+      setError('スコアが未入力の項目があります。各質問の指示に従って入力してください。');
       return;
     }
     setMissingScores(new Set());
@@ -149,6 +155,11 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
         ) : (
           <form onSubmit={handleSubmit}>
             <h1 style={{ marginTop: 0 }}>{survey.title}</h1>
+            {survey.audience && (
+              <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '6px' }}>
+                対象: {survey.audience === 'expert' ? '専門家' : '非専門家'}
+              </div>
+            )}
             {survey.description && (
               <p style={{ color: '#6B7280', whiteSpace: 'pre-wrap' }}>{survey.description}</p>
             )}
@@ -192,6 +203,7 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
                 const node = nodeMap.get(question.nodeId);
                 const descriptionText = stripHtml(node?.content) || '-';
                 const nodeLabel = node?.label || '-';
+                const scaleType = question.scaleType || 'likert_0_3';
                 return (
                   <div
                     key={question.id}
@@ -210,38 +222,89 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
                     <div style={{ fontSize: '12px', color: '#374151', marginBottom: '12px' }}>
                       説明: {descriptionText}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#374151', marginBottom: '6px' }}>
-                      0〜3点の評価（必須）
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                      {[0, 1, 2, 3].map((value) => (
-                        <label
-                          key={value}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            fontSize: '12px',
-                            padding: '4px 8px',
-                            borderRadius: '6px',
-                            border: '1px solid #D1D5DB',
-                            cursor: 'pointer',
-                          }}
-                        >
+                    {scaleType === 'continuous_0_1' ? (
+                      <>
+                        <div style={{ fontSize: '12px', color: '#374151', marginBottom: '6px' }}>
+                          0.0〜1.0の評価（必須）
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                           <input
-                            type="radio"
-                            name={`question-${question.id}`}
-                            value={value}
-                            checked={answers[question.id]?.score === value}
-                            onChange={() => handleScoreChange(question.id, value)}
+                            type="range"
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            value={answers[question.id]?.score ?? 0.5}
+                            onChange={(e) => handleScoreChange(question.id, Number(e.target.value))}
+                            style={{ flex: 1 }}
                           />
-                          {value}
-                        </label>
-                      ))}
-                    </div>
+                          <input
+                            type="number"
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            value={answers[question.id]?.score ?? ''}
+                            onChange={(e) => {
+                              const value = e.target.value === '' ? undefined : Number(e.target.value);
+                              if (value === undefined) {
+                                setAnswers((prev) => ({
+                                  ...prev,
+                                  [question.id]: {
+                                    questionId: question.id,
+                                    score: undefined,
+                                    comment: prev[question.id]?.comment,
+                                  },
+                                }));
+                                return;
+                              }
+                              handleScoreChange(question.id, value);
+                            }}
+                            placeholder="0.0"
+                            style={{
+                              width: '80px',
+                              padding: '4px 6px',
+                              border: '1px solid #D1D5DB',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                            }}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: '12px', color: '#374151', marginBottom: '6px' }}>
+                          0〜3点の評価（必須）
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                          {[0, 1, 2, 3].map((value) => (
+                            <label
+                              key={value}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '12px',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid #D1D5DB',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <input
+                                type="radio"
+                                name={`question-${question.id}`}
+                                value={value}
+                                checked={answers[question.id]?.score === value}
+                                onChange={() => handleScoreChange(question.id, value)}
+                              />
+                              {value}
+                            </label>
+                          ))}
+                        </div>
+                      </>
+                    )}
                     {missingScores.has(question.id) && (
                       <div style={{ color: '#DC2626', fontSize: '12px', marginBottom: '8px' }}>
-                        スコアを選択してください
+                        {scaleType === 'continuous_0_1' ? 'スコアを入力してください' : 'スコアを選択してください'}
                       </div>
                     )}
                     <textarea

@@ -1,5 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { surveysApi, type Survey, type SurveyAnalytics, type SurveyQuestion } from '../../api/surveys';
+import {
+  surveysApi,
+  type Survey,
+  type SurveyAnalytics,
+  type SurveyQuestion,
+  type SurveyResponsesResponse,
+  type SurveyAudience,
+} from '../../api/surveys';
 import { LoadingState } from '../Status/LoadingState';
 import { ErrorState } from '../Status/ErrorState';
 import { useDiagramStore } from '../../stores/diagramStore';
@@ -30,11 +37,15 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [audience, setAudience] = useState<SurveyAudience>('general');
   const [isCreating, setIsCreating] = useState(false);
   const [editDescription, setEditDescription] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [consensusScore, setConsensusScore] = useState<number | null>(null);
+  const [confidenceScore, setConfidenceScore] = useState<{ mean: number; variance: number } | null>(null);
+  const [isConsensusLoading, setIsConsensusLoading] = useState(false);
 
   const publicUrl = useMemo(() => {
     if (!selectedSurvey?.publicToken) return null;
@@ -79,85 +90,218 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     return html.replace(/<[^>]*>/g, '').trim();
   };
 
-  const consensusScore = useMemo(() => {
-    if (!analytics || analytics.responseCount === 0 || !diagramData) return null;
-    const avgRatings = new Map<string, number>();
-    analytics.stats.forEach((stat) => {
-      if (typeof stat.averageScore === 'number') {
-        avgRatings.set(String(stat.nodeId), stat.averageScore);
+  const calculateSampleVariance = (values: number[]) => {
+    if (values.length < 2) return 0;
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+    return values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1);
+  };
+
+  const computeConsensusAndConfidence = async (
+    generalSurveyId: string | null,
+    expertSurveyId: string | null
+  ) => {
+    if (!diagramData) {
+      setConsensusScore(null);
+      setConfidenceScore(null);
+      return;
+    }
+
+    setIsConsensusLoading(true);
+    try {
+      const responsesList: SurveyResponsesResponse[] = [];
+      const expertResponsesList: SurveyResponsesResponse[] = [];
+      if (generalSurveyId) {
+        responsesList.push(await surveysApi.getSurveyResponses(generalSurveyId));
       }
-    });
-
-    const nodesById = new Map<string, any>(
-      diagramData.nodes.map((node: any) => [String(node.id), node])
-    );
-    const childrenById = new Map<string, string[]>();
-    const incoming = new Set<string>();
-    diagramData.links.forEach((link: any) => {
-      const source = String(link.source);
-      const target = String(link.target);
-      const list = childrenById.get(source) || [];
-      list.push(target);
-      childrenById.set(source, list);
-      incoming.add(target);
-    });
-
-    const memo = new Map<string, number | null>();
-    const calcGoalConsensus = (goalId: string, trail: Set<string>): number | null => {
-      if (memo.has(goalId)) return memo.get(goalId) ?? null;
-      if (trail.has(goalId)) return null;
-      const node = nodesById.get(goalId);
-      if (!node || node.type !== 'Goal') return null;
-      const avg = avgRatings.get(goalId);
-      if (typeof avg !== 'number') return null;
-      const nextTrail = new Set(trail);
-      nextTrail.add(goalId);
-
-      const A = avg / 3;
-      const strategyIds = (childrenById.get(goalId) || [])
-        .filter((childId) => nodesById.get(childId)?.type === 'Strategy');
-      if (strategyIds.length === 0) {
-        memo.set(goalId, A);
-        return A;
+      if (expertSurveyId) {
+        const expertResponses = await surveysApi.getSurveyResponses(expertSurveyId);
+        responsesList.push(expertResponses);
+        expertResponsesList.push(expertResponses);
       }
 
-      const bottomValues: number[] = [];
-      strategyIds.forEach((strategyId) => {
-        if (nextTrail.has(strategyId)) return;
-        const strategyAvg = avgRatings.get(strategyId);
-        if (typeof strategyAvg !== 'number') return;
-        const B = strategyAvg / 3;
-        const subGoals = (childrenById.get(strategyId) || [])
-          .filter((childId) => nodesById.get(childId)?.type === 'Goal');
-        const subScores = subGoals
-          .map((subId) => calcGoalConsensus(subId, new Set([...nextTrail, strategyId])))
-          .filter((score): score is number => typeof score === 'number');
-        if (subScores.length === 0) return;
-        const C = subScores.reduce((sum, value) => sum + value, 0) / subScores.length;
-        bottomValues.push(B * C);
+      const nodesById = new Map<string, any>(
+        diagramData.nodes.map((node: any) => [String(node.id), node])
+      );
+      const childrenById = new Map<string, string[]>();
+      const incoming = new Set<string>();
+      diagramData.links.forEach((link: any) => {
+        const source = String(link.source);
+        const target = String(link.target);
+        const list = childrenById.get(source) || [];
+        list.push(target);
+        childrenById.set(source, list);
+        incoming.add(target);
       });
 
-      if (bottomValues.length === 0) {
-        memo.set(goalId, A);
-        return A;
+      const likertScores = new Map<string, number[]>();
+      responsesList.forEach((responses) => {
+        const questionMap = new Map(responses.questions.map((question) => [question.id, question]));
+        responses.responses.forEach((response) => {
+          response.answers.forEach((answer) => {
+            const question = questionMap.get(answer.questionId);
+            if (!question || (question.scaleType || 'likert_0_3') !== 'likert_0_3') return;
+            const nodeId = String(question.nodeId);
+            const list = likertScores.get(nodeId) || [];
+            list.push(answer.score);
+            likertScores.set(nodeId, list);
+          });
+        });
+      });
+
+      const avgRatings = new Map<string, number>();
+      likertScores.forEach((scores, nodeId) => {
+        const total = scores.reduce((sum, score) => sum + score, 0);
+        avgRatings.set(nodeId, total / scores.length);
+      });
+
+      const consensusMemo = new Map<string, number | null>();
+      const calcGoalConsensus = (goalId: string, trail: Set<string>): number | null => {
+        if (consensusMemo.has(goalId)) return consensusMemo.get(goalId) ?? null;
+        if (trail.has(goalId)) return null;
+        const node = nodesById.get(goalId);
+        if (!node || node.type !== 'Goal') return null;
+        const avg = avgRatings.get(goalId);
+        if (typeof avg !== 'number') return null;
+        const nextTrail = new Set(trail);
+        nextTrail.add(goalId);
+
+        const A = avg / 3;
+        const strategyIds = (childrenById.get(goalId) || [])
+          .filter((childId) => nodesById.get(childId)?.type === 'Strategy');
+        if (strategyIds.length === 0) {
+          consensusMemo.set(goalId, A);
+          return A;
+        }
+
+        const bottomValues: number[] = [];
+        strategyIds.forEach((strategyId) => {
+          if (nextTrail.has(strategyId)) return;
+          const strategyAvg = avgRatings.get(strategyId);
+          if (typeof strategyAvg !== 'number') return;
+          const B = strategyAvg / 3;
+          const subGoals = (childrenById.get(strategyId) || [])
+            .filter((childId) => nodesById.get(childId)?.type === 'Goal');
+          const subScores = subGoals
+            .map((subId) => calcGoalConsensus(subId, new Set([...nextTrail, strategyId])))
+            .filter((score): score is number => typeof score === 'number');
+          if (subScores.length === 0) return;
+          const C = subScores.reduce((sum, value) => sum + value, 0) / subScores.length;
+          bottomValues.push(B * C);
+        });
+
+        if (bottomValues.length === 0) {
+          consensusMemo.set(goalId, A);
+          return A;
+        }
+        const bottom = bottomValues.reduce((sum, value) => sum + value, 0) / bottomValues.length;
+        const score = (A + bottom) / 2;
+        consensusMemo.set(goalId, score);
+        return score;
+      };
+
+      const rootGoals = diagramData.nodes
+        .filter((node: any) => node?.type === 'Goal')
+        .map((node: any) => String(node.id))
+        .filter((nodeId: string) => !incoming.has(nodeId));
+
+      const consensusScores = rootGoals
+        .map((goalId) => calcGoalConsensus(goalId, new Set()))
+        .filter((score): score is number => typeof score === 'number');
+      if (consensusScores.length === 0) {
+        setConsensusScore(null);
+      } else {
+        const consensusAvg = consensusScores.reduce((sum, value) => sum + value, 0) / consensusScores.length;
+        setConsensusScore(consensusAvg);
       }
-      const bottom = bottomValues.reduce((sum, value) => sum + value, 0) / bottomValues.length;
-      const score = (A + bottom) / 2;
-      memo.set(goalId, score);
-      return score;
-    };
 
-    const rootGoals = diagramData.nodes
-      .filter((node: any) => node?.type === 'Goal')
-      .map((node: any) => String(node.id))
-      .filter((nodeId: string) => !incoming.has(nodeId));
+      const expertScores = new Map<string, number[]>();
+      expertResponsesList.forEach((responses) => {
+        const questionMap = new Map(responses.questions.map((question) => [question.id, question]));
+        responses.responses.forEach((response) => {
+          response.answers.forEach((answer) => {
+            const question = questionMap.get(answer.questionId);
+            if (!question || (question.scaleType || 'likert_0_3') !== 'continuous_0_1') return;
+            const nodeId = String(question.nodeId);
+            const list = expertScores.get(nodeId) || [];
+            list.push(answer.score);
+            expertScores.set(nodeId, list);
+          });
+        });
+      });
 
-    const scores = rootGoals
-      .map((goalId) => calcGoalConsensus(goalId, new Set()))
-      .filter((score): score is number => typeof score === 'number');
-    if (scores.length === 0) return null;
-    return scores.reduce((sum, value) => sum + value, 0) / scores.length;
-  }, [analytics, diagramData]);
+      const epsilon = 1e-6;
+      const expertStats = new Map<string, { mean: number; variance: number }>();
+      expertScores.forEach((scores, nodeId) => {
+        const mean = scores.reduce((sum, value) => sum + value, 0) / scores.length;
+        const variance = calculateSampleVariance(scores);
+        expertStats.set(nodeId, { mean, variance: variance + epsilon });
+      });
+
+      const confidenceMemo = new Map<string, { mean: number; variance: number } | null>();
+      const calcGoalConfidence = (goalId: string, trail: Set<string>): { mean: number; variance: number } | null => {
+        if (confidenceMemo.has(goalId)) return confidenceMemo.get(goalId) ?? null;
+        if (trail.has(goalId)) return null;
+        const node = nodesById.get(goalId);
+        if (!node || node.type !== 'Goal') return null;
+        const direct = expertStats.get(goalId);
+        const nextTrail = new Set(trail);
+        nextTrail.add(goalId);
+
+        const strategyIds = (childrenById.get(goalId) || [])
+          .filter((childId) => nodesById.get(childId)?.type === 'Strategy');
+        if (strategyIds.length === 0) {
+          confidenceMemo.set(goalId, direct ?? null);
+          return direct ?? null;
+        }
+
+        const candidates: Array<{ mean: number; variance: number }> = [];
+        strategyIds.forEach((strategyId) => {
+          if (nextTrail.has(strategyId)) return;
+          const strategyStats = expertStats.get(strategyId);
+          if (!strategyStats) return;
+          const subGoals = (childrenById.get(strategyId) || [])
+            .filter((childId) => nodesById.get(childId)?.type === 'Goal');
+          const subStats = subGoals
+            .map((subId) => calcGoalConfidence(subId, new Set([...nextTrail, strategyId])))
+            .filter((stats): stats is { mean: number; variance: number } => stats !== null);
+          if (subStats.length === 0) return;
+          const weightSum = subStats.reduce((sum, stats) => sum + (1 / stats.variance), 0);
+          if (weightSum === 0) return;
+          const meanE = subStats.reduce((sum, stats) => sum + (1 / stats.variance) * stats.mean, 0) / weightSum;
+          const varianceE = 1 / weightSum;
+          const meanG = meanE * strategyStats.mean;
+          const varianceG =
+            meanE ** 2 * strategyStats.variance +
+            strategyStats.mean ** 2 * varianceE +
+            varianceE * strategyStats.variance;
+          candidates.push({ mean: meanG, variance: varianceG });
+        });
+
+        if (candidates.length === 0) {
+          confidenceMemo.set(goalId, direct ?? null);
+          return direct ?? null;
+        }
+        const mean = candidates.reduce((sum, stats) => sum + stats.mean, 0) / candidates.length;
+        const variance = candidates.reduce((sum, stats) => sum + stats.variance, 0) / candidates.length;
+        confidenceMemo.set(goalId, { mean, variance });
+        return { mean, variance };
+      };
+
+      const confidenceScores = rootGoals
+        .map((goalId) => calcGoalConfidence(goalId, new Set()))
+        .filter((stats): stats is { mean: number; variance: number } => stats !== null);
+
+      if (confidenceScores.length === 0) {
+        setConfidenceScore(null);
+      } else {
+        const mean = confidenceScores.reduce((sum, stats) => sum + stats.mean, 0) / confidenceScores.length;
+        const variance = confidenceScores.reduce((sum, stats) => sum + stats.variance, 0) / confidenceScores.length;
+        setConfidenceScore({ mean, variance });
+      }
+    } finally {
+      setIsConsensusLoading(false);
+    }
+  };
 
   const escapeCsv = (value: string | number | null | undefined) => {
     const text = value === null || value === undefined ? '' : String(value);
@@ -245,6 +389,60 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   }, [selectedSurvey?.id]);
 
   useEffect(() => {
+    if (!isOpen || !selectedSurvey || !diagramData) {
+      setConsensusScore(null);
+      setConfidenceScore(null);
+      setIsConsensusLoading(false);
+      return;
+    }
+
+    const targetDiagramId = selectedSurvey.diagramId ?? null;
+    const generalSurvey = selectedSurvey.audience === 'expert'
+      ? surveys.find(
+          (survey) => survey.audience !== 'expert' && (survey.diagramId ?? null) === targetDiagramId
+        )
+      : selectedSurvey;
+    const expertSurvey = selectedSurvey.audience === 'expert'
+      ? selectedSurvey
+      : surveys.find(
+          (survey) => survey.audience === 'expert' && (survey.diagramId ?? null) === targetDiagramId
+        );
+
+    if (!generalSurvey && !expertSurvey) {
+      setConsensusScore(null);
+      setConfidenceScore(null);
+      setIsConsensusLoading(false);
+      return;
+    }
+
+    let canceled = false;
+    const run = async () => {
+      try {
+        await computeConsensusAndConfidence(generalSurvey?.id || null, expertSurvey?.id || null);
+      } catch (err: any) {
+        if (!canceled) {
+          setError(err.response?.data?.error || '合意形成点の計算に失敗しました');
+          setConsensusScore(null);
+          setConfidenceScore(null);
+          setIsConsensusLoading(false);
+        }
+      }
+    };
+    run();
+
+    return () => {
+      canceled = true;
+    };
+  }, [
+    isOpen,
+    selectedSurvey?.id,
+    selectedSurvey?.diagramId,
+    diagramData,
+    surveys,
+    surveyResponseEvent?.receivedAt,
+  ]);
+
+  useEffect(() => {
     if (!isOpen || !surveyResponseEvent) return;
     if (surveyResponseEvent.projectId !== projectId) return;
 
@@ -305,10 +503,12 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
         description: description.trim() || undefined,
         diagramId: currentDiagramDbId || undefined,
         gsnSnapshot: snapshot,
+        audience,
       });
       setShowCreate(false);
       setTitle('');
       setDescription('');
+      setAudience('general');
       await loadSurveys();
       setSelectedSurvey(response.survey);
     } catch (err: any) {
@@ -552,7 +752,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                 >
                   <div style={{ fontWeight: 600, fontSize: '14px' }}>{survey.title}</div>
                   <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>
-                    {survey.status} · 回答 {survey.responseCount ?? 0} 件
+                    {survey.status} · {survey.audience === 'expert' ? '専門家' : '非専門家'} · 回答 {survey.responseCount ?? 0} 件
                   </div>
                 </div>
               ))
@@ -573,7 +773,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                       </p>
                     )}
                     <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '8px' }}>
-                      状態: {selectedSurvey.status}
+                      状態: {selectedSurvey.status} ・ 対象: {selectedSurvey.audience === 'expert' ? '専門家' : '非専門家'}
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -810,23 +1010,57 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                       <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '8px' }}>
                         回答数: {analytics.responseCount}
                       </div>
-                      <div
-                        style={{
-                          marginBottom: '12px',
-                          padding: '12px',
-                          borderRadius: '10px',
-                          border: '1px solid #E5E7EB',
-                          backgroundColor: '#F8FAFC',
-                          display: 'flex',
-                          alignItems: 'baseline',
-                          gap: '12px',
-                        }}
-                      >
-                        <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 600 }}>
-                          合意形成点
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        <div
+                          style={{
+                            padding: '12px',
+                            borderRadius: '10px',
+                            border: '1px solid #E5E7EB',
+                            backgroundColor: '#F8FAFC',
+                            display: 'flex',
+                            alignItems: 'baseline',
+                            gap: '12px',
+                            minWidth: '240px',
+                          }}
+                        >
+                          <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 600 }}>
+                            合意形成点
+                          </div>
+                          <div style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
+                            {isConsensusLoading
+                              ? '...'
+                              : consensusScore === null
+                                ? '-'
+                                : `${Math.round(consensusScore * 100)}%`}
+                          </div>
                         </div>
-                        <div style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
-                          {consensusScore === null ? '-' : `${Math.round(consensusScore * 100)}%`}
+                        <div
+                          style={{
+                            padding: '12px',
+                            borderRadius: '10px',
+                            border: '1px solid #E5E7EB',
+                            backgroundColor: '#F8FAFC',
+                            display: 'flex',
+                            alignItems: 'baseline',
+                            gap: '12px',
+                            minWidth: '240px',
+                          }}
+                        >
+                          <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 600 }}>
+                            技術的信頼度
+                          </div>
+                          <div style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
+                            {isConsensusLoading
+                              ? '...'
+                              : confidenceScore === null
+                                ? '-'
+                                : `${Math.round(confidenceScore.mean * 100)}%`}
+                          </div>
+                          {confidenceScore && !isConsensusLoading && (
+                            <div style={{ fontSize: '11px', color: '#6B7280' }}>
+                              σ²={confidenceScore.variance.toFixed(4)}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -907,6 +1141,27 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                     borderRadius: '6px',
                   }}
                 />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>
+                  対象
+                </label>
+                <select
+                  value={audience}
+                  onChange={(e) => setAudience(e.target.value as SurveyAudience)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: '6px',
+                  }}
+                >
+                  <option value="general">非専門家（合意形成）</option>
+                  <option value="expert">専門家（Confidence）</option>
+                </select>
+                <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '4px' }}>
+                  専門家向けは Strategy/Leaf Goal が0〜1、その他のGoalは0〜3で回答します。
+                </div>
               </div>
               <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>

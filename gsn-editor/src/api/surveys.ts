@@ -2,6 +2,8 @@ import axios from 'axios';
 import { api } from '../services/api';
 
 export type SurveyStatus = 'draft' | 'published' | 'closed';
+export type SurveyAudience = 'general' | 'expert';
+export type SurveyScaleType = 'likert_0_3' | 'continuous_0_1';
 
 export interface SurveyQuestion {
   id: string;
@@ -11,6 +13,7 @@ export interface SurveyQuestion {
   questionText: string;
   scaleMin: number;
   scaleMax: number;
+  scaleType?: SurveyScaleType;
   order: number;
 }
 
@@ -21,6 +24,7 @@ export interface Survey {
   title: string;
   description: string | null;
   publicImageUrl?: string | null;
+  audience?: SurveyAudience;
   status: SurveyStatus;
   publicToken: string | null;
   gsnSnapshot?: unknown;
@@ -35,6 +39,7 @@ export interface CreateSurveyRequest {
   description?: string;
   diagramId?: string | null;
   gsnSnapshot: unknown;
+  audience?: SurveyAudience;
 }
 
 export interface UpdateSurveyRequest {
@@ -74,6 +79,7 @@ export interface SurveyResponsesResponse {
   survey: {
     id: string;
     title: string;
+    audience?: SurveyAudience;
   };
   questions: SurveyQuestion[];
   responses: SurveyResponseEntry[];
@@ -85,6 +91,7 @@ export interface PublicSurveyResponse {
     title: string;
     description: string | null;
     status: SurveyStatus;
+    audience?: SurveyAudience;
     publicImageUrl?: string | null;
     gsnSnapshot: unknown;
     questions: SurveyQuestion[];

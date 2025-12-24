@@ -22,6 +22,7 @@ export const getPublicSurvey = async (req: Request, res: Response): Promise<void
       description: survey.description,
       status: survey.status,
       publicImageUrl: survey.publicImageUrl,
+      audience: survey.audience,
       gsnSnapshot: survey.gsnSnapshot,
       questions: survey.questions,
     },
@@ -69,14 +70,22 @@ export const submitPublicResponse = async (req: Request, res: Response): Promise
     }
     const score = answer.score;
     if (typeof score !== 'number' || Number.isNaN(score)) {
-      res.status(400).json({ error: '0〜3点で回答してください' });
+      res.status(400).json({ error: 'スコアが不正です' });
       return;
     }
+    const scaleType = question.scaleType || 'likert_0_3';
     const min = typeof question.scaleMin === 'number' ? question.scaleMin : 0;
     const max = typeof question.scaleMax === 'number' ? question.scaleMax : 3;
-    if (!Number.isInteger(score) || score < min || score > max) {
-      res.status(400).json({ error: '0〜3点で回答してください' });
-      return;
+    if (scaleType === 'continuous_0_1') {
+      if (score < min || score > max) {
+        res.status(400).json({ error: '0〜1の範囲で回答してください' });
+        return;
+      }
+    } else {
+      if (!Number.isInteger(score) || score < min || score > max) {
+        res.status(400).json({ error: '0〜3点で回答してください' });
+        return;
+      }
     }
     normalizedAnswers.set(answer.questionId, {
       questionId: answer.questionId,
@@ -86,7 +95,7 @@ export const submitPublicResponse = async (req: Request, res: Response): Promise
   }
 
   if (normalizedAnswers.size !== survey.questions.length) {
-    res.status(400).json({ error: 'すべての質問に0〜3点で回答してください' });
+    res.status(400).json({ error: 'すべての質問に回答してください' });
     return;
   }
 
@@ -94,7 +103,7 @@ export const submitPublicResponse = async (req: Request, res: Response): Promise
   for (const question of survey.questions) {
     const answer = normalizedAnswers.get(question.id);
     if (!answer) {
-      res.status(400).json({ error: 'すべての質問に0〜3点で回答してください' });
+      res.status(400).json({ error: 'すべての質問に回答してください' });
       return;
     }
     sanitizedAnswers.push(answer);

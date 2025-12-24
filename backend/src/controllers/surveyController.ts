@@ -10,6 +10,7 @@ type SurveyQuestionInput = {
   order: number;
   scaleMin?: number;
   scaleMax?: number;
+  scaleType?: 'likert_0_3' | 'continuous_0_1';
 };
 
 const extractNodesFromSnapshot = (snapshot: any) => {
@@ -24,19 +25,79 @@ const extractNodesFromSnapshot = (snapshot: any) => {
   return [];
 };
 
-const buildDefaultQuestions = (gsnSnapshot: any): SurveyQuestionInput[] => {
+const extractLinksFromSnapshot = (snapshot: any) => {
+  if (!snapshot || typeof snapshot !== 'object') return [];
+  if (Array.isArray(snapshot.links)) {
+    return snapshot.links;
+  }
+  if (snapshot.modules && typeof snapshot.modules === 'object') {
+    const modules = Object.values(snapshot.modules) as any[];
+    return modules.flatMap((module) => (Array.isArray(module?.links) ? module.links : []));
+  }
+  return [];
+};
+
+const findLeafGoalIds = (nodes: any[], links: any[]) => {
+  const nodeMap = new Map(nodes.map((node) => [String(node.id), node]));
+  const childrenById = new Map<string, string[]>();
+  links.forEach((link) => {
+    if (!link) return;
+    const source = String(link.source);
+    const target = String(link.target);
+    const list = childrenById.get(source) || [];
+    list.push(target);
+    childrenById.set(source, list);
+  });
+
+  const goalHasSubgoal = new Set<string>();
+  nodes.forEach((node) => {
+    if (node?.type !== 'Goal') return;
+    const strategyIds = (childrenById.get(String(node.id)) || [])
+      .filter((childId) => nodeMap.get(childId)?.type === 'Strategy');
+    for (const strategyId of strategyIds) {
+      const subGoals = (childrenById.get(strategyId) || [])
+        .filter((childId) => nodeMap.get(childId)?.type === 'Goal');
+      if (subGoals.length > 0) {
+        goalHasSubgoal.add(String(node.id));
+        break;
+      }
+    }
+  });
+
+  return new Set(
+    nodes
+      .filter((node) => node?.type === 'Goal')
+      .map((node) => String(node.id))
+      .filter((id) => !goalHasSubgoal.has(id))
+  );
+};
+
+const buildDefaultQuestions = (
+  gsnSnapshot: any,
+  audience: 'general' | 'expert'
+): SurveyQuestionInput[] => {
   const nodes = extractNodesFromSnapshot(gsnSnapshot);
+  const links = extractLinksFromSnapshot(gsnSnapshot);
   const targetTypes = new Set(['Goal', 'Strategy']);
   const filtered = nodes.filter((node: any) => targetTypes.has(node.type));
+  const leafGoals = findLeafGoalIds(nodes, links);
 
-  return filtered.map((node: any, index: number) => ({
-    nodeId: String(node.id),
-    nodeType: String(node.type),
-    questionText: `この${node.type}の主張に同意しますか？`,
-    order: index + 1,
-    scaleMin: 0,
-    scaleMax: 3,
-  }));
+  return filtered.map((node: any, index: number) => {
+    const nodeId = String(node.id);
+    const nodeType = String(node.type);
+    const isLeafGoal = nodeType === 'Goal' && leafGoals.has(nodeId);
+    const isStrategy = nodeType === 'Strategy';
+    const useConfidenceScale = audience === 'expert' && (isLeafGoal || isStrategy);
+    return {
+      nodeId,
+      nodeType,
+      questionText: `この${node.type}の主張に同意しますか？`,
+      order: index + 1,
+      scaleMin: useConfidenceScale ? 0 : 0,
+      scaleMax: useConfidenceScale ? 1 : 3,
+      scaleType: useConfidenceScale ? 'continuous_0_1' : 'likert_0_3',
+    };
+  });
 };
 
 const getProjectForEditor = async (projectId: string, userId: string) => {
@@ -85,6 +146,7 @@ export const listProjectSurveys = async (req: AuthRequest, res: Response): Promi
       id: true,
       title: true,
       description: true,
+      publicImageUrl: true,
       status: true,
       publicToken: true,
       createdAt: true,
@@ -101,7 +163,7 @@ export const listProjectSurveys = async (req: AuthRequest, res: Response): Promi
 export const createSurvey = async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user?.id;
   const { projectId } = req.params;
-  const { title, description, diagramId, gsnSnapshot, questions } = req.body;
+  const { title, description, diagramId, gsnSnapshot, questions, audience } = req.body;
 
   if (!userId) {
     res.status(401).json({ error: '認証が必要です' });
@@ -127,9 +189,10 @@ export const createSurvey = async (req: AuthRequest, res: Response): Promise<voi
     }
   }
 
+  const surveyAudience = audience === 'expert' ? 'expert' : 'general';
   const questionList: SurveyQuestionInput[] = Array.isArray(questions) && questions.length > 0
     ? questions
-    : buildDefaultQuestions(gsnSnapshot);
+    : buildDefaultQuestions(gsnSnapshot, surveyAudience);
 
   const survey = await prisma.survey.create({
     data: {
@@ -137,6 +200,7 @@ export const createSurvey = async (req: AuthRequest, res: Response): Promise<voi
       diagramId: diagramId || null,
       title,
       description: typeof description === 'string' ? description.trim() || null : null,
+      audience: surveyAudience,
       gsnSnapshot,
       createdById: userId,
       questions: {
@@ -147,6 +211,7 @@ export const createSurvey = async (req: AuthRequest, res: Response): Promise<voi
           order: question.order,
           scaleMin: question.scaleMin ?? 0,
           scaleMax: question.scaleMax ?? 3,
+          scaleType: question.scaleType ?? 'likert_0_3',
         })),
       },
     },
@@ -407,6 +472,7 @@ export const getSurveyResponses = async (req: AuthRequest, res: Response): Promi
     survey: {
       id: survey.id,
       title: survey.title,
+      audience: survey.audience,
     },
     questions: survey.questions,
     responses,
