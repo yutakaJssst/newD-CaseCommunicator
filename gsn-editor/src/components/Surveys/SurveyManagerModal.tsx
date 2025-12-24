@@ -48,6 +48,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   const [consensusScore, setConsensusScore] = useState<number | null>(null);
   const [confidenceScore, setConfidenceScore] = useState<{ mean: number; variance: number } | null>(null);
   const [isConsensusLoading, setIsConsensusLoading] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   const publicUrls = useMemo(() => {
     if (!selectedSurvey) {
@@ -691,10 +692,19 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
+      setCopiedUrl(url);
     } catch (err) {
       setError('URLのコピーに失敗しました');
     }
   };
+
+  useEffect(() => {
+    if (!copiedUrl) return;
+    const timeoutId = window.setTimeout(() => {
+      setCopiedUrl(null);
+    }, 1500);
+    return () => window.clearTimeout(timeoutId);
+  }, [copiedUrl]);
 
   if (!isOpen) return null;
 
@@ -987,13 +997,14 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                       style={{
                         padding: '4px 8px',
                         fontSize: '12px',
-                        border: '1px solid #D1D5DB',
+                        border: copiedUrl === publicUrls.single ? '1px solid #16A34A' : '1px solid #D1D5DB',
                         borderRadius: '6px',
-                        backgroundColor: '#FFFFFF',
+                        backgroundColor: copiedUrl === publicUrls.single ? '#DCFCE7' : '#FFFFFF',
+                        color: copiedUrl === publicUrls.single ? '#166534' : '#111827',
                         cursor: 'pointer',
                       }}
                     >
-                      コピー
+                      {copiedUrl === publicUrls.single ? 'コピー済み' : 'コピー'}
                     </button>
                   </div>
                 )}
@@ -1034,13 +1045,14 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                             style={{
                               padding: '4px 8px',
                               fontSize: '12px',
-                              border: '1px solid #D1D5DB',
+                              border: copiedUrl === publicUrls.general ? '1px solid #16A34A' : '1px solid #D1D5DB',
                               borderRadius: '6px',
-                              backgroundColor: '#FFFFFF',
+                              backgroundColor: copiedUrl === publicUrls.general ? '#DCFCE7' : '#FFFFFF',
+                              color: copiedUrl === publicUrls.general ? '#166534' : '#111827',
                               cursor: 'pointer',
                             }}
                           >
-                            コピー
+                            {copiedUrl === publicUrls.general ? 'コピー済み' : 'コピー'}
                           </button>
                         </div>
                       )}
@@ -1071,13 +1083,14 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                             style={{
                               padding: '4px 8px',
                               fontSize: '12px',
-                              border: '1px solid #D1D5DB',
+                              border: copiedUrl === publicUrls.expert ? '1px solid #16A34A' : '1px solid #D1D5DB',
                               borderRadius: '6px',
-                              backgroundColor: '#FFFFFF',
+                              backgroundColor: copiedUrl === publicUrls.expert ? '#DCFCE7' : '#FFFFFF',
+                              color: copiedUrl === publicUrls.expert ? '#166534' : '#111827',
                               cursor: 'pointer',
                             }}
                           >
-                            コピー
+                            {copiedUrl === publicUrls.expert ? 'コピー済み' : 'コピー'}
                           </button>
                         </div>
                       )}
@@ -1216,6 +1229,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                           const nodeLabel = node?.label || stat.nodeId;
                           const audienceLabel =
                             stat.audience === 'expert' ? '専門家' : '非専門家';
+                          const averageText =
+                            stat.averageScore === null ? '-' : stat.averageScore.toFixed(2);
                           return (
                             <div
                               key={stat.questionId}
@@ -1233,7 +1248,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                                 {stat.audience ? ` ・ ${audienceLabel}` : ''}
                               </div>
                               <div style={{ fontSize: '12px', color: '#111827' }}>
-                                平均: {stat.averageScore ?? '-'} ({stat.count}件)
+                                平均: {averageText} ({stat.count}件)
                               </div>
                             </div>
                           );
