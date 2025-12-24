@@ -163,4 +163,4 @@ newD-CaseEditor/
 
 ## ライセンス
 
-(ライセンス情報を記載)
+Apache-2.0. See `LICENSE`.
