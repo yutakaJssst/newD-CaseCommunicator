@@ -36,7 +36,8 @@ Goal Structuring Notation (GSN) を描画・編集するためのWebアプリケ
 ### アンケート
 - GSNからアンケート自動生成（Goal/Strategy）
 - 公開URLで回答収集（ログイン不要）
-- スコア0〜3は必須、コメント任意
+- 統合アンケート（非専門家/専門家）と2つの公開URLに対応
+- 非専門家: 0〜3、専門家: Strategy/Leaf Goalは0〜1・中間Goalは0〜3
 - 回答者向け説明文・画像（10MBまで）
 - 集計（平均/件数）表示とCSV出力
 - 回答到着時に集計を自動更新
@@ -147,9 +148,9 @@ newD-CaseEditor/
 - **Diagram**: GSNダイアグラムデータ（JSON）
 - **DiagramVersion**: バージョン履歴
 - **Pattern**: 再利用可能なGSNパターン
-- **Survey**: アンケート本体（説明文・公開画像含む）
-- **SurveyQuestion**: 質問（ノード参照）
-- **SurveyResponse**: 回答単位
+- **Survey**: アンケート本体（mode/公開URL含む）
+- **SurveyQuestion**: 質問（対象区分・スケール含む）
+- **SurveyResponse**: 回答単位（対象区分含む）
 - **SurveyAnswer**: 回答内容（スコア/コメント）
 - **ActivityLog**: アクティビティログ
 

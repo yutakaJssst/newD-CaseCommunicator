@@ -5,8 +5,8 @@
 既存の **D-Case Communicator** (AngularJS + PHP + MongoDB) をモダンな技術スタックで再実装。
 リアルタイム協調編集可能なGSN（Goal Structuring Notation）エディタ。
 
-**更新日**: 2025-12-24
-**状態**: Phase 1-6 + アンケート機能（公開/集計/CSV）実装済み
+**更新日**: 2025-12-25
+**状態**: Phase 1-6 + アンケート機能（統合アンケート/公開/集計/CSV）実装済み
 
 ---
 
@@ -198,8 +198,10 @@ model Diagram {
 ### Phase 7: アンケート ✅
 - GSNからアンケート生成（Goal/Strategy）
 - 公開URLで回答収集（ログイン不要）
+- 統合アンケート（非専門家/専門家）と2つの公開URL
+- 非専門家: 0〜3、専門家: Strategy/Leaf Goalは0〜1・中間Goalは0〜3
 - 回答者向け説明文・画像（10MBまで、管理画面で編集）
-- スコア0〜3必須 + コメント任意
+- スコアは質問ごとに必須（0〜3 または 0〜1）+ コメント任意
 - 集計（平均/件数）表示、CSV出力
 - 回答到着時に集計を自動更新（WebSocket）
 
@@ -306,9 +308,9 @@ model DiagramVersion { id, diagramId, version, title, message, data (Json), crea
 model Pattern { id, userId, name, description, data (Json), isPublic, createdAt, updatedAt }
 
 // アンケート
-model Survey { id, projectId, diagramId, title, description, publicImageUrl, status, publicToken, gsnSnapshot, createdById }
-model SurveyQuestion { id, surveyId, nodeId, nodeType, questionText, scaleMin, scaleMax, order }
-model SurveyResponse { id, surveyId, respondentHash, submittedAt }
+model Survey { id, projectId, diagramId, title, description, publicImageUrl, status, audience, mode, publicToken, publicTokenExpert, gsnSnapshot, createdById }
+model SurveyQuestion { id, surveyId, nodeId, nodeType, questionText, audience, scaleMin, scaleMax, scaleType, order }
+model SurveyResponse { id, surveyId, audience, respondentHash, submittedAt }
 model SurveyAnswer { id, responseId, questionId, score, comment }
 
 // ログ
@@ -360,14 +362,14 @@ model ActivityLog { id, projectId, userId, action, data (Json), createdAt }
 
 ### アンケート
 - `GET /api/projects/:projectId/surveys` - アンケート一覧
-- `POST /api/projects/:projectId/surveys` - アンケート作成
+- `POST /api/projects/:projectId/surveys` - アンケート作成（mode=single|combined）
 - `GET /api/surveys/:surveyId` - アンケート詳細
 - `PATCH /api/surveys/:surveyId` - 説明/画像の更新
 - `POST /api/surveys/:surveyId/publish` - 公開
 - `POST /api/surveys/:surveyId/close` - 公開終了
 - `GET /api/surveys/:surveyId/analytics` - 集計取得
 - `GET /api/surveys/:surveyId/responses` - 回答一覧（CSV出力用）
-- `GET /api/surveys/public/:token` - 公開アンケート取得
+- `GET /api/surveys/public/:token` - 公開アンケート取得（一般/専門家のトークン対応）
 - `POST /api/surveys/public/:token/response` - 公開アンケート回答
 
 ---
@@ -424,11 +426,18 @@ model ActivityLog { id, projectId, userId, action, data (Json), createdAt }
 
 ## 最近の変更履歴
 
+### 2025-12-25
+
+#### 統合アンケート ✅
+- 単一アンケートで非専門家/専門家の質問を生成
+- 一般/専門家の公開URLを別トークンで発行
+- 合意形成は0〜3を正規化して合算、Confidenceは専門家0〜1のみ使用
+
 ### 2025-12-24
 
 #### アンケート機能 ✅
 - GSNからの自動質問生成（Goal/Strategy）
-- 公開URLで回答収集、スコア0〜3必須
+- 公開URLで回答収集、スコア必須
 - 回答者向け説明文・画像（10MBまで）
 - 集計のリアルタイム更新（`survey_response_created`）
 - CSV出力（管理画面）
