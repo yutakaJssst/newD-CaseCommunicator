@@ -6,14 +6,24 @@ export const getPublicSurvey = async (req: Request, res: Response): Promise<void
   const { token } = req.params;
 
   const survey = await prisma.survey.findFirst({
-    where: { publicToken: token },
-    include: { questions: { orderBy: { order: 'asc' } } },
+    where: { OR: [{ publicToken: token }, { publicTokenExpert: token }] },
+    include: { questions: { orderBy: [{ audience: 'asc' }, { order: 'asc' }] } },
   });
 
   if (!survey || survey.status !== 'published') {
     res.status(404).json({ error: 'アンケートが見つかりません' });
     return;
   }
+
+  const entryAudience =
+    survey.mode === 'combined'
+      ? token === survey.publicTokenExpert
+        ? 'expert'
+        : 'general'
+      : survey.audience;
+  const questions = survey.questions.filter(
+    (question) => (question.audience || survey.audience) === entryAudience
+  );
 
   res.json({
     survey: {
@@ -23,8 +33,9 @@ export const getPublicSurvey = async (req: Request, res: Response): Promise<void
       status: survey.status,
       publicImageUrl: survey.publicImageUrl,
       audience: survey.audience,
+      entryAudience,
       gsnSnapshot: survey.gsnSnapshot,
-      questions: survey.questions,
+      questions,
     },
   });
 };
@@ -39,7 +50,7 @@ export const submitPublicResponse = async (req: Request, res: Response): Promise
   }
 
   const survey = await prisma.survey.findFirst({
-    where: { publicToken: token },
+    where: { OR: [{ publicToken: token }, { publicTokenExpert: token }] },
     include: { questions: true },
   });
 
@@ -48,7 +59,16 @@ export const submitPublicResponse = async (req: Request, res: Response): Promise
     return;
   }
 
-  const questionMap = new Map(survey.questions.map((q) => [q.id, q]));
+  const entryAudience =
+    survey.mode === 'combined'
+      ? token === survey.publicTokenExpert
+        ? 'expert'
+        : 'general'
+      : survey.audience;
+  const targetQuestions = survey.questions.filter(
+    (question) => (question.audience || survey.audience) === entryAudience
+  );
+  const questionMap = new Map(targetQuestions.map((q) => [q.id, q]));
   const normalizedAnswers = new Map<
     string,
     { questionId: string; score: number; comment: string | null }
@@ -94,13 +114,13 @@ export const submitPublicResponse = async (req: Request, res: Response): Promise
     });
   }
 
-  if (normalizedAnswers.size !== survey.questions.length) {
+  if (normalizedAnswers.size !== targetQuestions.length) {
     res.status(400).json({ error: 'すべての質問に回答してください' });
     return;
   }
 
   const sanitizedAnswers: Array<{ questionId: string; score: number; comment: string | null }> = [];
-  for (const question of survey.questions) {
+  for (const question of targetQuestions) {
     const answer = normalizedAnswers.get(question.id);
     if (!answer) {
       res.status(400).json({ error: 'すべての質問に回答してください' });
@@ -112,6 +132,7 @@ export const submitPublicResponse = async (req: Request, res: Response): Promise
   await prisma.surveyResponse.create({
     data: {
       surveyId: survey.id,
+      audience: entryAudience,
       respondentHash: respondentHash || null,
       answers: {
         create: sanitizedAnswers,

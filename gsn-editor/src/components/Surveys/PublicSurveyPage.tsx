@@ -20,6 +20,7 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
   const [submitted, setSubmitted] = useState(false);
   const [answers, setAnswers] = useState<Record<string, DraftAnswer>>({});
   const [missingScores, setMissingScores] = useState<Set<string>>(new Set());
+  const entryAudience = survey?.entryAudience ?? survey?.audience;
 
   const nodeMap = useMemo(() => {
     const snapshot = survey?.gsnSnapshot as any;
@@ -155,9 +156,9 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
         ) : (
           <form onSubmit={handleSubmit}>
             <h1 style={{ marginTop: 0 }}>{survey.title}</h1>
-            {survey.audience && (
+            {entryAudience && (
               <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '6px' }}>
-                対象: {survey.audience === 'expert' ? '専門家' : '非専門家'}
+                対象: {entryAudience === 'expert' ? '専門家' : '非専門家'}
               </div>
             )}
             {survey.description && (

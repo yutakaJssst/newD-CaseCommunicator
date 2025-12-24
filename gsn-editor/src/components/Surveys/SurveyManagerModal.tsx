@@ -6,6 +6,7 @@ import {
   type SurveyQuestion,
   type SurveyResponsesResponse,
   type SurveyAudience,
+  type SurveyMode,
 } from '../../api/surveys';
 import { LoadingState } from '../Status/LoadingState';
 import { ErrorState } from '../Status/ErrorState';
@@ -38,6 +39,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [audience, setAudience] = useState<SurveyAudience>('general');
+  const [mode, setMode] = useState<SurveyMode>('single');
   const [isCreating, setIsCreating] = useState(false);
   const [editDescription, setEditDescription] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
@@ -47,10 +49,20 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   const [confidenceScore, setConfidenceScore] = useState<{ mean: number; variance: number } | null>(null);
   const [isConsensusLoading, setIsConsensusLoading] = useState(false);
 
-  const publicUrl = useMemo(() => {
-    if (!selectedSurvey?.publicToken) return null;
-    return `${window.location.origin}/survey/${selectedSurvey.publicToken}`;
-  }, [selectedSurvey?.publicToken]);
+  const publicUrls = useMemo(() => {
+    if (!selectedSurvey) {
+      return { general: null, expert: null, single: null };
+    }
+    const origin = window.location.origin;
+    const general = selectedSurvey.publicToken
+      ? `${origin}/survey/${selectedSurvey.publicToken}`
+      : null;
+    const expert = selectedSurvey.publicTokenExpert
+      ? `${origin}/survey/${selectedSurvey.publicTokenExpert}`
+      : null;
+    const single = selectedSurvey.mode === 'combined' ? null : general;
+    return { general, expert, single };
+  }, [selectedSurvey?.publicToken, selectedSurvey?.publicTokenExpert, selectedSurvey?.mode]);
 
   const introDirty = useMemo(() => {
     if (!selectedSurvey) return false;
@@ -97,6 +109,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   };
 
   const computeConsensusAndConfidence = async (
+    combinedSurveyId: string | null,
     generalSurveyId: string | null,
     expertSurveyId: string | null
   ) => {
@@ -110,13 +123,19 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     try {
       const responsesList: SurveyResponsesResponse[] = [];
       const expertResponsesList: SurveyResponsesResponse[] = [];
-      if (generalSurveyId) {
-        responsesList.push(await surveysApi.getSurveyResponses(generalSurveyId));
-      }
-      if (expertSurveyId) {
-        const expertResponses = await surveysApi.getSurveyResponses(expertSurveyId);
-        responsesList.push(expertResponses);
-        expertResponsesList.push(expertResponses);
+      if (combinedSurveyId) {
+        const combinedResponses = await surveysApi.getSurveyResponses(combinedSurveyId);
+        responsesList.push(combinedResponses);
+        expertResponsesList.push(combinedResponses);
+      } else {
+        if (generalSurveyId) {
+          responsesList.push(await surveysApi.getSurveyResponses(generalSurveyId));
+        }
+        if (expertSurveyId) {
+          const expertResponses = await surveysApi.getSurveyResponses(expertSurveyId);
+          responsesList.push(expertResponses);
+          expertResponsesList.push(expertResponses);
+        }
       }
 
       const nodesById = new Map<string, any>(
@@ -133,23 +152,33 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
         incoming.add(target);
       });
 
-      const likertScores = new Map<string, number[]>();
+      const normalizedScores = new Map<string, number[]>();
       responsesList.forEach((responses) => {
         const questionMap = new Map(responses.questions.map((question) => [question.id, question]));
         responses.responses.forEach((response) => {
           response.answers.forEach((answer) => {
             const question = questionMap.get(answer.questionId);
-            if (!question || (question.scaleType || 'likert_0_3') !== 'likert_0_3') return;
+            if (!question) return;
+            const scaleType = question.scaleType || 'likert_0_3';
+            const max =
+              typeof question.scaleMax === 'number'
+                ? question.scaleMax
+                : scaleType === 'continuous_0_1'
+                  ? 1
+                  : 3;
+            if (max === 0) return;
+            const normalized =
+              scaleType === 'continuous_0_1' ? answer.score : answer.score / max;
             const nodeId = String(question.nodeId);
-            const list = likertScores.get(nodeId) || [];
-            list.push(answer.score);
-            likertScores.set(nodeId, list);
+            const list = normalizedScores.get(nodeId) || [];
+            list.push(normalized);
+            normalizedScores.set(nodeId, list);
           });
         });
       });
 
       const avgRatings = new Map<string, number>();
-      likertScores.forEach((scores, nodeId) => {
+      normalizedScores.forEach((scores, nodeId) => {
         const total = scores.reduce((sum, score) => sum + score, 0);
         avgRatings.set(nodeId, total / scores.length);
       });
@@ -165,7 +194,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
         const nextTrail = new Set(trail);
         nextTrail.add(goalId);
 
-        const A = avg / 3;
+        const A = avg;
         const strategyIds = (childrenById.get(goalId) || [])
           .filter((childId) => nodesById.get(childId)?.type === 'Strategy');
         if (strategyIds.length === 0) {
@@ -178,7 +207,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
           if (nextTrail.has(strategyId)) return;
           const strategyAvg = avgRatings.get(strategyId);
           if (typeof strategyAvg !== 'number') return;
-          const B = strategyAvg / 3;
+          const B = strategyAvg;
           const subGoals = (childrenById.get(strategyId) || [])
             .filter((childId) => nodesById.get(childId)?.type === 'Goal');
           const subScores = subGoals
@@ -400,18 +429,24 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     }
 
     const targetDiagramId = selectedSurvey.diagramId ?? null;
-    const generalSurvey = selectedSurvey.audience === 'expert'
-      ? surveys.find(
-          (survey) => survey.audience !== 'expert' && (survey.diagramId ?? null) === targetDiagramId
-        )
-      : selectedSurvey;
-    const expertSurvey = selectedSurvey.audience === 'expert'
-      ? selectedSurvey
-      : surveys.find(
-          (survey) => survey.audience === 'expert' && (survey.diagramId ?? null) === targetDiagramId
-        );
+    const isCombined = selectedSurvey.mode === 'combined';
+    const combinedSurveyId = isCombined ? selectedSurvey.id : null;
+    const generalSurvey = isCombined
+      ? null
+      : selectedSurvey.audience === 'expert'
+        ? surveys.find(
+            (survey) => survey.audience !== 'expert' && (survey.diagramId ?? null) === targetDiagramId
+          )
+        : selectedSurvey;
+    const expertSurvey = isCombined
+      ? null
+      : selectedSurvey.audience === 'expert'
+        ? selectedSurvey
+        : surveys.find(
+            (survey) => survey.audience === 'expert' && (survey.diagramId ?? null) === targetDiagramId
+          );
 
-    if (!generalSurvey && !expertSurvey) {
+    if (!combinedSurveyId && !generalSurvey && !expertSurvey) {
       setConsensusScore(null);
       setConfidenceScore(null);
       setIsConsensusLoading(false);
@@ -421,7 +456,11 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     let canceled = false;
     const run = async () => {
       try {
-        await computeConsensusAndConfidence(generalSurvey?.id || null, expertSurvey?.id || null);
+        await computeConsensusAndConfidence(
+          combinedSurveyId,
+          generalSurvey?.id || null,
+          expertSurvey?.id || null
+        );
       } catch (err: any) {
         if (!canceled) {
           setError(err.response?.data?.error || '合意形成点の計算に失敗しました');
@@ -440,6 +479,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     isOpen,
     selectedSurvey?.id,
     selectedSurvey?.diagramId,
+    selectedSurvey?.mode,
+    selectedSurvey?.audience,
     diagramData,
     surveys,
     surveyResponseEvent?.receivedAt,
@@ -507,11 +548,13 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
         diagramId: currentDiagramDbId || undefined,
         gsnSnapshot: snapshot,
         audience,
+        mode,
       });
       setShowCreate(false);
       setTitle('');
       setDescription('');
       setAudience('general');
+      setMode('single');
       await loadSurveys();
       setSelectedSurvey(response.survey);
     } catch (err: any) {
@@ -566,8 +609,10 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
           'responseId',
           'submittedAt',
           'respondentHash',
+          'responseAudience',
           'questionOrder',
           'questionId',
+          'questionAudience',
           'nodeId',
           'nodeType',
           'nodeLabel',
@@ -588,8 +633,10 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
             responseEntry.id,
             responseEntry.submittedAt,
             responseEntry.respondentHash || '',
+            responseEntry.audience || '',
             question?.order ?? '',
             answer.questionId,
+            question?.audience ?? '',
             question?.nodeId ?? '',
             question?.nodeType ?? '',
             nodeLabel,
@@ -640,10 +687,10 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     }
   };
 
-  const handleCopyUrl = async () => {
-    if (!publicUrl) return;
+  const handleCopyUrl = async (url: string | null) => {
+    if (!url) return;
     try {
-      await navigator.clipboard.writeText(publicUrl);
+      await navigator.clipboard.writeText(url);
     } catch (err) {
       setError('URLのコピーに失敗しました');
     }
@@ -755,7 +802,11 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                 >
                   <div style={{ fontWeight: 600, fontSize: '14px' }}>{survey.title}</div>
                   <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>
-                    {survey.status} · {survey.audience === 'expert' ? '専門家' : '非専門家'} · 回答 {survey.responseCount ?? 0} 件
+                    {survey.status} · {survey.mode === 'combined'
+                      ? '統合'
+                      : survey.audience === 'expert'
+                        ? '専門家'
+                        : '非専門家'} · 回答 {survey.responseCount ?? 0} 件
                   </div>
                 </div>
               ))
@@ -776,7 +827,11 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                       </p>
                     )}
                     <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '8px' }}>
-                      状態: {selectedSurvey.status} ・ 対象: {selectedSurvey.audience === 'expert' ? '専門家' : '非専門家'}
+                      状態: {selectedSurvey.status} ・ 対象: {selectedSurvey.mode === 'combined'
+                        ? '統合'
+                        : selectedSurvey.audience === 'expert'
+                          ? '専門家'
+                          : '非専門家'}
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -910,7 +965,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                   )}
                 </div>
 
-                {publicUrl && (
+                {publicUrls.single && (
                   <div
                     style={{
                       marginTop: '16px',
@@ -925,10 +980,10 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                     }}
                   >
                     <span style={{ fontSize: '12px', color: '#374151', wordBreak: 'break-all' }}>
-                      {publicUrl}
+                      {publicUrls.single}
                     </span>
                     <button
-                      onClick={handleCopyUrl}
+                      onClick={() => handleCopyUrl(publicUrls.single)}
                       style={{
                         padding: '4px 8px',
                         fontSize: '12px',
@@ -942,6 +997,92 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                     </button>
                   </div>
                 )}
+                {selectedSurvey.mode === 'combined' &&
+                  (publicUrls.general || publicUrls.expert) && (
+                    <div
+                      style={{
+                        marginTop: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                      }}
+                    >
+                      {publicUrls.general && (
+                        <div
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #E5E7EB',
+                            backgroundColor: '#F9FAFB',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '12px',
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: '12px',
+                              color: '#374151',
+                              wordBreak: 'break-all',
+                            }}
+                          >
+                            非専門家用: {publicUrls.general}
+                          </span>
+                          <button
+                            onClick={() => handleCopyUrl(publicUrls.general)}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '12px',
+                              border: '1px solid #D1D5DB',
+                              borderRadius: '6px',
+                              backgroundColor: '#FFFFFF',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            コピー
+                          </button>
+                        </div>
+                      )}
+                      {publicUrls.expert && (
+                        <div
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #E5E7EB',
+                            backgroundColor: '#F9FAFB',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '12px',
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: '12px',
+                              color: '#374151',
+                              wordBreak: 'break-all',
+                            }}
+                          >
+                            専門家用: {publicUrls.expert}
+                          </span>
+                          <button
+                            onClick={() => handleCopyUrl(publicUrls.expert)}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '12px',
+                              border: '1px solid #D1D5DB',
+                              borderRadius: '6px',
+                              backgroundColor: '#FFFFFF',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            コピー
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                 <div style={{ marginTop: '24px' }}>
                   <h4 style={{ margin: '0 0 8px 0' }}>質問一覧</h4>
@@ -951,6 +1092,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                         const node = nodeMap.get(question.nodeId);
                         const descriptionText = stripHtml(node?.content) || '-';
                         const nodeLabel = node?.label || '-';
+                        const audienceLabel =
+                          question.audience === 'expert' ? '専門家' : '非専門家';
                         return (
                         <div
                           key={question.id}
@@ -965,6 +1108,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                           </div>
                           <div style={{ fontSize: '12px', color: '#6B7280' }}>
                             ID: {nodeLabel} / {question.nodeType}
+                            {question.audience ? ` ・ ${audienceLabel}` : ''}
                           </div>
                           <div style={{ fontSize: '12px', color: '#374151', marginTop: '4px' }}>
                             文: {descriptionText}
@@ -1070,6 +1214,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                         {analytics.stats.map((stat) => {
                           const node = nodeMap.get(stat.nodeId);
                           const nodeLabel = node?.label || stat.nodeId;
+                          const audienceLabel =
+                            stat.audience === 'expert' ? '専門家' : '非専門家';
                           return (
                             <div
                               key={stat.questionId}
@@ -1084,6 +1230,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                             >
                               <div style={{ fontSize: '12px', color: '#374151' }}>
                                 {stat.nodeType}/{nodeLabel}
+                                {stat.audience ? ` ・ ${audienceLabel}` : ''}
                               </div>
                               <div style={{ fontSize: '12px', color: '#111827' }}>
                                 平均: {stat.averageScore ?? '-'} ({stat.count}件)
@@ -1147,11 +1294,17 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
               </div>
               <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>
-                  対象
+                  形式
                 </label>
                 <select
-                  value={audience}
-                  onChange={(e) => setAudience(e.target.value as SurveyAudience)}
+                  value={mode}
+                  onChange={(e) => {
+                    const nextMode = e.target.value as SurveyMode;
+                    setMode(nextMode);
+                    if (nextMode === 'combined') {
+                      setAudience('general');
+                    }
+                  }}
                   style={{
                     width: '100%',
                     padding: '8px 10px',
@@ -1159,13 +1312,37 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                     borderRadius: '6px',
                   }}
                 >
-                  <option value="general">非専門家（合意形成）</option>
-                  <option value="expert">専門家（Confidence）</option>
+                  <option value="single">単独（1つの対象）</option>
+                  <option value="combined">統合（非専門家 + 専門家）</option>
                 </select>
-                <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '4px' }}>
-                  専門家向けは Strategy/Leaf Goal が0〜1、その他のGoalは0〜3で回答します。
-                </div>
               </div>
+              {mode === 'single' ? (
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>
+                    対象
+                  </label>
+                  <select
+                    value={audience}
+                    onChange={(e) => setAudience(e.target.value as SurveyAudience)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    <option value="general">非専門家（合意形成）</option>
+                    <option value="expert">専門家（Confidence）</option>
+                  </select>
+                  <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '4px' }}>
+                    専門家向けは Strategy/Leaf Goal が0〜1、その他のGoalは0〜3で回答します。
+                  </div>
+                </div>
+              ) : (
+                <div style={{ marginBottom: '12px', fontSize: '11px', color: '#6B7280' }}>
+                  統合アンケートは非専門家（0〜3）と専門家（0〜1/0〜3）の質問を同一IDに作成します。
+                </div>
+              )}
               <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>
                   説明（回答者向け）

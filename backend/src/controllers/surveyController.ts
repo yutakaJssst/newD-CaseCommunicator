@@ -8,6 +8,7 @@ type SurveyQuestionInput = {
   nodeType: string;
   questionText: string;
   order: number;
+  audience?: 'general' | 'expert';
   scaleMin?: number;
   scaleMax?: number;
   scaleType?: 'likert_0_3' | 'continuous_0_1';
@@ -93,6 +94,7 @@ const buildDefaultQuestions = (
       nodeType,
       questionText: `この${node.type}の主張に同意しますか？`,
       order: index + 1,
+      audience,
       scaleMin: useConfidenceScale ? 0 : 0,
       scaleMax: useConfidenceScale ? 1 : 3,
       scaleType: useConfidenceScale ? 'continuous_0_1' : 'likert_0_3',
@@ -147,8 +149,11 @@ export const listProjectSurveys = async (req: AuthRequest, res: Response): Promi
       title: true,
       description: true,
       publicImageUrl: true,
+      mode: true,
+      audience: true,
       status: true,
       publicToken: true,
+      publicTokenExpert: true,
       createdAt: true,
       updatedAt: true,
       diagramId: true,
@@ -163,7 +168,7 @@ export const listProjectSurveys = async (req: AuthRequest, res: Response): Promi
 export const createSurvey = async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user?.id;
   const { projectId } = req.params;
-  const { title, description, diagramId, gsnSnapshot, questions, audience } = req.body;
+  const { title, description, diagramId, gsnSnapshot, questions, audience, mode } = req.body;
 
   if (!userId) {
     res.status(401).json({ error: '認証が必要です' });
@@ -190,9 +195,18 @@ export const createSurvey = async (req: AuthRequest, res: Response): Promise<voi
   }
 
   const surveyAudience = audience === 'expert' ? 'expert' : 'general';
-  const questionList: SurveyQuestionInput[] = Array.isArray(questions) && questions.length > 0
-    ? questions
-    : buildDefaultQuestions(gsnSnapshot, surveyAudience);
+  const surveyMode = mode === 'combined' ? 'combined' : 'single';
+  let questionList: SurveyQuestionInput[] = [];
+  if (Array.isArray(questions) && questions.length > 0) {
+    questionList = questions;
+  } else if (surveyMode === 'combined') {
+    questionList = [
+      ...buildDefaultQuestions(gsnSnapshot, 'general'),
+      ...buildDefaultQuestions(gsnSnapshot, 'expert'),
+    ];
+  } else {
+    questionList = buildDefaultQuestions(gsnSnapshot, surveyAudience);
+  }
 
   const survey = await prisma.survey.create({
     data: {
@@ -201,6 +215,7 @@ export const createSurvey = async (req: AuthRequest, res: Response): Promise<voi
       title,
       description: typeof description === 'string' ? description.trim() || null : null,
       audience: surveyAudience,
+      mode: surveyMode,
       gsnSnapshot,
       createdById: userId,
       questions: {
@@ -209,6 +224,7 @@ export const createSurvey = async (req: AuthRequest, res: Response): Promise<voi
           nodeType: question.nodeType,
           questionText: question.questionText,
           order: question.order,
+          audience: question.audience || surveyAudience,
           scaleMin: question.scaleMin ?? 0,
           scaleMax: question.scaleMax ?? 3,
           scaleType: question.scaleType ?? 'likert_0_3',
@@ -216,9 +232,7 @@ export const createSurvey = async (req: AuthRequest, res: Response): Promise<voi
       },
     },
     include: {
-      questions: {
-        orderBy: { order: 'asc' },
-      },
+      questions: { orderBy: [{ audience: 'asc' }, { order: 'asc' }] },
     },
   });
 
@@ -287,7 +301,7 @@ export const getSurvey = async (req: AuthRequest, res: Response): Promise<void> 
   const survey = await prisma.survey.findUnique({
     where: { id: surveyId },
     include: {
-      questions: { orderBy: { order: 'asc' } },
+      questions: { orderBy: [{ audience: 'asc' }, { order: 'asc' }] },
       project: { select: { id: true, ownerId: true } },
     },
   });
@@ -331,11 +345,22 @@ export const publishSurvey = async (req: AuthRequest, res: Response): Promise<vo
   }
 
   const publicToken = survey.publicToken || crypto.randomUUID();
+  let publicTokenExpert = survey.publicTokenExpert;
+  if (survey.mode === 'combined') {
+    publicTokenExpert = publicTokenExpert || crypto.randomUUID();
+    while (publicTokenExpert === publicToken) {
+      publicTokenExpert = crypto.randomUUID();
+    }
+  }
   const updated = await prisma.survey.update({
     where: { id: surveyId },
     data: {
       status: 'published',
       publicToken,
+      publicTokenExpert:
+        survey.mode === 'combined'
+          ? publicTokenExpert
+          : survey.publicTokenExpert,
     },
   });
 
@@ -386,7 +411,7 @@ export const getSurveyAnalytics = async (req: AuthRequest, res: Response): Promi
   const survey = await prisma.survey.findUnique({
     where: { id: surveyId },
     include: {
-      questions: { orderBy: { order: 'asc' } },
+      questions: { orderBy: [{ audience: 'asc' }, { order: 'asc' }] },
       project: { select: { id: true } },
     },
   });
@@ -421,6 +446,7 @@ export const getSurveyAnalytics = async (req: AuthRequest, res: Response): Promi
       questionId: question.id,
       nodeId: question.nodeId,
       nodeType: question.nodeType,
+      audience: question.audience,
       averageScore: avg,
       count: related.length,
     };
@@ -444,7 +470,7 @@ export const getSurveyResponses = async (req: AuthRequest, res: Response): Promi
   const survey = await prisma.survey.findUnique({
     where: { id: surveyId },
     include: {
-      questions: { orderBy: { order: 'asc' } },
+      questions: { orderBy: [{ audience: 'asc' }, { order: 'asc' }] },
       project: { select: { id: true } },
     },
   });

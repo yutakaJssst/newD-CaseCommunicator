@@ -4,6 +4,7 @@ import { api } from '../services/api';
 export type SurveyStatus = 'draft' | 'published' | 'closed';
 export type SurveyAudience = 'general' | 'expert';
 export type SurveyScaleType = 'likert_0_3' | 'continuous_0_1';
+export type SurveyMode = 'single' | 'combined';
 
 export interface SurveyQuestion {
   id: string;
@@ -11,6 +12,7 @@ export interface SurveyQuestion {
   nodeId: string;
   nodeType: string;
   questionText: string;
+  audience?: SurveyAudience;
   scaleMin: number;
   scaleMax: number;
   scaleType?: SurveyScaleType;
@@ -25,8 +27,10 @@ export interface Survey {
   description: string | null;
   publicImageUrl?: string | null;
   audience?: SurveyAudience;
+  mode?: SurveyMode;
   status: SurveyStatus;
   publicToken: string | null;
+  publicTokenExpert?: string | null;
   gsnSnapshot?: unknown;
   createdAt: string;
   updatedAt: string;
@@ -40,6 +44,7 @@ export interface CreateSurveyRequest {
   diagramId?: string | null;
   gsnSnapshot: unknown;
   audience?: SurveyAudience;
+  mode?: SurveyMode;
 }
 
 export interface UpdateSurveyRequest {
@@ -57,6 +62,7 @@ export interface SurveyAnalytics {
     questionId: string;
     nodeId: string;
     nodeType: string;
+    audience?: SurveyAudience;
     averageScore: number | null;
     count: number;
   }>;
@@ -70,6 +76,7 @@ export interface SurveyResponseAnswer {
 
 export interface SurveyResponseEntry {
   id: string;
+  audience?: SurveyAudience;
   respondentHash: string | null;
   submittedAt: string;
   answers: SurveyResponseAnswer[];
@@ -92,6 +99,7 @@ export interface PublicSurveyResponse {
     description: string | null;
     status: SurveyStatus;
     audience?: SurveyAudience;
+    entryAudience?: SurveyAudience;
     publicImageUrl?: string | null;
     gsnSnapshot: unknown;
     questions: SurveyQuestion[];
