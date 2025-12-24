@@ -5,8 +5,8 @@
 既存の **D-Case Communicator** (AngularJS + PHP + MongoDB) をモダンな技術スタックで再実装。
 リアルタイム協調編集可能なGSN（Goal Structuring Notation）エディタ。
 
-**更新日**: 2025-12-23
-**状態**: Phase 1-5 完了、バージョン管理・パターン機能・ユーザーカーソル実装済み
+**更新日**: 2025-12-24
+**状態**: Phase 1-6 + アンケート機能（公開/集計/CSV）実装済み
 
 ---
 
@@ -43,6 +43,7 @@ newD-CaseEditor/
 │       │   ├── Header/                 # Header (ズーム・エクスポート・オンラインユーザー)
 │       │   ├── Sidebar/                # Sidebar, NodePalette, PatternLibrary
 │       │   ├── Projects/               # ProjectList, ProjectMembers
+│       │   ├── Surveys/                # SurveyManagerModal, PublicSurveyPage
 │       │   └── Status/                 # LoadingState, ReconnectingState
 │       ├── stores/
 │       │   ├── diagramStore.ts         # ダイアグラム状態管理 + DB同期
@@ -54,6 +55,7 @@ newD-CaseEditor/
 │       │   ├── diagrams.ts             # ダイアグラムAPI
 │       │   ├── versions.ts             # バージョン管理API
 │       │   ├── patterns.ts             # パターンAPI
+│       │   ├── surveys.ts              # アンケートAPI
 │       │   └── projectMembers.ts       # メンバー管理API
 │       ├── types/diagram.ts            # TypeScript型定義・定数
 │       └── utils/
@@ -66,13 +68,16 @@ newD-CaseEditor/
 │   │   ├── controllers/                # authController, projectController
 │   │   │                               # diagramController, versionController
 │   │   │                               # patternController, projectMemberController
-│   │   ├── routes/                     # auth, projects, diagrams, versions, patterns
+│   │   │                               # surveyController, surveyPublicController
+│   │   ├── routes/                     # auth, projects, diagrams, versions, patterns, surveys
 │   │   ├── middleware/                 # auth (JWT検証), errorHandler, requestContext
 │   │   ├── websocket/handlers.ts       # WebSocketイベントハンドラー
+│   │   ├── websocket/emitter.ts        # WebSocket送信ヘルパー
 │   │   └── db/prisma.ts                # Prisma Client
 │   └── prisma/
-│       ├── schema.prisma               # 8テーブル: User, Session, Project, ProjectMember
-│       │                               #           Diagram, DiagramVersion, Pattern, ActivityLog
+│       ├── schema.prisma               # 12テーブル: User, Session, Project, ProjectMember
+│       │                               #            Diagram, DiagramVersion, Pattern, ActivityLog
+│       │                               #            Survey, SurveyQuestion, SurveyResponse, SurveyAnswer
 │       └── dev.db                      # SQLite DB
 │
 └── dcase_com-main/                     # レガシー参照コード（AngularJS版）
@@ -190,6 +195,14 @@ model Diagram {
 - バージョン管理（コミット/履歴/ロールバック）
 - WebSocket同期修正（現在のダイアグラム + modules両方を更新）
 
+### Phase 7: アンケート ✅
+- GSNからアンケート生成（Goal/Strategy）
+- 公開URLで回答収集（ログイン不要）
+- 回答者向け説明文・画像（10MBまで、管理画面で編集）
+- スコア0〜3必須 + コメント任意
+- 集計（平均/件数）表示、CSV出力
+- 回答到着時に集計を自動更新（WebSocket）
+
 ---
 
 ## GSN標準準拠
@@ -236,7 +249,8 @@ model Diagram {
 Backend → 全ブラウザ
    ├─ online_users (オンラインユーザー一覧)
    ├─ user_joined/left
-   └─ cursor_moved (他ユーザーのカーソル位置)
+   ├─ cursor_moved (他ユーザーのカーソル位置)
+   └─ survey_response_created (アンケート回答到着)
 ```
 
 ### 同期修正 (2025-12-23)
@@ -273,7 +287,7 @@ if (targetModule) {
 
 ---
 
-## データベーススキーマ（8テーブル）
+## データベーススキーマ（12テーブル）
 
 ```prisma
 // ユーザー認証
@@ -290,6 +304,12 @@ model DiagramVersion { id, diagramId, version, title, message, data (Json), crea
 
 // パターン
 model Pattern { id, userId, name, description, data (Json), isPublic, createdAt, updatedAt }
+
+// アンケート
+model Survey { id, projectId, diagramId, title, description, publicImageUrl, status, publicToken, gsnSnapshot, createdById }
+model SurveyQuestion { id, surveyId, nodeId, nodeType, questionText, scaleMin, scaleMax, order }
+model SurveyResponse { id, surveyId, respondentHash, submittedAt }
+model SurveyAnswer { id, responseId, questionId, score, comment }
 
 // ログ
 model ActivityLog { id, projectId, userId, action, data (Json), createdAt }
@@ -338,6 +358,18 @@ model ActivityLog { id, projectId, userId, action, data (Json), createdAt }
 - `PUT /api/patterns/:id` - パターン更新
 - `DELETE /api/patterns/:id` - パターン削除
 
+### アンケート
+- `GET /api/projects/:projectId/surveys` - アンケート一覧
+- `POST /api/projects/:projectId/surveys` - アンケート作成
+- `GET /api/surveys/:surveyId` - アンケート詳細
+- `PATCH /api/surveys/:surveyId` - 説明/画像の更新
+- `POST /api/surveys/:surveyId/publish` - 公開
+- `POST /api/surveys/:surveyId/close` - 公開終了
+- `GET /api/surveys/:surveyId/analytics` - 集計取得
+- `GET /api/surveys/:surveyId/responses` - 回答一覧（CSV出力用）
+- `GET /api/surveys/public/:token` - 公開アンケート取得
+- `POST /api/surveys/public/:token/response` - 公開アンケート回答
+
 ---
 
 ## セキュリティ
@@ -367,6 +399,7 @@ model ActivityLog { id, projectId, userId, action, data (Json), createdAt }
 1. **オフライン編集**: ネットワーク切断時はLocalStorageのみ（オンライン復帰時に自動同期しない）
 2. **競合解決**: Last-Write-Wins方式（CRDT未実装）
 3. **メール通知**: メンバー招待時のメール送信機能は未実装
+4. **アンケート画像サイズ**: 画像は10MBまで（サーバー受信上限20MB）
 
 ---
 
@@ -382,6 +415,15 @@ model ActivityLog { id, projectId, userId, action, data (Json), createdAt }
 ---
 
 ## 最近の変更履歴
+
+### 2025-12-24
+
+#### アンケート機能 ✅
+- GSNからの自動質問生成（Goal/Strategy）
+- 公開URLで回答収集、スコア0〜3必須
+- 回答者向け説明文・画像（10MBまで）
+- 集計のリアルタイム更新（`survey_response_created`）
+- CSV出力（管理画面）
 
 ### 2025-12-23
 
@@ -430,7 +472,7 @@ model ActivityLog { id, projectId, userId, action, data (Json), createdAt }
 
 - **フロントエンド**: TypeScript/TSX 28ファイル、~12,000行
 - **バックエンド**: TypeScript 15ファイル、~1,800行
-- **データベース**: SQLite 200KB、8テーブル
+- **データベース**: SQLite 200KB、12テーブル
 - **依存関係**:
   - フロントエンド: React, Zustand, Axios, Socket.IO Client
   - バックエンド: Express, Prisma, Socket.IO, JWT, bcrypt
