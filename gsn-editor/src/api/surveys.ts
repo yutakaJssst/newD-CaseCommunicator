@@ -20,6 +20,7 @@ export interface Survey {
   diagramId: string | null;
   title: string;
   description: string | null;
+  publicImageUrl?: string | null;
   status: SurveyStatus;
   publicToken: string | null;
   gsnSnapshot?: unknown;
@@ -34,6 +35,11 @@ export interface CreateSurveyRequest {
   description?: string;
   diagramId?: string | null;
   gsnSnapshot: unknown;
+}
+
+export interface UpdateSurveyRequest {
+  description?: string | null;
+  publicImageUrl?: string | null;
 }
 
 export interface SurveyListResponse {
@@ -57,6 +63,7 @@ export interface PublicSurveyResponse {
     title: string;
     description: string | null;
     status: SurveyStatus;
+    publicImageUrl?: string | null;
     gsnSnapshot: unknown;
     questions: SurveyQuestion[];
   };
@@ -81,6 +88,11 @@ export const surveysApi = {
 
   async getSurvey(surveyId: string): Promise<{ survey: Survey }> {
     const response = await api.get(`/surveys/${surveyId}`);
+    return response.data;
+  },
+
+  async updateSurvey(surveyId: string, data: UpdateSurveyRequest): Promise<{ survey: Survey }> {
+    const response = await api.patch(`/surveys/${surveyId}`, data);
     return response.data;
   },
 

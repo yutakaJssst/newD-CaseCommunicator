@@ -31,11 +31,21 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [editDescription, setEditDescription] = useState('');
+  const [editImageUrl, setEditImageUrl] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const publicUrl = useMemo(() => {
     if (!selectedSurvey?.publicToken) return null;
     return `${window.location.origin}/survey/${selectedSurvey.publicToken}`;
   }, [selectedSurvey?.publicToken]);
+
+  const introDirty = useMemo(() => {
+    if (!selectedSurvey) return false;
+    const currentDescription = selectedSurvey.description ?? '';
+    const currentImage = selectedSurvey.publicImageUrl ?? '';
+    return editDescription !== currentDescription || editImageUrl !== currentImage;
+  }, [editDescription, editImageUrl, selectedSurvey?.description, selectedSurvey?.publicImageUrl]);
 
   const nodeMap = useMemo(() => {
     const snapshot = selectedSurvey?.gsnSnapshot as any;
@@ -51,6 +61,20 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   const stripHtml = (html?: string) => {
     if (!html) return '';
     return html.replace(/<[^>]*>/g, '').trim();
+  };
+
+  const readImageFile = (file: File, onLoad: (dataUrl: string) => void) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      if (result) {
+        onLoad(result);
+      } else {
+        setError('画像の読み込みに失敗しました');
+      }
+    };
+    reader.onerror = () => setError('画像の読み込みに失敗しました');
+    reader.readAsDataURL(file);
   };
 
   const loadSurveys = async () => {
@@ -104,6 +128,16 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     } else {
       setAnalytics(null);
     }
+  }, [selectedSurvey?.id]);
+
+  useEffect(() => {
+    if (!selectedSurvey) {
+      setEditDescription('');
+      setEditImageUrl('');
+      return;
+    }
+    setEditDescription(selectedSurvey.description ?? '');
+    setEditImageUrl(selectedSurvey.publicImageUrl ?? '');
   }, [selectedSurvey?.id]);
 
   useEffect(() => {
@@ -178,6 +212,31 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleSaveIntro = async () => {
+    if (!selectedSurvey || !canEdit) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      const response = await surveysApi.updateSurvey(selectedSurvey.id, {
+        description: editDescription.trim() || null,
+        publicImageUrl: editImageUrl.trim() || null,
+      });
+      setSelectedSurvey(response.survey);
+      await loadSurveys();
+    } catch (err: any) {
+      setError(err.response?.data?.error || '説明の更新に失敗しました');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleEditImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    readImageFile(file, (dataUrl) => setEditImageUrl(dataUrl));
+    event.target.value = '';
   };
 
   const handlePublish = async () => {
@@ -377,6 +436,98 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                   </div>
                 </div>
 
+                <div
+                  style={{
+                    marginTop: '16px',
+                    padding: '12px',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: '8px',
+                    backgroundColor: '#F9FAFB',
+                  }}
+                >
+                  <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                    回答者向けの説明・画像
+                  </div>
+                  <textarea
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    rows={3}
+                    placeholder="アンケートの目的や注意事項を記載できます"
+                    disabled={!canEdit}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: '6px',
+                      backgroundColor: canEdit ? '#FFFFFF' : '#F3F4F6',
+                      marginBottom: '8px',
+                    }}
+                  />
+                  <input
+                    value={editImageUrl}
+                    onChange={(e) => setEditImageUrl(e.target.value)}
+                    placeholder="画像URL または data:image/..."
+                    disabled={!canEdit}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: '6px',
+                      backgroundColor: canEdit ? '#FFFFFF' : '#F3F4F6',
+                      marginBottom: '8px',
+                    }}
+                  />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleEditImageChange}
+                    disabled={!canEdit}
+                  />
+                  {editImageUrl && (
+                    <div style={{ marginTop: '8px' }}>
+                      <img
+                        src={editImageUrl}
+                        alt="回答者向け画像"
+                        style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '6px' }}
+                      />
+                    </div>
+                  )}
+                  {canEdit && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setEditImageUrl('')}
+                        style={{
+                          padding: '6px 12px',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '6px',
+                          backgroundColor: '#FFFFFF',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                        }}
+                      >
+                        画像をクリア
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveIntro}
+                        disabled={!introDirty || isSaving}
+                        style={{
+                          padding: '6px 12px',
+                          border: '1px solid #3B82F6',
+                          borderRadius: '6px',
+                          backgroundColor: !introDirty || isSaving ? '#93C5FD' : '#3B82F6',
+                          color: '#FFFFFF',
+                          cursor: !introDirty || isSaving ? 'not-allowed' : 'pointer',
+                          fontSize: '12px',
+                        }}
+                      >
+                        {isSaving ? '保存中...' : '保存'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {publicUrl && (
                   <div
                     style={{
@@ -533,7 +684,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
               </div>
               <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>
-                  説明
+                  説明（回答者向け）
                 </label>
                 <textarea
                   value={description}

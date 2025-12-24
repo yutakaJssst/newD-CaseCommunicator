@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import {
   getSurvey,
+  updateSurvey,
   publishSurvey,
   closeSurvey,
   getSurveyAnalytics,
@@ -12,6 +13,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/:surveyId', getSurvey);
+router.patch('/:surveyId', updateSurvey);
 router.post('/:surveyId/publish', publishSurvey);
 router.post('/:surveyId/close', closeSurvey);
 router.get('/:surveyId/analytics', getSurveyAnalytics);

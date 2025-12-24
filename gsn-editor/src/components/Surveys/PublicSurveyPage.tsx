@@ -150,7 +150,24 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
           <form onSubmit={handleSubmit}>
             <h1 style={{ marginTop: 0 }}>{survey.title}</h1>
             {survey.description && (
-              <p style={{ color: '#6B7280' }}>{survey.description}</p>
+              <p style={{ color: '#6B7280', whiteSpace: 'pre-wrap' }}>{survey.description}</p>
+            )}
+            {survey.publicImageUrl && (
+              <div
+                style={{
+                  marginTop: '16px',
+                  padding: '12px',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: '10px',
+                  backgroundColor: '#FFFFFF',
+                }}
+              >
+                <img
+                  src={survey.publicImageUrl}
+                  alt="アンケート画像"
+                  style={{ maxWidth: '100%', borderRadius: '8px' }}
+                />
+              </div>
             )}
 
             {diagramData && diagramData.nodes.length > 0 && (

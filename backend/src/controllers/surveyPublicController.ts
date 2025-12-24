@@ -21,6 +21,7 @@ export const getPublicSurvey = async (req: Request, res: Response): Promise<void
       title: survey.title,
       description: survey.description,
       status: survey.status,
+      publicImageUrl: survey.publicImageUrl,
       gsnSnapshot: survey.gsnSnapshot,
       questions: survey.questions,
     },

@@ -136,7 +136,7 @@ export const createSurvey = async (req: AuthRequest, res: Response): Promise<voi
       projectId,
       diagramId: diagramId || null,
       title,
-      description: description || null,
+      description: typeof description === 'string' ? description.trim() || null : null,
       gsnSnapshot,
       createdById: userId,
       questions: {
@@ -158,6 +158,56 @@ export const createSurvey = async (req: AuthRequest, res: Response): Promise<voi
   });
 
   res.status(201).json({ survey });
+};
+
+export const updateSurvey = async (req: AuthRequest, res: Response): Promise<void> => {
+  const userId = req.user?.id;
+  const { surveyId } = req.params;
+  const { description, publicImageUrl } = req.body;
+
+  if (!userId) {
+    res.status(401).json({ error: '認証が必要です' });
+    return;
+  }
+
+  const survey = await prisma.survey.findUnique({
+    where: { id: surveyId },
+  });
+
+  if (!survey) {
+    res.status(404).json({ error: 'アンケートが見つかりません' });
+    return;
+  }
+
+  const project = await getProjectForEditor(survey.projectId, userId);
+  if (!project) {
+    res.status(403).json({ error: '編集権限がありません' });
+    return;
+  }
+
+  const data: { description?: string | null; publicImageUrl?: string | null } = {};
+  if (typeof description === 'string' || description === null) {
+    data.description = typeof description === 'string' ? description.trim() || null : null;
+  }
+  if (typeof publicImageUrl === 'string' || publicImageUrl === null) {
+    data.publicImageUrl =
+      typeof publicImageUrl === 'string' ? publicImageUrl.trim() || null : null;
+  }
+
+  if (Object.keys(data).length === 0) {
+    res.status(400).json({ error: '更新内容がありません' });
+    return;
+  }
+
+  const updated = await prisma.survey.update({
+    where: { id: surveyId },
+    data,
+    include: {
+      questions: { orderBy: { order: 'asc' } },
+    },
+  });
+
+  res.json({ survey: updated });
 };
 
 export const getSurvey = async (req: AuthRequest, res: Response): Promise<void> => {
