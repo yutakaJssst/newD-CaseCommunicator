@@ -99,10 +99,13 @@ function App() {
       try {
         const response = await projectAPI.getById(selectedProjectId);
         const project = response.project;
+        const memberRole = project.members?.find((member) => member.user.id === user.id)?.role;
         const role =
           project.ownerId === user.id
             ? 'owner'
-            : project.members?.find((member) => member.user.id === user.id)?.role || null;
+            : memberRole === 'editor' || memberRole === 'viewer'
+              ? memberRole
+              : null;
         if (!canceled) {
           setProjectRole(role);
         }

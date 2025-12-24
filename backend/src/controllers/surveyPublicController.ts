@@ -45,18 +45,57 @@ export const submitPublicResponse = async (req: Request, res: Response): Promise
     return;
   }
 
-  const questionIds = new Set(survey.questions.map((q) => q.id));
-  const sanitizedAnswers = answers
-    .filter((answer: any) => questionIds.has(answer.questionId))
-    .map((answer: any) => ({
-      questionId: answer.questionId,
-      score: answer.score,
-      comment: answer.comment || null,
-    }));
+  const questionMap = new Map(survey.questions.map((q) => [q.id, q]));
+  const normalizedAnswers = new Map<
+    string,
+    { questionId: string; score: number; comment: string | null }
+  >();
 
-  if (sanitizedAnswers.length === 0) {
-    res.status(400).json({ error: '回答が不正です' });
+  for (const answer of answers) {
+    if (!answer || typeof answer !== 'object') {
+      res.status(400).json({ error: '回答が不正です' });
+      return;
+    }
+    const question = questionMap.get(answer.questionId);
+    if (!question) {
+      res.status(400).json({ error: '回答が不正です' });
+      return;
+    }
+    if (normalizedAnswers.has(answer.questionId)) {
+      res.status(400).json({ error: '回答が重複しています' });
+      return;
+    }
+    const score = answer.score;
+    if (typeof score !== 'number' || Number.isNaN(score)) {
+      res.status(400).json({ error: '0〜3点で回答してください' });
+      return;
+    }
+    const min = typeof question.scaleMin === 'number' ? question.scaleMin : 0;
+    const max = typeof question.scaleMax === 'number' ? question.scaleMax : 3;
+    if (!Number.isInteger(score) || score < min || score > max) {
+      res.status(400).json({ error: '0〜3点で回答してください' });
+      return;
+    }
+    normalizedAnswers.set(answer.questionId, {
+      questionId: answer.questionId,
+      score,
+      comment: answer.comment ? String(answer.comment) : null,
+    });
+  }
+
+  if (normalizedAnswers.size !== survey.questions.length) {
+    res.status(400).json({ error: 'すべての質問に0〜3点で回答してください' });
     return;
+  }
+
+  const sanitizedAnswers: Array<{ questionId: string; score: number; comment: string | null }> = [];
+  for (const question of survey.questions) {
+    const answer = normalizedAnswers.get(question.id);
+    if (!answer) {
+      res.status(400).json({ error: 'すべての質問に0〜3点で回答してください' });
+      return;
+    }
+    sanitizedAnswers.push(answer);
   }
 
   await prisma.surveyResponse.create({

@@ -77,7 +77,7 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
       ...prev,
       [questionId]: {
         questionId,
-        score: prev[questionId]?.score ?? 0,
+        score: prev[questionId]?.score,
         comment,
       },
     }));
@@ -89,7 +89,7 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
 
     const answerList = survey.questions.map((question) => answers[question.id]);
     if (answerList.some((answer) => answer?.score === undefined)) {
-      setError('すべての質問に回答してください');
+      setError('すべての質問に0〜3点で回答してください');
       return;
     }
 
@@ -177,6 +177,9 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
                     </div>
                     <div style={{ fontSize: '12px', color: '#374151', marginBottom: '12px' }}>
                       説明: {descriptionText}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#374151', marginBottom: '6px' }}>
+                      0〜3点の評価（必須）
                     </div>
                     <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                       {[0, 1, 2, 3].map((value) => (
