@@ -6,6 +6,7 @@ import {
   publishSurvey,
   closeSurvey,
   getSurveyAnalytics,
+  getSurveyResponses,
 } from '../controllers/surveyController';
 
 const router = Router();
@@ -17,5 +18,6 @@ router.patch('/:surveyId', updateSurvey);
 router.post('/:surveyId/publish', publishSurvey);
 router.post('/:surveyId/close', closeSurvey);
 router.get('/:surveyId/analytics', getSurveyAnalytics);
+router.get('/:surveyId/responses', getSurveyResponses);
 
 export default router;

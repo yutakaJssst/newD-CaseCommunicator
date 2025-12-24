@@ -57,6 +57,28 @@ export interface SurveyAnalytics {
   }>;
 }
 
+export interface SurveyResponseAnswer {
+  questionId: string;
+  score: number;
+  comment?: string | null;
+}
+
+export interface SurveyResponseEntry {
+  id: string;
+  respondentHash: string | null;
+  submittedAt: string;
+  answers: SurveyResponseAnswer[];
+}
+
+export interface SurveyResponsesResponse {
+  survey: {
+    id: string;
+    title: string;
+  };
+  questions: SurveyQuestion[];
+  responses: SurveyResponseEntry[];
+}
+
 export interface PublicSurveyResponse {
   survey: {
     id: string;
@@ -108,6 +130,11 @@ export const surveysApi = {
 
   async getSurveyAnalytics(surveyId: string): Promise<SurveyAnalytics> {
     const response = await api.get(`/surveys/${surveyId}/analytics`);
+    return response.data;
+  },
+
+  async getSurveyResponses(surveyId: string): Promise<SurveyResponsesResponse> {
+    const response = await api.get(`/surveys/${surveyId}/responses`);
     return response.data;
   },
 };

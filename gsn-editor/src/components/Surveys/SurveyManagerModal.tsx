@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { surveysApi, type Survey, type SurveyAnalytics } from '../../api/surveys';
+import { surveysApi, type Survey, type SurveyAnalytics, type SurveyQuestion } from '../../api/surveys';
 import { LoadingState } from '../Status/LoadingState';
 import { ErrorState } from '../Status/ErrorState';
 import { useDiagramStore } from '../../stores/diagramStore';
@@ -34,6 +34,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   const [editDescription, setEditDescription] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const publicUrl = useMemo(() => {
     if (!selectedSurvey?.publicToken) return null;
@@ -61,6 +62,14 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   const stripHtml = (html?: string) => {
     if (!html) return '';
     return html.replace(/<[^>]*>/g, '').trim();
+  };
+
+  const escapeCsv = (value: string | number | null | undefined) => {
+    const text = value === null || value === undefined ? '' : String(value);
+    if (/[",\n\r]/.test(text)) {
+      return `"${text.replace(/"/g, '""')}"`;
+    }
+    return text;
   };
 
   const readImageFile = (file: File, onLoad: (dataUrl: string) => void) => {
@@ -235,8 +244,80 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   const handleEditImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setError('画像は10MBまでです');
+      event.target.value = '';
+      return;
+    }
     readImageFile(file, (dataUrl) => setEditImageUrl(dataUrl));
     event.target.value = '';
+  };
+
+  const handleExportCsv = async () => {
+    if (!selectedSurvey) return;
+    setIsExporting(true);
+    setError(null);
+    try {
+      const response = await surveysApi.getSurveyResponses(selectedSurvey.id);
+      const questionMap = new Map<string, SurveyQuestion>(
+        response.questions.map((question) => [question.id, question])
+      );
+
+      const rows: string[][] = [
+        [
+          'responseId',
+          'submittedAt',
+          'respondentHash',
+          'questionOrder',
+          'questionId',
+          'nodeId',
+          'nodeType',
+          'nodeLabel',
+          'nodeText',
+          'questionText',
+          'score',
+          'comment',
+        ],
+      ];
+
+      response.responses.forEach((responseEntry) => {
+        responseEntry.answers.forEach((answer) => {
+          const question = questionMap.get(answer.questionId);
+          const node = question ? nodeMap.get(question.nodeId) : undefined;
+          const nodeLabel = node?.label || question?.nodeId || '';
+          const nodeText = stripHtml(node?.content) || '';
+          rows.push([
+            responseEntry.id,
+            responseEntry.submittedAt,
+            responseEntry.respondentHash || '',
+            question?.order ?? '',
+            answer.questionId,
+            question?.nodeId ?? '',
+            question?.nodeType ?? '',
+            nodeLabel,
+            nodeText,
+            question?.questionText ?? '',
+            answer.score,
+            answer.comment ?? '',
+          ]);
+        });
+      });
+
+      const csvBody = rows.map((row) => row.map(escapeCsv).join(',')).join('\n');
+      const csv = `\uFEFF${csvBody}`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const safeTitle = (selectedSurvey.title || 'survey').replace(/[\\/:*?"<>|]/g, '_');
+      link.href = url;
+      link.download = `${safeTitle}-results.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'CSVの出力に失敗しました');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handlePublish = async () => {
@@ -602,7 +683,31 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                 </div>
 
                 <div style={{ marginTop: '24px' }}>
-                  <h4 style={{ margin: '0 0 8px 0' }}>集計結果</h4>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    <h4 style={{ margin: 0 }}>集計結果</h4>
+                    <button
+                      type="button"
+                      onClick={handleExportCsv}
+                      disabled={isExporting || !selectedSurvey}
+                      style={{
+                        padding: '4px 10px',
+                        border: '1px solid #D1D5DB',
+                        borderRadius: '6px',
+                        backgroundColor: isExporting ? '#E5E7EB' : '#FFFFFF',
+                        cursor: isExporting ? 'not-allowed' : 'pointer',
+                        fontSize: '12px',
+                      }}
+                    >
+                      {isExporting ? '出力中...' : 'CSV出力'}
+                    </button>
+                  </div>
                   {!analytics ? (
                     <LoadingState />
                   ) : (

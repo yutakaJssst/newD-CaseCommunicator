@@ -366,3 +366,49 @@ export const getSurveyAnalytics = async (req: AuthRequest, res: Response): Promi
     stats,
   });
 };
+
+export const getSurveyResponses = async (req: AuthRequest, res: Response): Promise<void> => {
+  const userId = req.user?.id;
+  const { surveyId } = req.params;
+
+  if (!userId) {
+    res.status(401).json({ error: '認証が必要です' });
+    return;
+  }
+
+  const survey = await prisma.survey.findUnique({
+    where: { id: surveyId },
+    include: {
+      questions: { orderBy: { order: 'asc' } },
+      project: { select: { id: true } },
+    },
+  });
+
+  if (!survey) {
+    res.status(404).json({ error: 'アンケートが見つかりません' });
+    return;
+  }
+
+  const project = await getProjectForViewer(survey.projectId, userId);
+  if (!project) {
+    res.status(403).json({ error: 'アクセス権限がありません' });
+    return;
+  }
+
+  const responses = await prisma.surveyResponse.findMany({
+    where: { surveyId },
+    orderBy: { submittedAt: 'asc' },
+    include: {
+      answers: true,
+    },
+  });
+
+  res.json({
+    survey: {
+      id: survey.id,
+      title: survey.title,
+    },
+    questions: survey.questions,
+    responses,
+  });
+};
