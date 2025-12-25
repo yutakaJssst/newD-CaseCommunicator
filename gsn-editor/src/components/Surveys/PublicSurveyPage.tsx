@@ -21,6 +21,19 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
   const [answers, setAnswers] = useState<Record<string, DraftAnswer>>({});
   const [missingScores, setMissingScores] = useState<Set<string>>(new Set());
   const entryAudience = survey?.entryAudience ?? survey?.audience;
+  const questionsToDisplay = useMemo(() => {
+    if (!survey?.questions) return [];
+    const list = [...survey.questions];
+    if (entryAudience !== 'expert') return list;
+    const rank = (question: PublicSurveyResponse['survey']['questions'][number]) =>
+      (question.scaleType || 'likert_0_3') === 'continuous_0_1' ? 1 : 0;
+    return list.sort((a, b) => {
+      const ra = rank(a);
+      const rb = rank(b);
+      if (ra !== rb) return ra - rb;
+      return (a.order ?? 0) - (b.order ?? 0);
+    });
+  }, [survey?.questions, entryAudience]);
 
   const nodeMap = useMemo(() => {
     const snapshot = survey?.gsnSnapshot as any;
@@ -102,8 +115,8 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
     e.preventDefault();
     if (!survey) return;
 
-    const answerList = survey.questions.map((question) => answers[question.id]);
-    const missing = survey.questions
+    const answerList = questionsToDisplay.map((question) => answers[question.id]);
+    const missing = questionsToDisplay
       .filter((question) => answers[question.id]?.score === undefined)
       .map((question) => question.id);
     if (missing.length > 0) {
@@ -200,7 +213,7 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '24px' }}>
-              {survey.questions.map((question) => {
+            {questionsToDisplay.map((question) => {
                 const node = nodeMap.get(question.nodeId);
                 const descriptionText = stripHtml(node?.content) || '-';
                 const nodeLabel = node?.label || '-';
