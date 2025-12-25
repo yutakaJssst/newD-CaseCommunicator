@@ -48,6 +48,10 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   const [consensusScore, setConsensusScore] = useState<number | null>(null);
   const [confidenceScore, setConfidenceScore] = useState<{ mean: number; variance: number } | null>(null);
   const [isConsensusLoading, setIsConsensusLoading] = useState(false);
+  const [consensusByNode, setConsensusByNode] = useState<Map<string, number | null>>(new Map());
+  const [confidenceByNode, setConfidenceByNode] = useState<
+    Map<string, { mean: number; variance: number } | null>
+  >(new Map());
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   const publicUrls = useMemo(() => {
@@ -98,6 +102,11 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     };
   }, [selectedSurvey?.gsnSnapshot]);
 
+  const consensusNodes = useMemo(() => {
+    if (!diagramData) return [];
+    return diagramData.nodes.filter((node: any) => node?.type === 'Goal' || node?.type === 'Strategy');
+  }, [diagramData]);
+
   const stripHtml = (html?: string) => {
     if (!html) return '';
     return html.replace(/<[^>]*>/g, '').trim();
@@ -117,6 +126,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     if (!diagramData) {
       setConsensusScore(null);
       setConfidenceScore(null);
+      setConsensusByNode(new Map());
+      setConfidenceByNode(new Map());
       return;
     }
 
@@ -185,6 +196,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       });
 
       const consensusMemo = new Map<string, number | null>();
+      const consensusByNodeMap = new Map<string, number | null>();
       const calcGoalConsensus = (goalId: string, trail: Set<string>): number | null => {
         if (consensusMemo.has(goalId)) return consensusMemo.get(goalId) ?? null;
         if (trail.has(goalId)) return null;
@@ -229,10 +241,20 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
         return score;
       };
 
-      const rootGoals: string[] = diagramData.nodes
+      nodesById.forEach((node, nodeId) => {
+        if (node?.type !== 'Strategy') return;
+        consensusByNodeMap.set(nodeId, avgRatings.get(nodeId) ?? null);
+      });
+
+      const goalIds: string[] = diagramData.nodes
         .filter((node: any) => node?.type === 'Goal')
-        .map((node: any) => String(node.id))
-        .filter((nodeId: string) => !incoming.has(nodeId));
+        .map((node: any) => String(node.id));
+
+      goalIds.forEach((goalId) => {
+        consensusByNodeMap.set(goalId, calcGoalConsensus(goalId, new Set()));
+      });
+
+      const rootGoals: string[] = goalIds.filter((nodeId: string) => !incoming.has(nodeId));
 
       const consensusScores = rootGoals
         .map((goalId: string) => calcGoalConsensus(goalId, new Set()))
@@ -269,6 +291,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       });
 
       const confidenceMemo = new Map<string, { mean: number; variance: number } | null>();
+      const confidenceByNodeMap = new Map<string, { mean: number; variance: number } | null>();
       const calcGoalConfidence = (goalId: string, trail: Set<string>): { mean: number; variance: number } | null => {
         if (confidenceMemo.has(goalId)) return confidenceMemo.get(goalId) ?? null;
         if (trail.has(goalId)) return null;
@@ -331,6 +354,18 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
           confidenceScores.reduce((sum: number, stats) => sum + stats.variance, 0) / confidenceScores.length;
         setConfidenceScore({ mean, variance });
       }
+
+      nodesById.forEach((node, nodeId) => {
+        if (node?.type !== 'Strategy') return;
+        confidenceByNodeMap.set(nodeId, expertStats.get(nodeId) ?? null);
+      });
+
+      goalIds.forEach((goalId) => {
+        confidenceByNodeMap.set(goalId, calcGoalConfidence(goalId, new Set()));
+      });
+
+      setConsensusByNode(consensusByNodeMap);
+      setConfidenceByNode(confidenceByNodeMap);
     } finally {
       setIsConsensusLoading(false);
     }
@@ -425,6 +460,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     if (!isOpen || !selectedSurvey || !diagramData) {
       setConsensusScore(null);
       setConfidenceScore(null);
+      setConsensusByNode(new Map());
+      setConfidenceByNode(new Map());
       setIsConsensusLoading(false);
       return;
     }
@@ -450,6 +487,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     if (!combinedSurveyId && !generalSurvey && !expertSurvey) {
       setConsensusScore(null);
       setConfidenceScore(null);
+      setConsensusByNode(new Map());
+      setConfidenceByNode(new Map());
       setIsConsensusLoading(false);
       return;
     }
@@ -467,6 +506,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
           setError(err.response?.data?.error || '合意形成点の計算に失敗しました');
           setConsensusScore(null);
           setConfidenceScore(null);
+          setConsensusByNode(new Map());
+          setConfidenceByNode(new Map());
           setIsConsensusLoading(false);
         }
       }
@@ -1222,6 +1263,60 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                             </div>
                           )}
                         </div>
+                      </div>
+                      <div style={{ marginTop: '16px' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                          ノード別 合意形成/Confidence
+                        </div>
+                        {consensusNodes.length === 0 ? (
+                          <div style={{ fontSize: '12px', color: '#6B7280' }}>
+                            表示できるノードがありません。
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {consensusNodes.map((node: any) => {
+                              const nodeId = String(node.id);
+                              const nodeLabel = nodeMap.get(nodeId)?.label || nodeId;
+                              const consensusValue = consensusByNode.get(nodeId);
+                              const confidenceValue = confidenceByNode.get(nodeId);
+                              const consensusText = isConsensusLoading
+                                ? '...'
+                                : consensusValue === null || consensusValue === undefined
+                                  ? '-'
+                                  : `${(consensusValue * 100).toFixed(2)}%`;
+                              const confidenceText = isConsensusLoading
+                                ? '...'
+                                : confidenceValue
+                                  ? `${(confidenceValue.mean * 100).toFixed(2)}%`
+                                  : '-';
+                              const varianceText =
+                                !isConsensusLoading && confidenceValue
+                                  ? `σ²=${confidenceValue.variance.toFixed(4)}`
+                                  : '';
+                              return (
+                                <div
+                                  key={`consensus-${nodeId}`}
+                                  style={{
+                                    padding: '10px 12px',
+                                    border: '1px solid #E5E7EB',
+                                    borderRadius: '6px',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                  }}
+                                >
+                                  <div style={{ fontSize: '12px', color: '#374151' }}>
+                                    {node.type}/{nodeLabel}
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: '#111827' }}>
+                                    合意形成: {consensusText} ・ Confidence: {confidenceText}
+                                    {varianceText ? ` (${varianceText})` : ''}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {analytics.stats.map((stat) => {
