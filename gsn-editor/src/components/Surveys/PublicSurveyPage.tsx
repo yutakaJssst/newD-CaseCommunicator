@@ -13,6 +13,16 @@ type DraftAnswer = {
   comment?: string;
 };
 
+const DEFAULT_EXPERT_INTRO = `現状のシステムの安全性を、厳密に測定するための質問です。議論の基盤になるGSNの末端のゴールノードと戦略ノードについて専門家の立場から回答をお願いいたします。
+
+それぞれの質問では0から1点の値(確信値)を入力していただきます。以下の基準で回答してください。0と1は使用しないでください。
+0.98 ほぼ標準・教科書どおり。抜けや疑問点はほとんどない
+0.90 概ね妥当。多少気になる点はあるが実務上は許容
+0.80 妥当だが弱点あり。前提依存・カバレッジ不足が気になる
+0.70  かなり弱い。重要な前提の抜けや想定外シナリオの懸念
+0.40. 根本的に疑問。議論・エビデンスの組み直しレベル
+またその採点の理由もできるだけ詳細に記入をお願いいたします。`;
+
 export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => {
   const [survey, setSurvey] = useState<PublicSurveyResponse['survey'] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,6 +44,18 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
       return (a.order ?? 0) - (b.order ?? 0);
     });
   }, [survey?.questions, entryAudience]);
+  const expertIntroText = useMemo(() => {
+    if (entryAudience !== 'expert') return null;
+    const intro = survey?.expertIntro;
+    if (intro && intro.trim()) return intro;
+    return DEFAULT_EXPERT_INTRO;
+  }, [entryAudience, survey?.expertIntro]);
+  const confidenceIntroIndex = useMemo(() => {
+    if (entryAudience !== 'expert') return -1;
+    return questionsToDisplay.findIndex(
+      (question) => (question.scaleType || 'likert_0_3') === 'continuous_0_1'
+    );
+  }, [questionsToDisplay, entryAudience]);
 
   const nodeMap = useMemo(() => {
     const snapshot = survey?.gsnSnapshot as any;
@@ -213,127 +235,143 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '24px' }}>
-            {questionsToDisplay.map((question) => {
+            {questionsToDisplay.map((question, index) => {
                 const node = nodeMap.get(question.nodeId);
                 const descriptionText = stripHtml(node?.content) || '-';
                 const nodeLabel = node?.label || '-';
                 const scaleType = question.scaleType || 'likert_0_3';
                 return (
-                  <div
-                    key={question.id}
-                    style={{
-                      border: missingScores.has(question.id) ? '1px solid #DC2626' : '1px solid #E5E7EB',
-                      borderRadius: '8px',
-                      padding: '16px',
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, marginBottom: '4px' }}>
-                      {question.questionText}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '8px' }}>
-                      ID: {nodeLabel} / {question.nodeType}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#374151', marginBottom: '12px' }}>
-                      説明: {descriptionText}
-                    </div>
-                    {scaleType === 'continuous_0_1' ? (
-                      <>
-                        <div style={{ fontSize: '12px', color: '#374151', marginBottom: '6px' }}>
-                          0.0〜1.0の評価（必須）
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                          <input
-                            type="range"
-                            min={0}
-                            max={1}
-                            step={0.01}
-                            value={answers[question.id]?.score ?? 0.5}
-                            onChange={(e) => handleScoreChange(question.id, Number(e.target.value))}
-                            style={{ flex: 1 }}
-                          />
-                          <input
-                            type="number"
-                            min={0}
-                            max={1}
-                            step={0.01}
-                            value={answers[question.id]?.score ?? ''}
-                            onChange={(e) => {
-                              const value = e.target.value === '' ? undefined : Number(e.target.value);
-                              if (value === undefined) {
-                                setAnswers((prev) => ({
-                                  ...prev,
-                                  [question.id]: {
-                                    questionId: question.id,
-                                    score: undefined,
-                                    comment: prev[question.id]?.comment,
-                                  },
-                                }));
-                                return;
-                              }
-                              handleScoreChange(question.id, value);
-                            }}
-                            placeholder="0.0"
-                            style={{
-                              width: '80px',
-                              padding: '4px 6px',
-                              border: '1px solid #D1D5DB',
-                              borderRadius: '6px',
-                              fontSize: '12px',
-                            }}
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ fontSize: '12px', color: '#374151', marginBottom: '6px' }}>
-                          0〜3点の評価（必須）
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                          {[0, 1, 2, 3].map((value) => (
-                            <label
-                              key={value}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                fontSize: '12px',
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                border: '1px solid #D1D5DB',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <input
-                                type="radio"
-                                name={`question-${question.id}`}
-                                value={value}
-                                checked={answers[question.id]?.score === value}
-                                onChange={() => handleScoreChange(question.id, value)}
-                              />
-                              {value}
-                            </label>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                    {missingScores.has(question.id) && (
-                      <div style={{ color: '#DC2626', fontSize: '12px', marginBottom: '8px' }}>
-                        {scaleType === 'continuous_0_1' ? 'スコアを入力してください' : 'スコアを選択してください'}
+                  <React.Fragment key={question.id}>
+                    {expertIntroText && index === confidenceIntroIndex && (
+                      <div
+                        style={{
+                          border: '1px solid #E5E7EB',
+                          borderRadius: '8px',
+                          padding: '16px',
+                          backgroundColor: '#F9FAFB',
+                          whiteSpace: 'pre-wrap',
+                          color: '#374151',
+                          fontSize: '13px',
+                        }}
+                      >
+                        {expertIntroText}
                       </div>
                     )}
-                    <textarea
-                      placeholder="コメント（任意）"
-                      value={answers[question.id]?.comment || ''}
-                      onChange={(e) => handleCommentChange(question.id, e.target.value)}
-                      rows={2}
+                    <div
                       style={{
-                        width: '100%',
-                        padding: '8px',
-                        border: '1px solid #E5E7EB',
-                        borderRadius: '6px',
+                        border: missingScores.has(question.id) ? '1px solid #DC2626' : '1px solid #E5E7EB',
+                        borderRadius: '8px',
+                        padding: '16px',
                       }}
-                    />
-                  </div>
+                    >
+                      <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                        {question.questionText}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '8px' }}>
+                        ID: {nodeLabel} / {question.nodeType}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#374151', marginBottom: '12px' }}>
+                        説明: {descriptionText}
+                      </div>
+                      {scaleType === 'continuous_0_1' ? (
+                        <>
+                          <div style={{ fontSize: '12px', color: '#374151', marginBottom: '6px' }}>
+                            0.0〜1.0の評価（必須）
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                            <input
+                              type="range"
+                              min={0}
+                              max={1}
+                              step={0.01}
+                              value={answers[question.id]?.score ?? 0.5}
+                              onChange={(e) => handleScoreChange(question.id, Number(e.target.value))}
+                              style={{ flex: 1 }}
+                            />
+                            <input
+                              type="number"
+                              min={0}
+                              max={1}
+                              step={0.01}
+                              value={answers[question.id]?.score ?? ''}
+                              onChange={(e) => {
+                                const value = e.target.value === '' ? undefined : Number(e.target.value);
+                                if (value === undefined) {
+                                  setAnswers((prev) => ({
+                                    ...prev,
+                                    [question.id]: {
+                                      questionId: question.id,
+                                      score: undefined,
+                                      comment: prev[question.id]?.comment,
+                                    },
+                                  }));
+                                  return;
+                                }
+                                handleScoreChange(question.id, value);
+                              }}
+                              placeholder="0.0"
+                              style={{
+                                width: '80px',
+                                padding: '4px 6px',
+                                border: '1px solid #D1D5DB',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                              }}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ fontSize: '12px', color: '#374151', marginBottom: '6px' }}>
+                            0〜3点の評価（必須）
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                            {[0, 1, 2, 3].map((value) => (
+                              <label
+                                key={value}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  fontSize: '12px',
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #D1D5DB',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`question-${question.id}`}
+                                  value={value}
+                                  checked={answers[question.id]?.score === value}
+                                  onChange={() => handleScoreChange(question.id, value)}
+                                />
+                                {value}
+                              </label>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                      {missingScores.has(question.id) && (
+                        <div style={{ color: '#DC2626', fontSize: '12px', marginBottom: '8px' }}>
+                          {scaleType === 'continuous_0_1' ? 'スコアを入力してください' : 'スコアを選択してください'}
+                        </div>
+                      )}
+                      <textarea
+                        placeholder="コメント（任意）"
+                        value={answers[question.id]?.comment || ''}
+                        onChange={(e) => handleCommentChange(question.id, e.target.value)}
+                        rows={2}
+                        style={{
+                          width: '100%',
+                          padding: '8px',
+                          border: '1px solid #E5E7EB',
+                          borderRadius: '6px',
+                        }}
+                      />
+                    </div>
+                  </React.Fragment>
                 );
               })}
             </div>

@@ -25,6 +25,7 @@ export interface Survey {
   diagramId: string | null;
   title: string;
   description: string | null;
+  expertIntro?: string | null;
   publicImageUrl?: string | null;
   audience?: SurveyAudience;
   mode?: SurveyMode;
@@ -45,11 +46,13 @@ export interface CreateSurveyRequest {
   gsnSnapshot: unknown;
   audience?: SurveyAudience;
   mode?: SurveyMode;
+  expertIntro?: string | null;
 }
 
 export interface UpdateSurveyRequest {
   description?: string | null;
   publicImageUrl?: string | null;
+  expertIntro?: string | null;
 }
 
 export interface SurveyListResponse {
@@ -97,6 +100,7 @@ export interface PublicSurveyResponse {
     id: string;
     title: string;
     description: string | null;
+    expertIntro?: string | null;
     status: SurveyStatus;
     audience?: SurveyAudience;
     entryAudience?: SurveyAudience;

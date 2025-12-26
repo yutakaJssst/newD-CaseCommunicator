@@ -18,6 +18,16 @@ interface SurveyManagerModalProps {
   projectId: string;
 }
 
+const DEFAULT_EXPERT_INTRO = `現状のシステムの安全性を、厳密に測定するための質問です。議論の基盤になるGSNの末端のゴールノードと戦略ノードについて専門家の立場から回答をお願いいたします。
+
+それぞれの質問では0から1点の値(確信値)を入力していただきます。以下の基準で回答してください。0と1は使用しないでください。
+0.98 ほぼ標準・教科書どおり。抜けや疑問点はほとんどない
+0.90 概ね妥当。多少気になる点はあるが実務上は許容
+0.80 妥当だが弱点あり。前提依存・カバレッジ不足が気になる
+0.70  かなり弱い。重要な前提の抜けや想定外シナリオの懸念
+0.40. 根本的に疑問。議論・エビデンスの組み直しレベル
+またその採点の理由もできるだけ詳細に記入をお願いいたします。`;
+
 export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   isOpen,
   onClose,
@@ -43,6 +53,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   const [isCreating, setIsCreating] = useState(false);
   const [editDescription, setEditDescription] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
+  const [editExpertIntro, setEditExpertIntro] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [consensusScore, setConsensusScore] = useState<number | null>(null);
@@ -73,8 +84,25 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     if (!selectedSurvey) return false;
     const currentDescription = selectedSurvey.description ?? '';
     const currentImage = selectedSurvey.publicImageUrl ?? '';
-    return editDescription !== currentDescription || editImageUrl !== currentImage;
-  }, [editDescription, editImageUrl, selectedSurvey?.description, selectedSurvey?.publicImageUrl]);
+    const hasExpertIntro = selectedSurvey.mode === 'combined' || selectedSurvey.audience === 'expert';
+    const currentExpertIntro = hasExpertIntro
+      ? selectedSurvey.expertIntro ?? DEFAULT_EXPERT_INTRO
+      : '';
+    return (
+      editDescription !== currentDescription ||
+      editImageUrl !== currentImage ||
+      editExpertIntro !== currentExpertIntro
+    );
+  }, [
+    editDescription,
+    editImageUrl,
+    editExpertIntro,
+    selectedSurvey?.description,
+    selectedSurvey?.publicImageUrl,
+    selectedSurvey?.expertIntro,
+    selectedSurvey?.mode,
+    selectedSurvey?.audience,
+  ]);
 
   const nodeMap = useMemo(() => {
     const snapshot = selectedSurvey?.gsnSnapshot as any;
@@ -450,10 +478,13 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     if (!selectedSurvey) {
       setEditDescription('');
       setEditImageUrl('');
+      setEditExpertIntro('');
       return;
     }
+    const hasExpertIntro = selectedSurvey.mode === 'combined' || selectedSurvey.audience === 'expert';
     setEditDescription(selectedSurvey.description ?? '');
     setEditImageUrl(selectedSurvey.publicImageUrl ?? '');
+    setEditExpertIntro(hasExpertIntro ? selectedSurvey.expertIntro ?? DEFAULT_EXPERT_INTRO : '');
   }, [selectedSurvey?.id]);
 
   useEffect(() => {
@@ -611,10 +642,13 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     setIsSaving(true);
     setError(null);
     try {
-      const response = await surveysApi.updateSurvey(selectedSurvey.id, {
+      const hasExpertIntro = selectedSurvey.mode === 'combined' || selectedSurvey.audience === 'expert';
+      const payload = {
         description: editDescription.trim() || null,
         publicImageUrl: editImageUrl.trim() || null,
-      });
+        ...(hasExpertIntro ? { expertIntro: editExpertIntro.trim() || null } : {}),
+      };
+      const response = await surveysApi.updateSurvey(selectedSurvey.id, payload);
       setSelectedSurvey(response.survey);
       await loadSurveys();
     } catch (err: any) {
@@ -948,6 +982,31 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                       marginBottom: '8px',
                     }}
                   />
+                  {(selectedSurvey.mode === 'combined' || selectedSurvey.audience === 'expert') && (
+                    <>
+                      <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                        専門家向け Confidence 説明
+                      </div>
+                      <textarea
+                        value={editExpertIntro}
+                        onChange={(e) => setEditExpertIntro(e.target.value)}
+                        rows={8}
+                        placeholder="専門家向けのConfidence説明文"
+                        disabled={!canEdit}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '6px',
+                          backgroundColor: canEdit ? '#FFFFFF' : '#F3F4F6',
+                          marginBottom: '8px',
+                        }}
+                      />
+                      <div style={{ fontSize: '11px', color: '#6B7280', marginBottom: '8px' }}>
+                        未入力の場合は既定の説明文が表示されます
+                      </div>
+                    </>
+                  )}
                   <input
                     value={editImageUrl}
                     onChange={(e) => setEditImageUrl(e.target.value)}

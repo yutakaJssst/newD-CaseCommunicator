@@ -14,6 +14,16 @@ type SurveyQuestionInput = {
   scaleType?: 'likert_0_3' | 'continuous_0_1';
 };
 
+const DEFAULT_EXPERT_INTRO = `現状のシステムの安全性を、厳密に測定するための質問です。議論の基盤になるGSNの末端のゴールノードと戦略ノードについて専門家の立場から回答をお願いいたします。
+
+それぞれの質問では0から1点の値(確信値)を入力していただきます。以下の基準で回答してください。0と1は使用しないでください。
+0.98 ほぼ標準・教科書どおり。抜けや疑問点はほとんどない
+0.90 概ね妥当。多少気になる点はあるが実務上は許容
+0.80 妥当だが弱点あり。前提依存・カバレッジ不足が気になる
+0.70  かなり弱い。重要な前提の抜けや想定外シナリオの懸念
+0.40. 根本的に疑問。議論・エビデンスの組み直しレベル
+またその採点の理由もできるだけ詳細に記入をお願いいたします。`;
+
 const extractNodesFromSnapshot = (snapshot: any) => {
   if (!snapshot || typeof snapshot !== 'object') return [];
   if (Array.isArray(snapshot.nodes)) {
@@ -148,6 +158,7 @@ export const listProjectSurveys = async (req: AuthRequest, res: Response): Promi
       id: true,
       title: true,
       description: true,
+      expertIntro: true,
       publicImageUrl: true,
       mode: true,
       audience: true,
@@ -168,7 +179,7 @@ export const listProjectSurveys = async (req: AuthRequest, res: Response): Promi
 export const createSurvey = async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user?.id;
   const { projectId } = req.params;
-  const { title, description, diagramId, gsnSnapshot, questions, audience, mode } = req.body;
+  const { title, description, diagramId, gsnSnapshot, questions, audience, mode, expertIntro } = req.body;
 
   if (!userId) {
     res.status(401).json({ error: '認証が必要です' });
@@ -196,6 +207,15 @@ export const createSurvey = async (req: AuthRequest, res: Response): Promise<voi
 
   const surveyAudience = audience === 'expert' ? 'expert' : 'general';
   const surveyMode = mode === 'combined' ? 'combined' : 'single';
+  const shouldIncludeExpertIntro = surveyMode === 'combined' || surveyAudience === 'expert';
+  let resolvedExpertIntro: string | null = null;
+  if (typeof expertIntro === 'string') {
+    resolvedExpertIntro = expertIntro.trim() || null;
+  } else if (expertIntro === null) {
+    resolvedExpertIntro = null;
+  } else if (shouldIncludeExpertIntro) {
+    resolvedExpertIntro = DEFAULT_EXPERT_INTRO;
+  }
   let questionList: SurveyQuestionInput[] = [];
   if (Array.isArray(questions) && questions.length > 0) {
     questionList = questions;
@@ -214,6 +234,7 @@ export const createSurvey = async (req: AuthRequest, res: Response): Promise<voi
       diagramId: diagramId || null,
       title,
       description: typeof description === 'string' ? description.trim() || null : null,
+      expertIntro: resolvedExpertIntro,
       audience: surveyAudience,
       mode: surveyMode,
       gsnSnapshot,
@@ -242,7 +263,7 @@ export const createSurvey = async (req: AuthRequest, res: Response): Promise<voi
 export const updateSurvey = async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user?.id;
   const { surveyId } = req.params;
-  const { description, publicImageUrl } = req.body;
+  const { description, publicImageUrl, expertIntro } = req.body;
 
   if (!userId) {
     res.status(401).json({ error: '認証が必要です' });
@@ -264,13 +285,16 @@ export const updateSurvey = async (req: AuthRequest, res: Response): Promise<voi
     return;
   }
 
-  const data: { description?: string | null; publicImageUrl?: string | null } = {};
+  const data: { description?: string | null; publicImageUrl?: string | null; expertIntro?: string | null } = {};
   if (typeof description === 'string' || description === null) {
     data.description = typeof description === 'string' ? description.trim() || null : null;
   }
   if (typeof publicImageUrl === 'string' || publicImageUrl === null) {
     data.publicImageUrl =
       typeof publicImageUrl === 'string' ? publicImageUrl.trim() || null : null;
+  }
+  if (typeof expertIntro === 'string' || expertIntro === null) {
+    data.expertIntro = typeof expertIntro === 'string' ? expertIntro.trim() || null : null;
   }
 
   if (Object.keys(data).length === 0) {

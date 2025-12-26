@@ -180,6 +180,7 @@ model Survey {
   diagramId    String?
   title        String
   description  String?
+  expertIntro  String?
   publicImageUrl String?
   audience     SurveyAudience @default(general)
   mode         SurveyMode    @default(single)

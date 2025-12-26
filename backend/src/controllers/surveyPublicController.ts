@@ -30,6 +30,7 @@ export const getPublicSurvey = async (req: Request, res: Response): Promise<void
       id: survey.id,
       title: survey.title,
       description: survey.description,
+      expertIntro: survey.expertIntro,
       status: survey.status,
       publicImageUrl: survey.publicImageUrl,
       audience: survey.audience,
