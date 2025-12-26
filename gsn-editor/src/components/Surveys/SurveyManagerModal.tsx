@@ -28,6 +28,19 @@ const DEFAULT_EXPERT_INTRO = `現状のシステムの安全性を、厳密に�
 0.40. 根本的に疑問。議論・エビデンスの組み直しレベル
 またその採点の理由もできるだけ詳細に記入をお願いいたします。`;
 
+const ROLE_OPTIONS = [
+  'アーキテクト',
+  'フェロー',
+  '事業本部',
+  'プロダクト本部',
+  'R&Dユニット',
+  '経営層（CxO）',
+  'その他',
+];
+
+const isRoleQuestion = (question: SurveyQuestion) =>
+  question.nodeId === 'meta_role' && question.nodeType === 'Meta';
+
 export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   isOpen,
   onClose,
@@ -702,9 +715,10 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       response.responses.forEach((responseEntry) => {
         responseEntry.answers.forEach((answer) => {
           const question = questionMap.get(answer.questionId);
+          const roleQuestion = question ? isRoleQuestion(question) : false;
           const node = question ? nodeMap.get(question.nodeId) : undefined;
-          const nodeLabel = node?.label || question?.nodeId || '';
-          const nodeText = stripHtml(node?.content) || '';
+          const nodeLabel = roleQuestion ? '役職(所属)' : node?.label || question?.nodeId || '';
+          const nodeText = roleQuestion ? ROLE_OPTIONS.join(' / ') : stripHtml(node?.content) || '';
           rows.push([
             responseEntry.id,
             responseEntry.submittedAt,
@@ -1202,6 +1216,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                   {selectedSurvey.questions?.length ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {selectedSurvey.questions.map((question) => {
+                        const roleQuestion = isRoleQuestion(question);
                         const node = nodeMap.get(question.nodeId);
                         const descriptionText = stripHtml(node?.content) || '-';
                         const nodeLabel = node?.label || '-';
@@ -1219,13 +1234,27 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                           <div style={{ fontSize: '13px', fontWeight: 600 }}>
                             {question.questionText}
                           </div>
-                          <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                            ID: {nodeLabel} / {question.nodeType}
-                            {question.audience ? ` ・ ${audienceLabel}` : ''}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#374151', marginTop: '4px' }}>
-                            文: {descriptionText}
-                          </div>
+                          {roleQuestion ? (
+                            <>
+                              <div style={{ fontSize: '12px', color: '#6B7280' }}>
+                                形式: 役職選択
+                                {question.audience ? ` ・ ${audienceLabel}` : ''}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#374151', marginTop: '4px' }}>
+                                選択肢: {ROLE_OPTIONS.join(' / ')}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div style={{ fontSize: '12px', color: '#6B7280' }}>
+                                ID: {nodeLabel} / {question.nodeType}
+                                {question.audience ? ` ・ ${audienceLabel}` : ''}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#374151', marginTop: '4px' }}>
+                                文: {descriptionText}
+                              </div>
+                            </>
+                          )}
                         </div>
                         );
                       })}
@@ -1380,7 +1409,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {analytics.stats.map((stat) => {
                           const node = nodeMap.get(stat.nodeId);
-                          const nodeLabel = node?.label || stat.nodeId;
+                          const roleStat = stat.nodeId === 'meta_role' && stat.nodeType === 'Meta';
+                          const nodeLabel = roleStat ? '役職(所属)' : node?.label || stat.nodeId;
                           const audienceLabel =
                             stat.audience === 'expert' ? '専門家' : '非専門家';
                           const averageText =
@@ -1402,7 +1432,9 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                                 {stat.audience ? ` ・ ${audienceLabel}` : ''}
                               </div>
                               <div style={{ fontSize: '12px', color: '#111827' }}>
-                                平均: {averageText} ({stat.count}件)
+                                {roleStat
+                                  ? `回答: ${stat.count}件`
+                                  : `平均: ${averageText} (${stat.count}件)`}
                               </div>
                             </div>
                           );

@@ -23,6 +23,19 @@ const DEFAULT_EXPERT_INTRO = `現状のシステムの安全性を、厳密に�
 0.40. 根本的に疑問。議論・エビデンスの組み直しレベル
 またその採点の理由もできるだけ詳細に記入をお願いいたします。`;
 
+const ROLE_OPTIONS = [
+  'アーキテクト',
+  'フェロー',
+  '事業本部',
+  'プロダクト本部',
+  'R&Dユニット',
+  '経営層（CxO）',
+  'その他',
+];
+
+const isRoleQuestion = (question: PublicSurveyResponse['survey']['questions'][number]) =>
+  question.nodeId === 'meta_role' && question.nodeType === 'Meta';
+
 export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => {
   const [survey, setSurvey] = useState<PublicSurveyResponse['survey'] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -122,7 +135,25 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
     });
   };
 
+  const handleRoleScoreChange = (questionId: string, score: number) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [questionId]: {
+        questionId,
+        score,
+        comment: score === ROLE_OPTIONS.length - 1 ? prev[questionId]?.comment : '',
+      },
+    }));
+    setMissingScores((prev) => {
+      if (!prev.has(questionId)) return prev;
+      const next = new Set(prev);
+      next.delete(questionId);
+      return next;
+    });
+  };
+
   const handleCommentChange = (questionId: string, comment: string) => {
+    const isOtherSelected = answers[questionId]?.score === ROLE_OPTIONS.length - 1;
     setAnswers((prev) => ({
       ...prev,
       [questionId]: {
@@ -131,6 +162,14 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
         comment,
       },
     }));
+    if (!isOtherSelected) return;
+    if (!comment.trim()) return;
+    setMissingScores((prev) => {
+      if (!prev.has(questionId)) return prev;
+      const next = new Set(prev);
+      next.delete(questionId);
+      return next;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -145,6 +184,18 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
       setMissingScores(new Set(missing));
       setError('スコアが未入力の項目があります。各質問の指示に従って入力してください。');
       return;
+    }
+    const roleQuestion = questionsToDisplay.find((question) => isRoleQuestion(question));
+    if (roleQuestion) {
+      const roleAnswer = answers[roleQuestion.id];
+      if (
+        roleAnswer?.score === ROLE_OPTIONS.length - 1 &&
+        !roleAnswer.comment?.trim()
+      ) {
+        setMissingScores(new Set([roleQuestion.id]));
+        setError('「その他」を選んだ場合は内容を入力してください。');
+        return;
+      }
     }
     setMissingScores(new Set());
 
@@ -236,10 +287,23 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '24px' }}>
             {questionsToDisplay.map((question, index) => {
-                const node = nodeMap.get(question.nodeId);
-                const descriptionText = stripHtml(node?.content) || '-';
-                const nodeLabel = node?.label || '-';
+                const roleQuestion = isRoleQuestion(question);
+                const node = roleQuestion ? null : nodeMap.get(question.nodeId);
+                const descriptionText = roleQuestion ? '' : stripHtml(node?.content) || '-';
+                const nodeLabel = roleQuestion ? '' : node?.label || '-';
                 const scaleType = question.scaleType || 'likert_0_3';
+                const roleScore = answers[question.id]?.score;
+                const roleOtherSelected = roleScore === ROLE_OPTIONS.length - 1;
+                const roleErrorMessage =
+                  roleQuestion
+                    ? roleScore === undefined
+                      ? '役職を選択してください'
+                      : roleOtherSelected && !answers[question.id]?.comment?.trim()
+                        ? 'その他の内容を入力してください'
+                        : '役職を選択してください'
+                    : scaleType === 'continuous_0_1'
+                      ? 'スコアを入力してください'
+                      : 'スコアを選択してください';
                 return (
                   <React.Fragment key={question.id}>
                     {expertIntroText && index === confidenceIntroIndex && (
@@ -267,13 +331,63 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
                       <div style={{ fontWeight: 600, marginBottom: '4px' }}>
                         {question.questionText}
                       </div>
-                      <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '8px' }}>
-                        ID: {nodeLabel} / {question.nodeType}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#374151', marginBottom: '12px' }}>
-                        説明: {descriptionText}
-                      </div>
-                      {scaleType === 'continuous_0_1' ? (
+                      {!roleQuestion && (
+                        <>
+                          <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '8px' }}>
+                            ID: {nodeLabel} / {question.nodeType}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#374151', marginBottom: '12px' }}>
+                            説明: {descriptionText}
+                          </div>
+                        </>
+                      )}
+                      {roleQuestion ? (
+                        <>
+                          <div style={{ fontSize: '12px', color: '#374151', marginBottom: '6px' }}>
+                            該当する役職を選択してください（必須）
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                            {ROLE_OPTIONS.map((label, optionIndex) => (
+                              <label
+                                key={label}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  fontSize: '12px',
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #D1D5DB',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`question-${question.id}`}
+                                  value={optionIndex}
+                                  checked={answers[question.id]?.score === optionIndex}
+                                  onChange={() => handleRoleScoreChange(question.id, optionIndex)}
+                                />
+                                {label}
+                              </label>
+                            ))}
+                          </div>
+                          {roleOtherSelected && (
+                            <textarea
+                              placeholder="その他の内容を入力してください"
+                              value={answers[question.id]?.comment || ''}
+                              onChange={(e) => handleCommentChange(question.id, e.target.value)}
+                              rows={2}
+                              style={{
+                                width: '100%',
+                                padding: '8px',
+                                border: '1px solid #E5E7EB',
+                                borderRadius: '6px',
+                              }}
+                            />
+                          )}
+                        </>
+                      ) : scaleType === 'continuous_0_1' ? (
                         <>
                           <div style={{ fontSize: '12px', color: '#374151', marginBottom: '6px' }}>
                             0.0〜1.0の評価（必須）
@@ -355,21 +469,23 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
                       )}
                       {missingScores.has(question.id) && (
                         <div style={{ color: '#DC2626', fontSize: '12px', marginBottom: '8px' }}>
-                          {scaleType === 'continuous_0_1' ? 'スコアを入力してください' : 'スコアを選択してください'}
+                          {roleErrorMessage}
                         </div>
                       )}
-                      <textarea
-                        placeholder="コメント（任意）"
-                        value={answers[question.id]?.comment || ''}
-                        onChange={(e) => handleCommentChange(question.id, e.target.value)}
-                        rows={2}
-                        style={{
-                          width: '100%',
-                          padding: '8px',
-                          border: '1px solid #E5E7EB',
-                          borderRadius: '6px',
-                        }}
-                      />
+                      {!roleQuestion && (
+                        <textarea
+                          placeholder="コメント（任意）"
+                          value={answers[question.id]?.comment || ''}
+                          onChange={(e) => handleCommentChange(question.id, e.target.value)}
+                          rows={2}
+                          style={{
+                            width: '100%',
+                            padding: '8px',
+                            border: '1px solid #E5E7EB',
+                            borderRadius: '6px',
+                          }}
+                        />
+                      )}
                     </div>
                   </React.Fragment>
                 );

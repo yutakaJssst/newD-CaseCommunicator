@@ -24,6 +24,19 @@ const DEFAULT_EXPERT_INTRO = `現状のシステムの安全性を、厳密に�
 0.40. 根本的に疑問。議論・エビデンスの組み直しレベル
 またその採点の理由もできるだけ詳細に記入をお願いいたします。`;
 
+const ROLE_QUESTION_NODE_ID = 'meta_role';
+const ROLE_QUESTION_NODE_TYPE = 'Meta';
+const ROLE_QUESTION_TEXT = 'あなたの役職(所属)を教えて下さい。';
+const ROLE_QUESTION_OPTIONS = [
+  'アーキテクト',
+  'フェロー',
+  '事業本部',
+  'プロダクト本部',
+  'R&Dユニット',
+  '経営層（CxO）',
+  'その他',
+];
+
 const extractNodesFromSnapshot = (snapshot: any) => {
   if (!snapshot || typeof snapshot !== 'object') return [];
   if (Array.isArray(snapshot.nodes)) {
@@ -93,7 +106,21 @@ const buildDefaultQuestions = (
   const filtered = nodes.filter((node: any) => targetTypes.has(node.type));
   const leafGoals = findLeafGoalIds(nodes, links);
 
-  return filtered.map((node: any, index: number) => {
+  const roleQuestions: SurveyQuestionInput[] = [];
+  if (audience === 'general') {
+    roleQuestions.push({
+      nodeId: ROLE_QUESTION_NODE_ID,
+      nodeType: ROLE_QUESTION_NODE_TYPE,
+      questionText: ROLE_QUESTION_TEXT,
+      order: 0,
+      audience,
+      scaleMin: 0,
+      scaleMax: ROLE_QUESTION_OPTIONS.length - 1,
+      scaleType: 'likert_0_3',
+    });
+  }
+
+  const nodeQuestions = filtered.map((node: any, index: number) => {
     const nodeId = String(node.id);
     const nodeType = String(node.type);
     const isLeafGoal = nodeType === 'Goal' && leafGoals.has(nodeId);
@@ -110,6 +137,8 @@ const buildDefaultQuestions = (
       scaleType: useConfidenceScale ? 'continuous_0_1' : 'likert_0_3',
     };
   });
+
+  return [...roleQuestions, ...nodeQuestions];
 };
 
 const getProjectForEditor = async (projectId: string, userId: string) => {
