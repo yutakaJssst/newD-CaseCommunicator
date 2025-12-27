@@ -1,5 +1,6 @@
 import React from 'react';
 import { NodePalette } from './NodePalette';
+import { AiChatPanel } from './AiChatPanel';
 
 export const Sidebar: React.FC = () => {
   return (
@@ -13,7 +14,10 @@ export const Sidebar: React.FC = () => {
         flexDirection: 'column',
       }}
     >
-      <NodePalette />
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <NodePalette />
+      </div>
+      <AiChatPanel />
     </div>
   );
 };

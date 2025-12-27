@@ -8,6 +8,7 @@ import projectRoutes from './routes/projects';
 import patternRoutes from './routes/patterns';
 import surveyRoutes from './routes/surveys';
 import surveyPublicRoutes from './routes/surveysPublic';
+import aiRoutes from './routes/ai';
 import { errorHandler } from './middleware/errorHandler';
 import { setupWebSocket } from './websocket/handlers';
 import { setWebSocketServer } from './websocket/emitter';
@@ -50,6 +51,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/patterns', patternRoutes);
 app.use('/api/surveys/public', surveyPublicRoutes);
 app.use('/api/surveys', surveyRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);

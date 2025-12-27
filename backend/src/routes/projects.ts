@@ -10,6 +10,7 @@ import {
 import diagramRoutes from './diagrams';
 import memberRoutes from './projectMembers';
 import projectSurveyRoutes from './projectSurveys';
+import projectAiRoutes from './projectAi';
 
 const router = Router();
 
@@ -31,5 +32,8 @@ router.use('/:projectId/members', memberRoutes);
 
 // Nested survey routes
 router.use('/:projectId/surveys', projectSurveyRoutes);
+
+// Nested AI routes
+router.use('/:projectId/ai', projectAiRoutes);
 
 export default router;

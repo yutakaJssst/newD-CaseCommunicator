@@ -197,6 +197,32 @@ export const Canvas: React.FC = () => {
     return () => clearInterval(interval);
   }, [clearOldCursors]);
 
+  // ホイールイベント（passive: false でpreventDefaultを有効にする）
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const handleWheelEvent = (e: WheelEvent) => {
+      e.preventDefault();
+
+      // Ctrl/Cmd + ホイールでズーム
+      if (e.ctrlKey || e.metaKey) {
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        const newScale = Math.max(0.2, Math.min(3.0, viewport.scale + delta));
+        setViewport({ scale: newScale });
+      } else {
+        // 通常のホイールでスクロール（パン）
+        setViewport({
+          offsetX: viewport.offsetX - e.deltaX,
+          offsetY: viewport.offsetY - e.deltaY,
+        });
+      }
+    };
+
+    svg.addEventListener('wheel', handleWheelEvent, { passive: false });
+    return () => svg.removeEventListener('wheel', handleWheelEvent);
+  }, [viewport.scale, viewport.offsetX, viewport.offsetY, setViewport]);
+
   // SVG座標系に変換
   const screenToSvgCoordinates = (clientX: number, clientY: number) => {
     if (!svgRef.current) return { x: 0, y: 0 };
@@ -547,23 +573,6 @@ export const Canvas: React.FC = () => {
     }
   };
 
-  // ズーム & スクロール
-  const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
-    e.preventDefault();
-
-    // Ctrl/Cmd + ホイールでズーム
-    if (e.ctrlKey || e.metaKey) {
-      const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      const newScale = Math.max(0.2, Math.min(3.0, viewport.scale + delta));
-      setViewport({ scale: newScale });
-    } else {
-      // 通常のホイールでスクロール（パン）
-      setViewport({
-        offsetX: viewport.offsetX - e.deltaX,
-        offsetY: viewport.offsetY - e.deltaY,
-      });
-    }
-  };
 
   // ノードがトップゴール（親を持たないGoal）かどうかを判定
   const isTopGoal = (nodeId: string): boolean => {
@@ -647,7 +656,6 @@ export const Canvas: React.FC = () => {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
       >
         <ArrowMarker />
 
