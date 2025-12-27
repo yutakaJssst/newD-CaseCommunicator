@@ -2489,10 +2489,12 @@ export const useDiagramStore = create<DiagramStore>()(
         }
 
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        const LABEL_HEIGHT = 24; // ラベルの高さ
         nodes.forEach(node => {
           const left = node.position.x - node.size.width / 2;
           const right = node.position.x + node.size.width / 2;
-          const top = node.position.y - node.size.height / 2;
+          // ラベルがある場合はその高さも含める
+          const top = node.position.y - node.size.height / 2 - (node.label ? LABEL_HEIGHT : 0);
           const bottom = node.position.y + node.size.height / 2;
 
           minX = Math.min(minX, left);
@@ -2694,84 +2696,73 @@ export const useDiagramStore = create<DiagramStore>()(
           shape.setAttribute('stroke-width', '2');
           nodeG.appendChild(shape);
 
-          // ラベル表示（左上）
+          // ラベル表示（左上）- Node.tsxと同じスタイル
           if (node.label) {
+            const labelWidth = Math.max(40, node.label.length * 9);
             const labelBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             labelBg.setAttribute('x', (-w / 2).toString());
-            labelBg.setAttribute('y', (-h / 2 - 20).toString());
-            labelBg.setAttribute('width', '40');
-            labelBg.setAttribute('height', '18');
-            labelBg.setAttribute('fill', '#800000');
-            labelBg.setAttribute('rx', '3');
+            labelBg.setAttribute('y', (-h / 2 - 24).toString());
+            labelBg.setAttribute('width', labelWidth.toString());
+            labelBg.setAttribute('height', '20');
+            labelBg.setAttribute('fill', '#FFFFFF');
+            labelBg.setAttribute('stroke', '#D1D5DB');
+            labelBg.setAttribute('stroke-width', '1');
+            labelBg.setAttribute('rx', '4');
+            labelBg.setAttribute('ry', '4');
             nodeG.appendChild(labelBg);
 
             const labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            labelText.setAttribute('x', (-w / 2 + 20).toString());
-            labelText.setAttribute('y', (-h / 2 - 6).toString());
-            labelText.setAttribute('fill', '#FFFFFF');
-            labelText.setAttribute('font-size', '12');
-            labelText.setAttribute('font-weight', 'bold');
+            labelText.setAttribute('x', (-w / 2 + labelWidth / 2).toString());
+            labelText.setAttribute('y', (-h / 2 - 9).toString());
+            labelText.setAttribute('fill', '#374151');
+            labelText.setAttribute('font-size', '13');
+            labelText.setAttribute('font-weight', '600');
             labelText.setAttribute('text-anchor', 'middle');
             labelText.textContent = node.label;
             nodeG.appendChild(labelText);
           }
 
-          // ノード内容を表示（テキストのみ、HTMLタグを除去）
+          // ノード内容を表示（foreignObjectを使用してHTMLをそのまま表示）
           if (node.content) {
-            // HTMLタグを除去してプレーンテキストに変換
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = node.content;
-            const plainText = tempDiv.textContent || tempDiv.innerText || '';
+            const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+            fo.setAttribute('x', (-w / 2).toString());
+            fo.setAttribute('y', (-h / 2).toString());
+            fo.setAttribute('width', w.toString());
+            fo.setAttribute('height', h.toString());
 
-            if (plainText.trim()) {
-              // テキストを複数行に分割（長い場合）
-              const maxCharsPerLine = 20;
-              const words = plainText.split(/\s+/);
-              const lines: string[] = [];
-              let currentLine = '';
+            const contentDiv = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+            contentDiv.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+            contentDiv.setAttribute('style', `
+              width: 100%;
+              height: 100%;
+              padding: ${node.type === 'Module' ? '30px 10px 10px 10px' : '10px'};
+              overflow: hidden;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 14px;
+              text-align: center;
+              word-break: break-word;
+              box-sizing: border-box;
+              color: #1F2937;
+              font-family: system-ui, -apple-system, sans-serif;
+            `);
+            contentDiv.innerHTML = node.content;
+            fo.appendChild(contentDiv);
+            nodeG.appendChild(fo);
+          }
 
-              words.forEach(word => {
-                if ((currentLine + ' ' + word).length > maxCharsPerLine && currentLine.length > 0) {
-                  lines.push(currentLine);
-                  currentLine = word;
-                } else {
-                  currentLine = currentLine ? currentLine + ' ' + word : word;
-                }
-              });
-              if (currentLine) {
-                lines.push(currentLine);
-              }
-
-              // 最大5行まで表示
-              const displayLines = lines.slice(0, 5);
-              const lineHeight = 16;
-              const totalHeight = displayLines.length * lineHeight;
-              const startY = -totalHeight / 2;
-
-              displayLines.forEach((line, index) => {
-                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.setAttribute('x', '0');
-                text.setAttribute('y', (startY + index * lineHeight).toString());
-                text.setAttribute('fill', '#1F2937');
-                text.setAttribute('font-size', '14');
-                text.setAttribute('text-anchor', 'middle');
-                text.setAttribute('dominant-baseline', 'middle');
-                text.textContent = line;
-                nodeG.appendChild(text);
-              });
-
-              // 省略記号（5行を超える場合）
-              if (lines.length > 5) {
-                const ellipsis = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                ellipsis.setAttribute('x', '0');
-                ellipsis.setAttribute('y', (startY + 5 * lineHeight).toString());
-                ellipsis.setAttribute('fill', '#1F2937');
-                ellipsis.setAttribute('font-size', '14');
-                ellipsis.setAttribute('text-anchor', 'middle');
-                ellipsis.textContent = '...';
-                nodeG.appendChild(ellipsis);
-              }
-            }
+          // Assumption/Justification添え字
+          if (node.type === 'Assumption' || node.type === 'Justification') {
+            const suffix = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            suffix.setAttribute('x', (w / 2 - 10).toString());
+            suffix.setAttribute('y', (h / 2 - 5).toString());
+            suffix.setAttribute('fill', node.type === 'Assumption' ? '#DC2626' : '#2563EB');
+            suffix.setAttribute('font-size', '16');
+            suffix.setAttribute('font-weight', 'bold');
+            suffix.setAttribute('text-anchor', 'middle');
+            suffix.textContent = node.type === 'Assumption' ? 'A' : 'J';
+            nodeG.appendChild(suffix);
           }
 
           g.appendChild(nodeG);
