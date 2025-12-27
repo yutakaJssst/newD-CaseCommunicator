@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface ContextMenuProps {
   x: number;
@@ -29,6 +30,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   isTopGoal = false,
   hasSelection = false,
 }) => {
+  const { t } = useTranslation();
+
   useEffect(() => {
     const handleClick = () => onClose();
     const handleEscape = (e: KeyboardEvent) => {
@@ -82,7 +85,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           e.currentTarget.style.backgroundColor = 'transparent';
         }}
       >
-        子ノードにリンク
+        {t('canvas.contextMenu.linkToChild')}
       </div>
       {onCopyTree && (
         <div
@@ -107,7 +110,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             e.currentTarget.style.backgroundColor = 'transparent';
           }}
         >
-          ツリーをコピー
+          {t('canvas.contextMenu.copyTree')}
         </div>
       )}
       {isGoalNode && onConvertToModule && (
@@ -133,7 +136,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             e.currentTarget.style.backgroundColor = 'transparent';
           }}
         >
-          モジュールにする
+          {t('canvas.contextMenu.convertToModule')}
         </div>
       )}
       {isTopGoal && onOpenParentModule && (
@@ -159,7 +162,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             e.currentTarget.style.backgroundColor = 'transparent';
           }}
         >
-          親モジュールを開く
+          {t('canvas.contextMenu.openParentModule')}
         </div>
       )}
       {hasSelection && onSaveAsPattern && (
@@ -185,7 +188,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             e.currentTarget.style.backgroundColor = 'transparent';
           }}
         >
-          パターンとして保存
+          {t('canvas.contextMenu.saveAsPattern')}
         </div>
       )}
       <div
@@ -209,7 +212,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           e.currentTarget.style.backgroundColor = 'transparent';
         }}
       >
-        削除
+        {t('common.delete')}
       </div>
     </div>
   );

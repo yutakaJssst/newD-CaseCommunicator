@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ValidationResult, ValidationError, ValidationWarning } from '../../utils/validation';
 import { useDiagramStore } from '../../stores/diagramStore';
 
@@ -8,6 +9,7 @@ interface ValidationModalProps {
 }
 
 export const ValidationModal: React.FC<ValidationModalProps> = ({ result, onClose }) => {
+  const { t } = useTranslation();
   const { nodes, selectNode, clearSelection, setViewport, canvasState } = useDiagramStore();
 
   const handleNodeClick = (nodeIds: string[] | undefined) => {
@@ -92,7 +94,7 @@ export const ValidationModal: React.FC<ValidationModalProps> = ({ result, onClos
                   textDecoration: 'underline',
                 }}
               >
-                該当ノード: {getNodeLabels(item.nodeIds)}
+                {t('validation.affectedNodes')}: {getNodeLabels(item.nodeIds)}
               </button>
             )}
           </div>
@@ -133,7 +135,7 @@ export const ValidationModal: React.FC<ValidationModalProps> = ({ result, onClos
         {/* ヘッダー */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600', color: '#1F2937' }}>
-            GSN検証結果
+            {t('validation.title')}
           </h2>
           <button
             onClick={onClose}
@@ -167,10 +169,10 @@ export const ValidationModal: React.FC<ValidationModalProps> = ({ result, onClos
             </span>
             <div>
               <div style={{ fontWeight: '600', color: result.isValid ? '#065F46' : '#991B1B', fontSize: '16px' }}>
-                {result.isValid ? '検証に合格しました' : '検証エラーがあります'}
+                {result.isValid ? t('validation.passed') : t('validation.failed')}
               </div>
               <div style={{ color: '#6B7280', fontSize: '14px', marginTop: '4px' }}>
-                エラー: {result.errors.length}件 / 警告: {result.warnings.length}件
+                {t('validation.errors')}: {result.errors.length} / {t('validation.warnings')}: {result.warnings.length}
               </div>
             </div>
           </div>
@@ -180,7 +182,7 @@ export const ValidationModal: React.FC<ValidationModalProps> = ({ result, onClos
         {result.errors.length > 0 && (
           <div style={{ marginBottom: '20px' }}>
             <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#DC2626', marginBottom: '12px', textTransform: 'uppercase' }}>
-              エラー ({result.errors.length})
+              {t('validation.errors')} ({result.errors.length})
             </h3>
             {result.errors.map((error, index) => renderItem(error, index))}
           </div>
@@ -190,7 +192,7 @@ export const ValidationModal: React.FC<ValidationModalProps> = ({ result, onClos
         {result.warnings.length > 0 && (
           <div style={{ marginBottom: '20px' }}>
             <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#D97706', marginBottom: '12px', textTransform: 'uppercase' }}>
-              警告 ({result.warnings.length})
+              {t('validation.warnings')} ({result.warnings.length})
             </h3>
             {result.warnings.map((warning, index) => renderItem(warning, index))}
           </div>
@@ -199,7 +201,7 @@ export const ValidationModal: React.FC<ValidationModalProps> = ({ result, onClos
         {/* 全て合格の場合 */}
         {result.isValid && result.warnings.length === 0 && (
           <div style={{ textAlign: 'center', padding: '20px', color: '#6B7280' }}>
-            全てのチェックに合格しました。
+            {t('validation.noIssues')}
           </div>
         )}
 
@@ -218,7 +220,7 @@ export const ValidationModal: React.FC<ValidationModalProps> = ({ result, onClos
               fontSize: '14px',
             }}
           >
-            閉じる
+            {t('common.close')}
           </button>
         </div>
       </div>

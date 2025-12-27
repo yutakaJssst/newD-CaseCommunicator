@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   surveysApi,
   type Survey,
@@ -19,25 +20,15 @@ interface SurveyManagerModalProps {
   projectId: string;
 }
 
-const DEFAULT_EXPERT_INTRO = `現状のシステムの安全性を、厳密に測定するための質問です。議論の基盤になるGSNの末端のゴールノードと戦略ノードについて専門家の立場から回答をお願いいたします。
-
-それぞれの質問では0から1点の値(確信値)を入力していただきます。以下の基準で回答してください。0と1は使用しないでください。
-0.98 ほぼ標準・教科書どおり。抜けや疑問点はほとんどない
-0.90 概ね妥当。多少気になる点はあるが実務上は許容
-0.80 妥当だが弱点あり。前提依存・カバレッジ不足が気になる
-0.70  かなり弱い。重要な前提の抜けや想定外シナリオの懸念
-0.40. 根本的に疑問。議論・エビデンスの組み直しレベル
-またその採点の理由もできるだけ詳細に記入をお願いいたします。`;
-
-const ROLE_OPTIONS = [
-  'アーキテクト',
-  'フェロー',
-  '事業本部',
-  'プロダクト本部',
-  'R&Dユニット',
-  '経営層（CxO）',
-  'その他',
-];
+const ROLE_OPTION_KEYS = [
+  'architect',
+  'fellow',
+  'business',
+  'product',
+  'rnd',
+  'executive',
+  'other',
+] as const;
 
 const isRoleQuestion = (question: SurveyQuestion) =>
   question.nodeId === 'meta_role' && question.nodeType === 'Meta';
@@ -82,6 +73,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   onClose,
   projectId,
 }) => {
+  const { t } = useTranslation();
   const exportProjectData = useDiagramStore((state) => state.exportProjectData);
   const currentDiagramDbId = useDiagramStore((state) => state.currentDiagramDbId);
   const projectRole = useDiagramStore((state) => state.projectRole);
@@ -134,15 +126,16 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     const currentDescription = selectedSurvey.description ?? '';
     const currentImage = selectedSurvey.publicImageUrl ?? '';
     const hasExpertIntro = selectedSurvey.mode === 'combined' || selectedSurvey.audience === 'expert';
+    const defaultExpertIntro = t('survey.publicPage.expertIntro');
     const currentExpertIntro = hasExpertIntro
-      ? selectedSurvey.expertIntro ?? DEFAULT_EXPERT_INTRO
+      ? selectedSurvey.expertIntro ?? defaultExpertIntro
       : '';
     return (
       editDescription !== currentDescription ||
       editImageUrl !== currentImage ||
       editExpertIntro !== currentExpertIntro
     );
-  }, [editDescription, editImageUrl, editExpertIntro, selectedSurvey]);
+  }, [editDescription, editImageUrl, editExpertIntro, selectedSurvey, t]);
 
   const nodeMap = useMemo(() => {
     const snapshot = normalizeSnapshot(selectedSurvey?.gsnSnapshot);
@@ -442,6 +435,14 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     return text;
   };
 
+  const getRoleOptions = useCallback(() => {
+    return ROLE_OPTION_KEYS.map((key) => t(`survey.publicPage.roleOptions.${key}`));
+  }, [t]);
+
+  const getDefaultExpertIntro = useCallback(() => {
+    return t('survey.publicPage.expertIntro');
+  }, [t]);
+
   const readImageFile = (file: File, onLoad: (dataUrl: string) => void) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -449,10 +450,10 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       if (result) {
         onLoad(result);
       } else {
-        setError('画像の読み込みに失敗しました');
+        setError(t('survey.imageReadError'));
       }
     };
-    reader.onerror = () => setError('画像の読み込みに失敗しました');
+    reader.onerror = () => setError(t('survey.imageReadError'));
     reader.readAsDataURL(file);
   };
 
@@ -468,29 +469,29 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       setSurveys(list);
       setSelectedSurvey((prev) => (prev ? prev : list[0] ?? null));
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, 'アンケートの読み込みに失敗しました'));
+      setError(getApiErrorMessage(err, t('survey.loadError')));
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, t]);
 
   const loadSurveyDetail = useCallback(async (surveyId: string) => {
     try {
       const response = await surveysApi.getSurvey(surveyId);
       setSelectedSurvey(response.survey);
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, 'アンケートの取得に失敗しました'));
+      setError(getApiErrorMessage(err, t('survey.fetchError')));
     }
-  }, []);
+  }, [t]);
 
   const loadAnalytics = useCallback(async (surveyId: string) => {
     try {
       const response = await surveysApi.getSurveyAnalytics(surveyId);
       setAnalytics(response);
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, '集計の取得に失敗しました'));
+      setError(getApiErrorMessage(err, t('survey.analyticsError')));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (isOpen && projectId) {
@@ -517,8 +518,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     const hasExpertIntro = selectedSurvey.mode === 'combined' || selectedSurvey.audience === 'expert';
     setEditDescription(selectedSurvey.description ?? '');
     setEditImageUrl(selectedSurvey.publicImageUrl ?? '');
-    setEditExpertIntro(hasExpertIntro ? selectedSurvey.expertIntro ?? DEFAULT_EXPERT_INTRO : '');
-  }, [selectedSurvey]);
+    setEditExpertIntro(hasExpertIntro ? selectedSurvey.expertIntro ?? getDefaultExpertIntro() : '');
+  }, [selectedSurvey, getDefaultExpertIntro]);
 
   useEffect(() => {
     if (!isOpen || !selectedSurvey || !diagramData) {
@@ -567,7 +568,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
         );
       } catch (err: unknown) {
         if (!canceled) {
-          setError(getApiErrorMessage(err, '合意形成点の計算に失敗しました'));
+          setError(getApiErrorMessage(err, t('survey.consensusError')));
           setConsensusScore(null);
           setConfidenceScore(null);
           setConsensusByNode(new Map());
@@ -625,7 +626,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
         }
       } catch (err: unknown) {
         if (active) {
-          setError(getApiErrorMessage(err, '集計の取得に失敗しました'));
+          setError(getApiErrorMessage(err, t('survey.analyticsError')));
         }
       }
     };
@@ -662,7 +663,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       await loadSurveys();
       setSelectedSurvey(response.survey);
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, 'アンケートの作成に失敗しました'));
+      setError(getApiErrorMessage(err, t('survey.createError')));
     } finally {
       setIsCreating(false);
     }
@@ -683,7 +684,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       setSelectedSurvey(response.survey);
       await loadSurveys();
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, '説明の更新に失敗しました'));
+      setError(getApiErrorMessage(err, t('survey.updateError')));
     } finally {
       setIsSaving(false);
     }
@@ -693,7 +694,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     const file = event.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      setError('画像は10MBまでです');
+      setError(t('survey.imageSizeLimit'));
       event.target.value = '';
       return;
     }
@@ -735,8 +736,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
           const question = questionMap.get(answer.questionId);
           const roleQuestion = question ? isRoleQuestion(question) : false;
           const node = question ? nodeMap.get(question.nodeId) : undefined;
-          const nodeLabel = roleQuestion ? '役職(所属)' : node?.label || question?.nodeId || '';
-          const nodeText = roleQuestion ? ROLE_OPTIONS.join(' / ') : stripHtml(node?.content) || '';
+          const nodeLabel = roleQuestion ? t('survey.role') : node?.label || question?.nodeId || '';
+          const nodeText = roleQuestion ? getRoleOptions().join(' / ') : stripHtml(node?.content) || '';
           rows.push([
             responseEntry.id,
             responseEntry.submittedAt,
@@ -767,7 +768,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       link.click();
       URL.revokeObjectURL(url);
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, 'CSVの出力に失敗しました'));
+      setError(getApiErrorMessage(err, t('survey.csvError')));
     } finally {
       setIsExporting(false);
     }
@@ -780,7 +781,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       setSelectedSurvey(response.survey);
       await loadSurveys();
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, '公開に失敗しました'));
+      setError(getApiErrorMessage(err, t('survey.publishError')));
     }
   };
 
@@ -791,7 +792,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       setSelectedSurvey(response.survey);
       await loadSurveys();
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, '終了に失敗しました'));
+      setError(getApiErrorMessage(err, t('survey.closeError')));
     }
   };
 
@@ -801,7 +802,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       await navigator.clipboard.writeText(url);
       setCopiedUrl(url);
     } catch {
-      setError('URLのコピーに失敗しました');
+      setError(t('survey.copyUrlError'));
     }
   };
 
@@ -853,7 +854,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
           }}
         >
           <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
-            アンケート管理
+            {t('survey.title')}
           </h2>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             {canEdit && (
@@ -869,7 +870,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                   color: '#2563EB',
                 }}
               >
-                ＋ 新規作成
+                ＋ {t('survey.create')}
               </button>
             )}
             <button
@@ -902,7 +903,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
               <LoadingState />
             ) : surveys.length === 0 ? (
               <div style={{ padding: '16px', color: '#6B7280' }}>
-                まだアンケートがありません。
+                {t('survey.noSurveys')}
               </div>
             ) : (
               surveys.map((survey) => (
@@ -919,11 +920,11 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                 >
                   <div style={{ fontWeight: 600, fontSize: '14px' }}>{survey.title}</div>
                   <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>
-                    {survey.status} · {survey.mode === 'combined'
-                      ? '統合'
+                    {t(`survey.status.${survey.status}`)} · {survey.mode === 'combined'
+                      ? t('survey.combined')
                       : survey.audience === 'expert'
-                        ? '専門家'
-                        : '非専門家'} · 回答 {survey.responseCount ?? 0} 件
+                        ? t('survey.expert')
+                        : t('survey.general')} · {t('survey.responseCount', { count: survey.responseCount ?? 0 })}
                   </div>
                 </div>
               ))
@@ -932,7 +933,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
 
           <div style={{ flex: 1, padding: '16px 20px', overflowY: 'auto' }}>
             {!selectedSurvey ? (
-              <div style={{ color: '#6B7280' }}>アンケートを選択してください。</div>
+              <div style={{ color: '#6B7280' }}>{t('survey.selectSurvey')}</div>
             ) : (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px' }}>
@@ -944,11 +945,11 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                       </p>
                     )}
                     <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '8px' }}>
-                      状態: {selectedSurvey.status} ・ 対象: {selectedSurvey.mode === 'combined'
-                        ? '統合'
+                      {t('survey.statusLabel')}: {t(`survey.status.${selectedSurvey.status}`)} ・ {t('survey.audienceLabel')}: {selectedSurvey.mode === 'combined'
+                        ? t('survey.combined')
                         : selectedSurvey.audience === 'expert'
-                          ? '専門家'
-                          : '非専門家'}
+                          ? t('survey.expert')
+                          : t('survey.general')}
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -965,7 +966,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                           fontSize: '12px',
                         }}
                       >
-                        公開する
+                        {t('survey.publish')}
                       </button>
                     )}
                     {canEdit && selectedSurvey.status === 'published' && (
@@ -981,7 +982,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                           fontSize: '12px',
                         }}
                       >
-                        公開終了
+                        {t('survey.close')}
                       </button>
                     )}
                   </div>
@@ -997,13 +998,13 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                   }}
                 >
                   <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-                    回答者向けの説明・画像
+                    {t('survey.respondentDescription')}
                   </div>
                   <textarea
                     value={editDescription}
                     onChange={(e) => setEditDescription(e.target.value)}
                     rows={3}
-                    placeholder="アンケートの目的や注意事項を記載できます"
+                    placeholder={t('survey.descriptionPlaceholder')}
                     disabled={!canEdit}
                     style={{
                       width: '100%',
@@ -1017,13 +1018,13 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                   {(selectedSurvey.mode === 'combined' || selectedSurvey.audience === 'expert') && (
                     <>
                       <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-                        専門家向け Confidence 説明
+                        {t('survey.expertConfidenceLabel')}
                       </div>
                       <textarea
                         value={editExpertIntro}
                         onChange={(e) => setEditExpertIntro(e.target.value)}
                         rows={8}
-                        placeholder="専門家向けのConfidence説明文"
+                        placeholder={t('survey.expertConfidencePlaceholder')}
                         disabled={!canEdit}
                         style={{
                           width: '100%',
@@ -1035,14 +1036,14 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                         }}
                       />
                       <div style={{ fontSize: '11px', color: '#6B7280', marginBottom: '8px' }}>
-                        未入力の場合は既定の説明文が表示されます
+                        {t('survey.expertConfidenceHint')}
                       </div>
                     </>
                   )}
                   <input
                     value={editImageUrl}
                     onChange={(e) => setEditImageUrl(e.target.value)}
-                    placeholder="画像URL または data:image/..."
+                    placeholder={t('survey.imageUrlPlaceholder')}
                     disabled={!canEdit}
                     style={{
                       width: '100%',
@@ -1060,13 +1061,13 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                     disabled={!canEdit}
                   />
                   <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '4px' }}>
-                    画像は10MBまで
+                    {t('survey.imageSizeLimit')}
                   </div>
                   {editImageUrl && (
                     <div style={{ marginTop: '8px' }}>
                       <img
                         src={editImageUrl}
-                        alt="回答者向け画像"
+                        alt={t('survey.respondentImage')}
                         style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '6px' }}
                       />
                     </div>
@@ -1085,7 +1086,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                           fontSize: '12px',
                         }}
                       >
-                        画像をクリア
+                        {t('survey.clearImage')}
                       </button>
                       <button
                         type="button"
@@ -1101,7 +1102,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                           fontSize: '12px',
                         }}
                       >
-                        {isSaving ? '保存中...' : '保存'}
+                        {isSaving ? t('common.loading') : t('common.save')}
                       </button>
                     </div>
                   )}
@@ -1136,7 +1137,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                         cursor: 'pointer',
                       }}
                     >
-                      {copiedUrl === publicUrls.single ? 'コピー済み' : 'コピー'}
+                      {copiedUrl === publicUrls.single ? t('survey.copied') : t('survey.copyUrl')}
                     </button>
                   </div>
                 )}
@@ -1170,7 +1171,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                               wordBreak: 'break-all',
                             }}
                           >
-                            非専門家用: {publicUrls.general}
+                            {t('survey.general')}: {publicUrls.general}
                           </span>
                           <button
                             onClick={() => handleCopyUrl(publicUrls.general)}
@@ -1184,7 +1185,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                               cursor: 'pointer',
                             }}
                           >
-                            {copiedUrl === publicUrls.general ? 'コピー済み' : 'コピー'}
+                            {copiedUrl === publicUrls.general ? t('survey.copied') : t('survey.copyUrl')}
                           </button>
                         </div>
                       )}
@@ -1208,7 +1209,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                               wordBreak: 'break-all',
                             }}
                           >
-                            専門家用: {publicUrls.expert}
+                            {t('survey.expert')}: {publicUrls.expert}
                           </span>
                           <button
                             onClick={() => handleCopyUrl(publicUrls.expert)}
@@ -1222,7 +1223,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                               cursor: 'pointer',
                             }}
                           >
-                            {copiedUrl === publicUrls.expert ? 'コピー済み' : 'コピー'}
+                            {copiedUrl === publicUrls.expert ? t('survey.copied') : t('survey.copyUrl')}
                           </button>
                         </div>
                       )}
@@ -1230,7 +1231,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                   )}
 
                 <div style={{ marginTop: '24px' }}>
-                  <h4 style={{ margin: '0 0 8px 0' }}>質問一覧</h4>
+                  <h4 style={{ margin: '0 0 8px 0' }}>{t('survey.questionList')}</h4>
                   {selectedSurvey.questions?.length ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {selectedSurvey.questions.map((question) => {
@@ -1239,7 +1240,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                         const descriptionText = stripHtml(node?.content) || '-';
                         const nodeLabel = node?.label || '-';
                         const audienceLabel =
-                          question.audience === 'expert' ? '専門家' : '非専門家';
+                          question.audience === 'expert' ? t('survey.expert') : t('survey.general');
                         return (
                         <div
                           key={question.id}
@@ -1255,21 +1256,21 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                           {roleQuestion ? (
                             <>
                               <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                                形式: 役職選択
+                                {t('survey.questionFormat')}: {t('survey.roleSelection')}
                                 {question.audience ? ` ・ ${audienceLabel}` : ''}
                               </div>
                               <div style={{ fontSize: '12px', color: '#374151', marginTop: '4px' }}>
-                                選択肢: {ROLE_OPTIONS.join(' / ')}
+                                {t('survey.options')}: {getRoleOptions().join(' / ')}
                               </div>
                             </>
                           ) : (
                             <>
                               <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                                ID: {nodeLabel} / {question.nodeType}
+                                {t('survey.nodeId')}: {nodeLabel} / {question.nodeType}
                                 {question.audience ? ` ・ ${audienceLabel}` : ''}
                               </div>
                               <div style={{ fontSize: '12px', color: '#374151', marginTop: '4px' }}>
-                                文: {descriptionText}
+                                {t('survey.nodeText')}: {descriptionText}
                               </div>
                             </>
                           )}
@@ -1279,7 +1280,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                     </div>
                   ) : (
                     <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                      質問がありません。
+                      {t('survey.noQuestions')}
                     </div>
                   )}
                 </div>
@@ -1293,7 +1294,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                       marginBottom: '8px',
                     }}
                   >
-                    <h4 style={{ margin: 0 }}>集計結果</h4>
+                    <h4 style={{ margin: 0 }}>{t('survey.analytics')}</h4>
                     <button
                       type="button"
                       onClick={handleExportCsv}
@@ -1307,7 +1308,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                         fontSize: '12px',
                       }}
                     >
-                      {isExporting ? '出力中...' : 'CSV出力'}
+                      {isExporting ? t('survey.exporting') : t('survey.exportCsv')}
                     </button>
                   </div>
                   {!analytics ? (
@@ -1315,7 +1316,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                   ) : (
                     <>
                       <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '8px' }}>
-                        回答数: {analytics.responseCount}
+                        {t('survey.responses')}: {analytics.responseCount}
                       </div>
                       <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                         <div
@@ -1331,7 +1332,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                           }}
                         >
                           <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 600 }}>
-                            合意形成点
+                            {t('survey.consensusScore')}
                           </div>
                           <div style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
                             {isConsensusLoading
@@ -1354,7 +1355,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                           }}
                         >
                           <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 600 }}>
-                            技術的信頼度
+                            {t('survey.technicalConfidence')}
                           </div>
                           <div style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
                             {isConsensusLoading
@@ -1372,11 +1373,11 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                       </div>
                       <div style={{ marginTop: '16px' }}>
                         <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-                          ノード別 合意形成/Confidence
+                          {t('survey.nodeConsensusConfidence')}
                         </div>
                         {consensusNodes.length === 0 ? (
                           <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                            表示できるノードがありません。
+                            {t('survey.noNodesAvailable')}
                           </div>
                         ) : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1415,7 +1416,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                                     {node.type}/{nodeLabel}
                                   </div>
                                   <div style={{ fontSize: '12px', color: '#111827' }}>
-                                    合意形成: {consensusText} ・ Confidence: {confidenceText}
+                                    {t('survey.consensus')}: {consensusText} ・ {t('survey.confidence')}: {confidenceText}
                                     {varianceText ? ` (${varianceText})` : ''}
                                   </div>
                                 </div>
@@ -1428,9 +1429,9 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                         {analytics.stats.map((stat) => {
                           const node = nodeMap.get(stat.nodeId);
                           const roleStat = stat.nodeId === 'meta_role' && stat.nodeType === 'Meta';
-                          const nodeLabel = roleStat ? '役職(所属)' : node?.label || stat.nodeId;
+                          const nodeLabel = roleStat ? t('survey.role') : node?.label || stat.nodeId;
                           const audienceLabel =
-                            stat.audience === 'expert' ? '専門家' : '非専門家';
+                            stat.audience === 'expert' ? t('survey.expert') : t('survey.general');
                           const averageText =
                             stat.averageScore === null ? '-' : stat.averageScore.toFixed(2);
                           return (
@@ -1451,8 +1452,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                               </div>
                               <div style={{ fontSize: '12px', color: '#111827' }}>
                                 {roleStat
-                                  ? `回答: ${stat.count}件`
-                                  : `平均: ${averageText} (${stat.count}件)`}
+                                  ? `${t('survey.count')}: ${stat.count}`
+                                  : `${t('survey.average')}: ${averageText} (${stat.count})`}
                               </div>
                             </div>
                           );
@@ -1493,11 +1494,11 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ marginTop: 0 }}>アンケート作成</h3>
+            <h3 style={{ marginTop: 0 }}>{t('survey.create')}</h3>
             <form onSubmit={handleCreate}>
               <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>
-                  タイトル
+                  {t('survey.surveyTitle')}
                 </label>
                 <input
                   value={title}
@@ -1513,7 +1514,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
               </div>
               <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>
-                  形式
+                  {t('survey.format')}
                 </label>
                 <select
                   value={mode}
@@ -1531,14 +1532,14 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                     borderRadius: '6px',
                   }}
                 >
-                  <option value="single">単独（1つの対象）</option>
-                  <option value="combined">統合（非専門家 + 専門家）</option>
+                  <option value="single">{t('survey.formatSingle')}</option>
+                  <option value="combined">{t('survey.formatCombined')}</option>
                 </select>
               </div>
               {mode === 'single' ? (
                 <div style={{ marginBottom: '12px' }}>
                   <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>
-                    対象
+                    {t('survey.audienceLabel')}
                   </label>
                   <select
                     value={audience}
@@ -1550,21 +1551,21 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                       borderRadius: '6px',
                     }}
                   >
-                    <option value="general">非専門家（合意形成）</option>
-                    <option value="expert">専門家（Confidence）</option>
+                    <option value="general">{t('survey.audienceGeneralDescription')}</option>
+                    <option value="expert">{t('survey.audienceExpertDescription')}</option>
                   </select>
                   <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '4px' }}>
-                    専門家向けは Strategy/Leaf Goal が0〜1、その他のGoalは0〜3で回答します。
+                    {t('survey.expertScaleHint')}
                   </div>
                 </div>
               ) : (
                 <div style={{ marginBottom: '12px', fontSize: '11px', color: '#6B7280' }}>
-                  統合アンケートは非専門家（0〜3）と専門家（0〜1/0〜3）の質問を同一IDに作成します。
+                  {t('survey.combinedDescription')}
                 </div>
               )}
               <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>
-                  説明（回答者向け）
+                  {t('survey.descriptionLabel')}
                 </label>
                 <textarea
                   value={description}
@@ -1590,7 +1591,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                     cursor: 'pointer',
                   }}
                 >
-                  キャンセル
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -1604,7 +1605,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                     cursor: 'pointer',
                   }}
                 >
-                  {isCreating ? '作成中...' : '作成'}
+                  {isCreating ? t('survey.creating') : t('survey.createButton')}
                 </button>
               </div>
             </form>

@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
+import { LanguageSwitcher } from '../Header/LanguageSwitcher';
 
 interface RegisterFormProps {
   onSwitchToLogin: () => void;
 }
 
 export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -21,12 +24,12 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
 
     // Validation
     if (password.length < 6) {
-      setValidationError('パスワードは6文字以上で入力してください');
+      setValidationError(t('auth.passwordMinLength'));
       return;
     }
 
     if (password !== confirmPassword) {
-      setValidationError('パスワードが一致しません');
+      setValidationError(t('auth.passwordMismatch'));
       return;
     }
 
@@ -50,13 +53,21 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
       margin: '0 auto',
       padding: '40px 20px',
     }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        marginBottom: '16px',
+      }}>
+        <LanguageSwitcher />
+      </div>
+
       <h2 style={{
         fontSize: '24px',
         fontWeight: 'bold',
         marginBottom: '24px',
         textAlign: 'center',
       }}>
-        GSN Editor - 新規登録
+        GSN Editor - {t('auth.register')}
       </h2>
 
       <form onSubmit={handleSubmit} style={{
@@ -85,7 +96,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
             fontSize: '14px',
             fontWeight: '500',
           }}>
-            メールアドレス *
+            {t('auth.email')} *
           </label>
           <input
             type="email"
@@ -109,7 +120,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
             fontSize: '14px',
             fontWeight: '500',
           }}>
-            パスワード *
+            {t('auth.password')} *
           </label>
           <input
             type="password"
@@ -133,7 +144,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
             fontSize: '14px',
             fontWeight: '500',
           }}>
-            パスワード（確認） *
+            {t('auth.confirmPassword')} *
           </label>
           <input
             type="password"
@@ -157,13 +168,12 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
             fontSize: '14px',
             fontWeight: '500',
           }}>
-            名前（任意）
+            {t('auth.firstName')} ({t('common.optional')})
           </label>
           <input
             type="text"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
-            placeholder="太郎"
             style={{
               width: '100%',
               padding: '8px 12px',
@@ -181,13 +191,12 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
             fontSize: '14px',
             fontWeight: '500',
           }}>
-            名字（任意）
+            {t('auth.lastName')} ({t('common.optional')})
           </label>
           <input
             type="text"
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
-            placeholder="山田"
             style={{
               width: '100%',
               padding: '8px 12px',
@@ -213,7 +222,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
             cursor: isLoading ? 'not-allowed' : 'pointer',
           }}
         >
-          {isLoading ? '登録中...' : '登録'}
+          {isLoading ? t('common.loading') : t('auth.registerButton')}
         </button>
 
         <div style={{
@@ -221,7 +230,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
           textAlign: 'center',
           fontSize: '14px',
         }}>
-          すでにアカウントをお持ちですか？{' '}
+          {t('auth.hasAccount')}{' '}
           <button
             type="button"
             onClick={onSwitchToLogin}
@@ -233,7 +242,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
               textDecoration: 'underline',
             }}
           >
-            ログイン
+            {t('auth.login')}
           </button>
         </div>
       </form>

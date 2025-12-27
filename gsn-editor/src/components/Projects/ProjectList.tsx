@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { projectAPI } from '../../services/api';
 import type { Project } from '../../services/api';
 import ProjectMembers from './ProjectMembers';
@@ -25,6 +26,7 @@ const getApiErrorMessage = (err: unknown, fallback: string) => {
 };
 
 export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user, onLogout }) => {
+  const { t, i18n } = useTranslation();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
       const response = await projectAPI.getAll();
       setProjects(response.projects);
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, 'プロジェクトの読み込みに失敗しました'));
+      setError(getApiErrorMessage(err, t('projects.loadError')));
     } finally {
       setIsLoading(false);
     }
@@ -67,14 +69,14 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
       // 新規作成したプロジェクトを自動的に開く
       onSelectProject(response.project.id);
     } catch (err: unknown) {
-      alert(getApiErrorMessage(err, 'プロジェクトの作成に失敗しました'));
+      alert(getApiErrorMessage(err, t('projects.createError')));
     } finally {
       setIsCreating(false);
     }
   };
 
   const handleDeleteProject = async (projectId: string, projectTitle: string) => {
-    if (!confirm(`「${projectTitle}」を削除しますか？この操作は取り消せません。`)) {
+    if (!confirm(t('projects.deleteConfirm', { title: projectTitle }))) {
       return;
     }
 
@@ -82,13 +84,14 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
       await projectAPI.delete(projectId);
       setProjects((prevProjects) => prevProjects.filter((project) => project.id !== projectId));
     } catch (err: unknown) {
-      alert(getApiErrorMessage(err, 'プロジェクトの削除に失敗しました'));
+      alert(getApiErrorMessage(err, t('projects.deleteError')));
     }
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('ja-JP', {
+    const locale = i18n.language === 'ja' ? 'ja-JP' : 'en-US';
+    return date.toLocaleDateString(locale, {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -125,7 +128,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
             fontWeight: 'bold',
             color: '#374151',
           }}>
-            マイプロジェクト
+            {t('projects.myProjects')}
           </h1>
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
             {user && onLogout && (
@@ -161,7 +164,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
                     e.currentTarget.style.borderColor = '#D1D5DB';
                   }}
                 >
-                  ログアウト
+                  {t('auth.logout')}
                 </button>
               </>
             )}
@@ -181,7 +184,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2563EB')}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#3B82F6')}
             >
-              ＋ 新規プロジェクト
+              ＋ {t('projects.create')}
             </button>
           </div>
         </div>
@@ -201,13 +204,13 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
               color: '#9CA3AF',
               marginBottom: '16px',
             }}>
-              プロジェクトがありません
+              {t('projects.noProjects')}
             </p>
             <p style={{
               fontSize: '14px',
               color: '#9CA3AF',
             }}>
-              「新規プロジェクト」ボタンから最初のプロジェクトを作成しましょう
+              {t('projects.createFirstProject')}
             </p>
           </div>
         ) : (
@@ -267,7 +270,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
                   color: '#9CA3AF',
                   marginBottom: '12px',
                 }}>
-                  更新: {formatDate(project.updatedAt)}
+                  {t('projects.updated')}: {formatDate(project.updatedAt)}
                 </div>
                 <div style={{
                   display: 'flex',
@@ -297,8 +300,8 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
                       }}
                       title={
                         project.members && project.members.length > 0
-                          ? `オーナー: ${project.owner.email}\nメンバー: ${project.members.map((m) => m.user.email).join(', ')}`
-                          : `オーナー: ${project.owner.email}\n（共有メンバーなし）`
+                          ? `${t('projects.owner')}: ${project.owner.email}\n${t('projects.members')}: ${project.members.map((m) => m.user.email).join(', ')}`
+                          : `${t('projects.owner')}: ${project.owner.email}\n${t('projects.noSharedMembers')}`
                       }
                     >
                       👥 {(project.members?.length || 0) + 1}
@@ -311,7 +314,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
                           borderRadius: '4px',
                           fontWeight: '600',
                         }}>
-                          オーナー
+                          {t('projects.owner')}
                         </span>
                       )}
                     </div>
@@ -342,7 +345,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
                         e.currentTarget.style.backgroundColor = 'transparent';
                       }}
                     >
-                      メンバー
+                      {t('projects.members')}
                     </button>
                     <button
                       onClick={(e) => {
@@ -366,7 +369,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
                         e.currentTarget.style.backgroundColor = 'transparent';
                       }}
                     >
-                      削除
+                      {t('common.delete')}
                     </button>
                   </div>
                 </div>
@@ -409,7 +412,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
                 marginBottom: '24px',
                 color: '#374151',
               }}>
-                新規プロジェクト作成
+                {t('projects.createNew')}
               </h2>
               <form onSubmit={handleCreateProject}>
                 <div style={{ marginBottom: '20px' }}>
@@ -420,7 +423,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
                     fontWeight: '500',
                     color: '#374151',
                   }}>
-                    プロジェクト名 *
+                    {t('projects.projectName')} *
                   </label>
                   <input
                     type="text"
@@ -448,7 +451,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
                     fontWeight: '500',
                     color: '#374151',
                   }}>
-                    説明（任意）
+                    {t('projects.description')} ({t('common.optional')})
                   </label>
                   <textarea
                     value={newProjectDescription}
@@ -486,7 +489,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
                       cursor: 'pointer',
                     }}
                   >
-                    キャンセル
+                    {t('common.cancel')}
                   </button>
                   <button
                     type="submit"
@@ -502,7 +505,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
                       cursor: isCreating ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    {isCreating ? '作成中...' : '作成'}
+                    {isCreating ? t('projects.creating') : t('projects.createButton')}
                   </button>
                 </div>
               </form>

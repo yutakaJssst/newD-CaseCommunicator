@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
+import { LanguageSwitcher } from '../Header/LanguageSwitcher';
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { login, isLoading, error, clearError } = useAuthStore();
@@ -26,13 +29,21 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
       margin: '0 auto',
       padding: '40px 20px',
     }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        marginBottom: '16px',
+      }}>
+        <LanguageSwitcher />
+      </div>
+
       <h2 style={{
         fontSize: '24px',
         fontWeight: 'bold',
         marginBottom: '24px',
         textAlign: 'center',
       }}>
-        GSN Editor - ログイン
+        GSN Editor - {t('auth.login')}
       </h2>
 
       <form onSubmit={handleSubmit} style={{
@@ -61,7 +72,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
             fontSize: '14px',
             fontWeight: '500',
           }}>
-            メールアドレス
+            {t('auth.email')}
           </label>
           <input
             type="email"
@@ -85,7 +96,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
             fontSize: '14px',
             fontWeight: '500',
           }}>
-            パスワード
+            {t('auth.password')}
           </label>
           <input
             type="password"
@@ -117,7 +128,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
             cursor: isLoading ? 'not-allowed' : 'pointer',
           }}
         >
-          {isLoading ? 'ログイン中...' : 'ログイン'}
+          {isLoading ? t('common.loading') : t('auth.loginButton')}
         </button>
 
         <div style={{
@@ -125,7 +136,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
           textAlign: 'center',
           fontSize: '14px',
         }}>
-          アカウントをお持ちでないですか？{' '}
+          {t('auth.noAccount')}{' '}
           <button
             type="button"
             onClick={onSwitchToRegister}
@@ -137,7 +148,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
               textDecoration: 'underline',
             }}
           >
-            新規登録
+            {t('auth.register')}
           </button>
         </div>
       </form>

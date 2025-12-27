@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface CommitModalProps {
   isOpen: boolean;
@@ -7,6 +8,7 @@ interface CommitModalProps {
 }
 
 const CommitModalContent: React.FC<Omit<CommitModalProps, 'isOpen'>> = ({ onClose, onCommit }) => {
+  const { t } = useTranslation();
   const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -21,7 +23,7 @@ const CommitModalContent: React.FC<Omit<CommitModalProps, 'isOpen'>> = ({ onClos
     e.preventDefault();
 
     if (!message.trim()) {
-      setError('コミットメッセージを入力してください');
+      setError(t('version.commitMessageRequired'));
       return;
     }
 
@@ -76,7 +78,7 @@ const CommitModalContent: React.FC<Omit<CommitModalProps, 'isOpen'>> = ({ onClos
           }}
         >
           <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>
-            💾 コミット
+            💾 {t('version.commit')}
           </h2>
           <button
             onClick={onClose}
@@ -104,7 +106,7 @@ const CommitModalContent: React.FC<Omit<CommitModalProps, 'isOpen'>> = ({ onClos
                 color: '#374151',
               }}
             >
-              コミットメッセージ <span style={{ color: '#EF4444' }}>*</span>
+              {t('version.commitMessage')} <span style={{ color: '#EF4444' }}>*</span>
             </label>
             <textarea
               ref={textareaRef}
@@ -115,7 +117,7 @@ const CommitModalContent: React.FC<Omit<CommitModalProps, 'isOpen'>> = ({ onClos
                 setError(null);
               }}
               onKeyDown={handleKeyDown}
-              placeholder="変更内容を簡潔に説明してください&#10;例: ゴールG1とG2を追加、戦略S1を修正"
+              placeholder={t('version.commitPlaceholder')}
               rows={4}
               style={{
                 width: '100%',
@@ -132,7 +134,7 @@ const CommitModalContent: React.FC<Omit<CommitModalProps, 'isOpen'>> = ({ onClos
               <div style={{ marginTop: '8px', color: '#EF4444', fontSize: '13px' }}>{error}</div>
             )}
             <div style={{ marginTop: '8px', fontSize: '13px', color: '#6B7280' }}>
-              💡 Ctrl+Enter で送信、ESC でキャンセル
+              💡 {t('version.shortcutHint')}
             </div>
           </div>
 
@@ -159,7 +161,7 @@ const CommitModalContent: React.FC<Omit<CommitModalProps, 'isOpen'>> = ({ onClos
                 fontWeight: '500',
               }}
             >
-              キャンセル
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
@@ -173,7 +175,7 @@ const CommitModalContent: React.FC<Omit<CommitModalProps, 'isOpen'>> = ({ onClos
                 fontWeight: '500',
               }}
             >
-              💾 コミット
+              💾 {t('version.commit')}
             </button>
           </div>
         </form>

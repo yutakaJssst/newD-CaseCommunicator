@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { versionsApi } from '../../api/versions';
 import type { DiagramVersion } from '../../api/versions';
 import { LoadingState } from '../Status/LoadingState';
@@ -19,6 +20,7 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
   diagramId,
   onRestore,
 }) => {
+  const { t, i18n } = useTranslation();
   const [versions, setVersions] = useState<DiagramVersion[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,8 +38,8 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
           ? (err as { response?: { data?: { error?: string } } }).response?.data?.error
           : err instanceof Error
             ? err.message
-            : 'バージョン一覧の取得に失敗しました';
-      setError(message ?? 'バージョン一覧の取得に失敗しました');
+            : t('version.loadError');
+      setError(message ?? t('version.loadError'));
     } finally {
       setLoading(false);
     }
@@ -52,7 +54,7 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
 
   // ロールバック
   const handleRestore = async (versionId: string) => {
-    if (!confirm('このバージョンに復元しますか？\n現在の状態は失われます。')) {
+    if (!confirm(t('version.restoreConfirmWithWarning'))) {
       return;
     }
     onRestore(versionId);
@@ -62,7 +64,8 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
   // 日時フォーマット
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleString('ja-JP', {
+    const locale = i18n.language === 'ja' ? 'ja-JP' : 'en-US';
+    return date.toLocaleString(locale, {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -112,7 +115,7 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
           }}
         >
           <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>
-            📜 バージョン履歴
+            📜 {t('version.history')}
           </h2>
           <button
             onClick={onClose}
@@ -136,9 +139,9 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
 
           {!loading && versions.length === 0 && (
             <div style={{ textAlign: 'center', color: '#6B7280', padding: '40px' }}>
-              バージョン履歴がありません。
+              {t('version.noVersions')}
               <br />
-              「コミット」ボタンから最初のバージョンを作成してください。
+              {t('version.createFirstVersion')}
             </div>
           )}
 
@@ -208,7 +211,7 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
                     >
                       <div>
                         <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '4px' }}>
-                          {version.commitMessage || '(コミットメッセージなし)'}
+                          {version.commitMessage || t('version.noCommitMessage')}
                         </div>
                         <div style={{ fontSize: '13px', color: '#6B7280' }}>
                           {formatDate(version.createdAt)}
@@ -224,7 +227,7 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
                                 fontWeight: 'bold',
                               }}
                             >
-                              最新
+                              {t('version.latest')}
                             </span>
                           )}
                         </div>
@@ -244,7 +247,7 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
                               fontWeight: '500',
                             }}
                           >
-                            復元
+                            {t('version.restore')}
                           </button>
                         )}
                       </div>
@@ -277,7 +280,7 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
               fontWeight: '500',
             }}
           >
-            閉じる
+            {t('common.close')}
           </button>
         </div>
       </div>

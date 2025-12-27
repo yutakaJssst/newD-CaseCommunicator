@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDiagramStore } from '../../stores/diagramStore';
 import type { User } from '../../services/api';
 import { validateDiagram, type ValidationResult } from '../../utils/validation';
 import { ValidationModal } from '../Canvas/ValidationModal';
 import { CommitModal } from '../Canvas/CommitModal';
 import { VersionHistoryModal } from '../Canvas/VersionHistoryModal';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 interface HeaderProps {
   user?: User | null;
@@ -19,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   onBackToProjects,
   onOpenSurveyManager,
 }) => {
+  const { t } = useTranslation();
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showModuleList, setShowModuleList] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
@@ -327,7 +330,7 @@ export const Header: React.FC<HeaderProps> = ({
           }}
         >
           <span>←</span>
-          <span>プロジェクト</span>
+          <span>{t('projects.title')}</span>
         </button>
       )}
 
@@ -420,7 +423,7 @@ export const Header: React.FC<HeaderProps> = ({
             }}
           >
             <span>📁</span>
-            <span>モジュール ({allModules.length})</span>
+            <span>{t('nodes.Module')} ({allModules.length})</span>
           </button>
 
           {showModuleList && (
@@ -572,7 +575,7 @@ export const Header: React.FC<HeaderProps> = ({
           }}
         >
           <span>📝</span>
-          <span>アンケート</span>
+          <span>{t('header.surveys')}</span>
         </button>
 
         {/* コミットボタン */}
@@ -605,7 +608,7 @@ export const Header: React.FC<HeaderProps> = ({
           }}
         >
           <span>💾</span>
-          <span>コミット</span>
+          <span>{t('header.commit')}</span>
         </button>
 
         {/* 履歴ボタン */}
@@ -638,7 +641,7 @@ export const Header: React.FC<HeaderProps> = ({
           }}
         >
           <span>📜</span>
-          <span>履歴</span>
+          <span>{t('header.history')}</span>
         </button>
 
         {/* グリッドスナップトグル */}
@@ -741,7 +744,7 @@ export const Header: React.FC<HeaderProps> = ({
             e.currentTarget.style.borderColor = '#059669';
           }}
         >
-          📋 パターン
+          📋 {t('patterns.title')}
         </button>
 
         {/* 検証ボタン */}
@@ -902,9 +905,9 @@ export const Header: React.FC<HeaderProps> = ({
               }}
             />
             {isReconnecting ? (
-              <span>再接続中... (試行 {reconnectAttempts})</span>
+              <span>{t('common.reconnecting')} ({reconnectAttempts})</span>
             ) : (
-              <span>接続が切断されました</span>
+              <span>{t('common.disconnected')}</span>
             )}
           </div>
         )}
@@ -931,7 +934,7 @@ export const Header: React.FC<HeaderProps> = ({
               color: '#16A34A',
               fontWeight: '500',
             }}>
-              {onlineUsers.length}人
+              {t('header.onlineUsers', { count: onlineUsers.length })}
             </span>
           </div>
         )}
@@ -954,8 +957,8 @@ export const Header: React.FC<HeaderProps> = ({
             }}
             title={hasLocalChanges ? '未保存の変更があるため自動同期を停止しています' : '最新状態に再読み込み'}
           >
-            <span>同期差分</span>
-            <span>再読み込み</span>
+            <span>{t('common.syncDiff')}</span>
+            <span>{t('common.reload')}</span>
           </button>
         )}
 
@@ -1010,10 +1013,13 @@ export const Header: React.FC<HeaderProps> = ({
                 e.currentTarget.style.borderColor = '#D1D5DB';
               }}
             >
-              ログアウト
+              {t('auth.logout')}
             </button>
           </>
         )}
+
+        {/* 言語切り替え */}
+        <LanguageSwitcher />
 
         {/* エクスポートドロップダウン */}
         <div style={{ position: 'relative' }}>

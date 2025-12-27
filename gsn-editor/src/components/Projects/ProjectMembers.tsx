@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { projectMembersApi, type ProjectMember, type User } from '../../api/projectMembers';
 import { LoadingState } from '../Status/LoadingState';
 import { ErrorState } from '../Status/ErrorState';
@@ -10,6 +11,7 @@ interface ProjectMembersProps {
 }
 
 const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onClose }) => {
+  const { t, i18n } = useTranslation();
   const [owner, setOwner] = useState<User | null>(null);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +31,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
       setOwner(data.owner);
       setMembers(data.members);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'メンバーの読み込みに失敗しました');
+      setError(err instanceof Error ? err.message : t('projects.membersLoadError'));
     } finally {
       setLoading(false);
     }
@@ -55,7 +57,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
       setShowInviteForm(false);
       await loadMembers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'メンバーの招待に失敗しました');
+      setError(err instanceof Error ? err.message : t('projects.inviteError'));
     } finally {
       setInviting(false);
     }
@@ -67,30 +69,30 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
       await projectMembersApi.updateMemberRole(projectId, memberId, { role: newRole });
       await loadMembers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'ロールの変更に失敗しました');
+      setError(err instanceof Error ? err.message : t('projects.roleChangeError'));
     }
   };
 
   const handleRemoveMember = async (memberId: string) => {
-    if (!confirm('このメンバーを削除してもよろしいですか?')) return;
+    if (!confirm(t('projects.removeMemberConfirm'))) return;
 
     try {
       setError(null);
       await projectMembersApi.removeMember(projectId, memberId);
       await loadMembers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'メンバーの削除に失敗しました');
+      setError(err instanceof Error ? err.message : t('projects.removeMemberError'));
     }
   };
 
   const getRoleName = (role: string) => {
     switch (role) {
       case 'owner':
-        return 'オーナー';
+        return t('projects.owner');
       case 'editor':
-        return '編集者';
+        return t('projects.editor');
       case 'viewer':
-        return '閲覧者';
+        return t('projects.viewer');
       default:
         return role;
     }
@@ -102,13 +104,13 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">プロジェクトメンバー</h2>
-            <p className="text-sm text-gray-500 mt-1">プロジェクトに参加しているメンバーを管理</p>
+            <h2 className="text-xl font-bold text-gray-900">{t('projects.projectMembers')}</h2>
+            <p className="text-sm text-gray-500 mt-1">{t('projects.manageMembersDesc')}</p>
           </div>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full p-2 transition-all"
-            aria-label="閉じる"
+            aria-label={t('common.close')}
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -130,7 +132,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8 2a.5.5 0 01.5.5v5h5a.5.5 0 010 1h-5v5a.5.5 0 01-1 0v-5h-5a.5.5 0 010-1h5v-5A.5.5 0 018 2z"/>
               </svg>
-              メンバーを招待
+              {t('projects.inviteMember')}
             </button>
           )}
 
@@ -139,7 +141,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
             <form onSubmit={handleInvite} className="mb-6 p-4 bg-gray-50 rounded-md border border-gray-200">
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  メールアドレス
+                  {t('auth.email')}
                 </label>
                 <input
                   type="email"
@@ -152,15 +154,15 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
               </div>
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ロール
+                  {t('projects.role')}
                 </label>
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value as 'editor' | 'viewer')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="editor">編集者 (編集可能)</option>
-                  <option value="viewer">閲覧者 (閲覧のみ)</option>
+                  <option value="editor">{t('projects.editor')} ({t('projects.canEdit')})</option>
+                  <option value="viewer">{t('projects.viewer')} ({t('projects.viewOnly')})</option>
                 </select>
               </div>
               <div className="flex gap-2">
@@ -169,7 +171,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
                   disabled={inviting}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
-                  {inviting ? '招待中...' : '招待'}
+                  {inviting ? t('projects.inviting') : t('projects.invite')}
                 </button>
                 <button
                   type="button"
@@ -179,7 +181,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
                   }}
                   className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
                 >
-                  キャンセル
+                  {t('common.cancel')}
                 </button>
               </div>
             </form>
@@ -194,10 +196,10 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#374151' }}>ユーザー</th>
-                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#374151', width: '150px' }}>参加日</th>
-                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#374151', width: '120px' }}>ロール</th>
-                    <th style={{ padding: '12px 24px', textAlign: 'right', fontSize: '14px', fontWeight: '600', color: '#374151', width: '100px' }}>操作</th>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#374151' }}>{t('projects.user')}</th>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#374151', width: '150px' }}>{t('projects.joinedDate')}</th>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#374151', width: '120px' }}>{t('projects.role')}</th>
+                    <th style={{ padding: '12px 24px', textAlign: 'right', fontSize: '14px', fontWeight: '600', color: '#374151', width: '100px' }}>{t('projects.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -224,7 +226,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
                             <div style={{ fontWeight: '500', color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {owner.email}
                             </div>
-                            <div style={{ fontSize: '12px', color: '#1D4ED8' }}>プロジェクトの作成者</div>
+                            <div style={{ fontSize: '12px', color: '#1D4ED8' }}>{t('projects.projectCreator')}</div>
                           </div>
                         </div>
                       </td>
@@ -240,7 +242,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
                           fontWeight: '600',
                           borderRadius: '9999px'
                         }}>
-                          オーナー
+                          {t('projects.owner')}
                         </span>
                       </td>
                       <td style={{ padding: '16px 24px', textAlign: 'right', fontSize: '14px', color: '#6B7280' }}>—</td>
@@ -282,7 +284,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
                         </div>
                       </td>
                       <td style={{ padding: '16px 24px', fontSize: '14px', color: '#4B5563' }}>
-                        {new Date(member.createdAt).toLocaleDateString('ja-JP', {
+                        {new Date(member.createdAt).toLocaleDateString(i18n.language === 'ja' ? 'ja-JP' : 'en-US', {
                           year: 'numeric',
                           month: '2-digit',
                           day: '2-digit'
@@ -303,8 +305,8 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
                               outline: 'none'
                             }}
                           >
-                            <option value="editor">編集者</option>
-                            <option value="viewer">閲覧者</option>
+                            <option value="editor">{t('projects.editor')}</option>
+                            <option value="viewer">{t('projects.viewer')}</option>
                           </select>
                         ) : (
                           <span style={{
@@ -339,7 +341,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
                             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEF2F2'}
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                           >
-                            削除
+                            {t('common.delete')}
                           </button>
                         )}
                       </td>
@@ -356,10 +358,10 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
                           </svg>
                         </div>
                         <p style={{ color: '#4B5563', fontWeight: '500', marginBottom: '8px' }}>
-                          {isOwner ? 'まだメンバーがいません' : 'メンバーはあなただけです'}
+                          {isOwner ? t('projects.noMembersYet') : t('projects.onlyYou')}
                         </p>
                         <p style={{ fontSize: '14px', color: '#6B7280' }}>
-                          {isOwner ? '「メンバーを招待」ボタンから他のユーザーを招待できます' : 'オーナーが他のメンバーを招待するまでお待ちください'}
+                          {isOwner ? t('projects.inviteMembersHint') : t('projects.waitForOwnerInvite')}
                         </p>
                       </td>
                     </tr>
@@ -376,7 +378,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
             onClick={onClose}
             className="w-full px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-medium shadow-sm hover:shadow-md"
           >
-            閉じる
+            {t('common.close')}
           </button>
         </div>
       </div>

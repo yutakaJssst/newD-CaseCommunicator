@@ -1,6 +1,6 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { NodeType } from '../../types/diagram';
-import { NODE_LABELS } from '../../types/diagram';
 import { useDiagramStore } from '../../stores/diagramStore';
 
 const nodeTypes: NodeType[] = ['Goal', 'Strategy', 'Context', 'Evidence', 'Assumption', 'Justification', 'Undeveloped', 'Module'];
@@ -79,6 +79,7 @@ interface NodePaletteProps {
 }
 
 export const NodePalette: React.FC<NodePaletteProps> = ({ isOpen, onToggle }) => {
+  const { t } = useTranslation();
   const { canvasState, setSelectedNodeType, projectRole } = useDiagramStore();
   const { selectedNodeType } = canvasState;
   const isReadOnly = projectRole === 'viewer';
@@ -116,7 +117,7 @@ export const NodePalette: React.FC<NodePaletteProps> = ({ isOpen, onToggle }) =>
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
         }}>
-          ノードパレット
+          {t('sidebar.nodePalette')}
         </span>
         <span>{isOpen ? '▲' : '▼'}</span>
       </button>
@@ -158,7 +159,7 @@ export const NodePalette: React.FC<NodePaletteProps> = ({ isOpen, onToggle }) =>
                   }
                 }}
               >
-                <span>{NODE_LABELS[type]}</span>
+                <span>{t(`nodes.${type}`)}</span>
                 <NodeIcon type={type} />
               </button>
             ))}

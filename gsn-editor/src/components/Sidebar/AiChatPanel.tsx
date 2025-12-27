@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { aiApi, type AiAttachment, type AiOp } from '../../api/ai';
 import { AiOpsPreviewModal } from './AiOpsPreviewModal';
 import { applyAiOps, normalizeAiOps } from '../../utils/aiOps';
@@ -8,6 +9,7 @@ const MODEL_NAME = 'claude-sonnet-4-20250514';
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 export const AiChatPanel: React.FC = () => {
+  const { t } = useTranslation();
   const projectId = useDiagramStore((state) => state.currentProjectId);
   const exportProjectData = useDiagramStore((state) => state.exportProjectData);
   const projectRole = useDiagramStore((state) => state.projectRole);
@@ -41,7 +43,7 @@ export const AiChatPanel: React.FC = () => {
 
   const handleSaveKey = async () => {
     if (!apiKey.trim()) {
-      setError('APIキーを入力してください');
+      setError(t('sidebar.enterApiKey'));
       return;
     }
     try {
@@ -51,7 +53,7 @@ export const AiChatPanel: React.FC = () => {
       setApiKey('');
     } catch (err) {
       console.error(err);
-      setError('APIキーの保存に失敗しました');
+      setError(t('sidebar.apiKeySaveError'));
     }
   };
 
@@ -63,7 +65,7 @@ export const AiChatPanel: React.FC = () => {
     try {
       for (const file of files) {
         if (file.size > MAX_FILE_SIZE) {
-          setError('ファイルサイズは10MBまでです');
+          setError(t('sidebar.fileSizeLimit'));
           continue;
         }
         const uploaded = await aiApi.uploadAttachment(projectId, file, conversationId || undefined);
@@ -71,7 +73,7 @@ export const AiChatPanel: React.FC = () => {
       }
     } catch (err) {
       console.error(err);
-      setError('添付ファイルのアップロードに失敗しました');
+      setError(t('sidebar.uploadError'));
     } finally {
       setIsUploading(false);
       event.target.value = '';
@@ -86,11 +88,11 @@ export const AiChatPanel: React.FC = () => {
     if (!projectId) return;
     if (!input.trim()) return;
     if (!apiConfigured) {
-      setError('APIキーが未設定です');
+      setError(t('sidebar.apiKeyNotSet'));
       return;
     }
     if (!canEdit) {
-      setError('編集権限がありません');
+      setError(t('sidebar.noEditPermission'));
       return;
     }
 
@@ -121,7 +123,7 @@ export const AiChatPanel: React.FC = () => {
       }
     } catch (err) {
       console.error(err);
-      setError('AIへのリクエストに失敗しました');
+      setError(t('sidebar.aiRequestError'));
     } finally {
       setIsSending(false);
     }
@@ -159,7 +161,7 @@ export const AiChatPanel: React.FC = () => {
           flexShrink: 0,
         }}
       >
-        🤖 AIアシスタント {isOpen ? '▲' : '▼'}
+        🤖 {t('sidebar.aiAssistant')} {isOpen ? '▲' : '▼'}
       </button>
 
       {isOpen && (
@@ -177,7 +179,7 @@ export const AiChatPanel: React.FC = () => {
           {!apiConfigured && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <div style={{ fontSize: '11px', color: '#6B7280' }}>
-                Claude APIキーを登録してください。
+                {t('sidebar.enterApiKey')}
               </div>
               <input
                 type="password"
@@ -204,7 +206,7 @@ export const AiChatPanel: React.FC = () => {
                   cursor: 'pointer',
                 }}
               >
-                APIキーを保存
+                {t('sidebar.saveApiKey')}
               </button>
             </div>
           )}
@@ -218,7 +220,7 @@ export const AiChatPanel: React.FC = () => {
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="AIへの質問を入力してください"
+              placeholder={t('sidebar.askAiPlaceholder')}
               rows={3}
               style={{
                 padding: '8px',
@@ -255,7 +257,7 @@ export const AiChatPanel: React.FC = () => {
                         fontSize: '11px',
                       }}
                     >
-                      削除
+                      {t('common.delete')}
                     </button>
                   </div>
                 ))}
@@ -272,7 +274,7 @@ export const AiChatPanel: React.FC = () => {
                   backgroundColor: '#FFFFFF',
                 }}
               >
-                添付
+                {t('sidebar.attachFile')}
                 <input
                   type="file"
                   accept=".pdf,.png,.jpg,.jpeg"
@@ -296,7 +298,7 @@ export const AiChatPanel: React.FC = () => {
                   cursor: isSending ? 'not-allowed' : 'pointer',
                 }}
               >
-                {isSending ? '送信中...' : '送信'}
+                {isSending ? t('sidebar.sending') : t('sidebar.sendMessage')}
               </button>
             </div>
           </div>
