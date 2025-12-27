@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { publicSurveysApi, type PublicSurveyAnswer, type PublicSurveyResponse } from '../../api/surveys';
-import type { DiagramData, ProjectData, Node as DiagramNode } from '../../types/diagram';
+import type { DiagramData, ProjectData } from '../../types/diagram';
 import { LoadingState } from '../Status/LoadingState';
 import { ErrorState } from '../Status/ErrorState';
 
@@ -14,7 +14,7 @@ type DraftAnswer = {
   comment?: string;
 };
 
-const DEFAULT_EXPERT_INTRO = `現状のシステムの安全性を、厳密に測定するための質問です。議論の基盤になるGSNの末端のゴールノードと戦略ノードについて専門家の立場から回答をお願いいたします。
+const DEFAULT_EXPERT_INTRO = `以下は現状のシステムの安全性を、厳密に測定するための質問です。議論の基盤になるGSNの末端のゴールノードと戦略ノードについて専門家の立場から回答をお願いいたします。
 
 それぞれの質問では0から1点の値(確信値)を入力していただきます。以下の基準で回答してください。0と1は使用しないでください。
 0.98 ほぼ標準・教科書どおり。抜けや疑問点はほとんどない
@@ -65,6 +65,52 @@ const getApiErrorMessage = (err: unknown, fallback: string) => {
   return fallback;
 };
 
+// contextInfo内の "text (url)" 形式をクリック可能なリンクに変換するコンポーネント
+const ContextInfoWithLinks: React.FC<{ text: string }> = ({ text }) => {
+  // URLパターン: "テキスト (http...)" or "テキスト (https...)"
+  const urlPattern = /([^\s]+)\s+\((https?:\/\/[^\s)]+)\)/g;
+
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+  let keyIndex = 0;
+
+  while ((match = urlPattern.exec(text)) !== null) {
+    // マッチ前のテキストを追加
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+
+    // リンクを追加
+    const linkText = match[1];
+    const url = match[2];
+    parts.push(
+      <a
+        key={`link-${keyIndex++}`}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          color: '#2563EB',
+          textDecoration: 'underline',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {linkText}
+      </a>
+    );
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // 残りのテキストを追加
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return <>{parts}</>;
+};
+
 export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => {
   const [survey, setSurvey] = useState<PublicSurveyResponse['survey'] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,20 +144,6 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
       (question) => (question.scaleType || 'likert_0_3') === 'continuous_0_1'
     );
   }, [questionsToDisplay, entryAudience]);
-
-  const nodeMap = useMemo(() => {
-    const snapshot = normalizeSnapshot(survey?.gsnSnapshot);
-    if (!snapshot) return new Map<string, DiagramNode>();
-    const modules = isProjectData(snapshot) ? snapshot.modules : { root: snapshot };
-    const allNodes = Object.values(modules)
-      .flatMap((module) => (Array.isArray(module.nodes) ? module.nodes : []));
-    return new Map(allNodes.map((node) => [String(node.id), node]));
-  }, [survey?.gsnSnapshot]);
-
-  const stripHtml = (html?: string) => {
-    if (!html) return '';
-    return html.replace(/<[^>]*>/g, '').trim();
-  };
 
   const diagramData = useMemo(() => {
     const snapshot = normalizeSnapshot(survey?.gsnSnapshot);
@@ -309,7 +341,7 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
                 }}
               >
                 <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '8px' }}>
-                  対象GSN（簡易表示）
+                  対象GSN（スクロールで全体を確認できます）
                 </div>
                 <SvgDiagram nodes={diagramData.nodes} links={diagramData.links} />
               </div>
@@ -318,9 +350,6 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '24px' }}>
             {questionsToDisplay.map((question, index) => {
                 const roleQuestion = isRoleQuestion(question);
-                const node = roleQuestion ? null : nodeMap.get(question.nodeId);
-                const descriptionText = roleQuestion ? '' : stripHtml(node?.content) || '-';
-                const nodeLabel = roleQuestion ? '' : node?.label || '-';
                 const scaleType = question.scaleType || 'likert_0_3';
                 const roleScore = answers[question.id]?.score;
                 const roleOtherSelected = roleScore === ROLE_OPTIONS.length - 1;
@@ -358,18 +387,28 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
                         padding: '16px',
                       }}
                     >
-                      <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                      <div style={{ fontWeight: 600, marginBottom: '8px', whiteSpace: 'pre-wrap' }}>
                         {question.questionText}
                       </div>
-                      {!roleQuestion && (
-                        <>
-                          <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '8px' }}>
-                            ID: {nodeLabel} / {question.nodeType}
+                      {!roleQuestion && question.contextInfo && (
+                        <div
+                          style={{
+                            fontSize: '12px',
+                            color: '#374151',
+                            marginBottom: '12px',
+                            padding: '8px 12px',
+                            backgroundColor: '#F9FAFB',
+                            borderRadius: '6px',
+                            borderLeft: '3px solid #3B82F6',
+                          }}
+                        >
+                          <div style={{ fontWeight: 600, marginBottom: '4px', color: '#6B7280' }}>
+                            Safety Status Report参照
                           </div>
-                          <div style={{ fontSize: '12px', color: '#374151', marginBottom: '12px' }}>
-                            説明: {descriptionText}
+                          <div style={{ whiteSpace: 'pre-wrap' }}>
+                            <ContextInfoWithLinks text={question.contextInfo} />
                           </div>
-                        </>
+                        </div>
                       )}
                       {roleQuestion ? (
                         <>
@@ -422,7 +461,8 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
                           <div style={{ fontSize: '12px', color: '#374151', marginBottom: '6px' }}>
                             0.0〜1.0の評価（必須）
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <span style={{ fontSize: '11px', color: '#6B7280', minWidth: '80px' }}>確信が持てない</span>
                             <input
                               type="range"
                               min={0}
@@ -432,6 +472,7 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
                               onChange={(e) => handleScoreChange(question.id, Number(e.target.value))}
                               style={{ flex: 1 }}
                             />
+                            <span style={{ fontSize: '11px', color: '#6B7280', minWidth: '70px', textAlign: 'right' }}>確信が持てる</span>
                             <input
                               type="number"
                               min={0}
@@ -469,7 +510,8 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
                           <div style={{ fontSize: '12px', color: '#374151', marginBottom: '6px' }}>
                             0〜3点の評価（必須）
                           </div>
-                          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '11px', color: '#6B7280' }}>合意できない</span>
                             {[0, 1, 2, 3].map((value) => (
                               <label
                                 key={value}
@@ -494,6 +536,7 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
                                 {value}
                               </label>
                             ))}
+                            <span style={{ fontSize: '11px', color: '#6B7280' }}>合意できる</span>
                           </div>
                         </>
                       )}
@@ -545,6 +588,18 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
   );
 };
 
+// ノードタイプごとの色（types/diagram.tsのNODE_COLORSと同一）
+const NODE_COLORS: Record<string, string> = {
+  Goal: '#FFFFFF',
+  Strategy: '#FFFFFF',
+  Context: '#FFFFFF',
+  Evidence: '#FFFFFF',
+  Assumption: '#FFFFFF',
+  Justification: '#FFFFFF',
+  Undeveloped: '#FFFFFF',
+  Module: '#E0E0E0',
+};
+
 interface SvgDiagramProps {
   nodes: Array<{
     id: string;
@@ -554,15 +609,16 @@ interface SvgDiagramProps {
     label?: string;
     content?: string;
   }>;
-  links: Array<{ id: string; source: string; target: string }>;
+  links: Array<{ id: string; source: string; target: string; type?: 'solid' | 'dashed' }>;
 }
 
 const SvgDiagram: React.FC<SvgDiagramProps> = ({ nodes, links }) => {
   const bounds = nodes.reduce(
     (acc, node) => {
+      // ラベル表示のスペースも含める（上方に24px）
       const left = node.position.x - node.size.width / 2;
       const right = node.position.x + node.size.width / 2;
-      const top = node.position.y - node.size.height / 2;
+      const top = node.position.y - node.size.height / 2 - 30;
       const bottom = node.position.y + node.size.height / 2;
       return {
         minX: Math.min(acc.minX, left),
@@ -587,36 +643,98 @@ const SvgDiagram: React.FC<SvgDiagramProps> = ({ nodes, links }) => {
     return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
   };
 
-  const wrapText = (text: string, maxChars: number, maxLines: number) => {
+  // CJK文字判定関数
+  const isCJK = (char: string): boolean => {
+    const code = char.charCodeAt(0);
+    return (
+      (code >= 0x3000 && code <= 0x9FFF) ||   // CJK統合漢字、ひらがな、カタカナ等
+      (code >= 0xAC00 && code <= 0xD7AF) ||   // 韓国語
+      (code >= 0xFF00 && code <= 0xFFEF)      // 全角英数
+    );
+  };
+
+  // 文字幅を考慮したテキスト折り返し
+  const wrapText = (text: string, nodeWidth: number, nodeHeight: number, nodeType: string) => {
     if (!text) return [];
-    const chars = [...text];
+
+    const fontSize = 14;
+    const halfWidthChar = fontSize * 0.6;  // 半角文字の幅
+    const fullWidthChar = fontSize;        // 全角文字の幅
+    const lineHeight = fontSize * 1.4;
+
+    // ノードタイプに応じたパディング調整
+    const padding = nodeType === 'Module' ? 40 : 20;
+    const availableWidth = nodeWidth - padding;
+    const availableHeight = nodeHeight - (nodeType === 'Module' ? 50 : 30);
+    const maxLines = Math.max(1, Math.floor(availableHeight / lineHeight));
+
     const lines: string[] = [];
-    for (let i = 0; i < chars.length; i += maxChars) {
-      lines.push(chars.slice(i, i + maxChars).join(''));
-      if (lines.length >= maxLines) break;
+    let currentLine = '';
+    let currentWidth = 0;
+
+    for (const char of text) {
+      const charWidth = isCJK(char) ? fullWidthChar : halfWidthChar;
+
+      if (currentWidth + charWidth > availableWidth) {
+        if (currentLine) {
+          lines.push(currentLine);
+          if (lines.length >= maxLines) break;
+        }
+        currentLine = char;
+        currentWidth = charWidth;
+      } else {
+        currentLine += char;
+        currentWidth += charWidth;
+      }
     }
-    if (chars.length > maxChars * maxLines) {
+
+    if (currentLine && lines.length < maxLines) {
+      lines.push(currentLine);
+    }
+
+    // 最後の行に省略記号を追加
+    if (lines.length >= maxLines && text.length > lines.join('').length) {
       const last = lines[lines.length - 1];
       lines[lines.length - 1] = `${last.slice(0, Math.max(0, last.length - 1))}…`;
     }
+
     return lines;
   };
 
   const renderShape = (node: SvgDiagramProps['nodes'][0]) => {
     const { width: w, height: h } = node.size;
     const stroke = '#374151';
-    const fill = node.type === 'Module' ? '#E5E7EB' : '#FFFFFF';
+    const fill = NODE_COLORS[node.type] || '#FFFFFF';
 
     switch (node.type) {
-      case 'Strategy': {
-        const points = [
-          `${-w / 2 + 20},${-h / 2}`,
-          `${w / 2 + 20},${-h / 2}`,
-          `${w / 2 - 20},${h / 2}`,
-          `${-w / 2 - 20},${h / 2}`,
-        ].join(' ');
-        return <polygon points={points} fill={fill} stroke={stroke} strokeWidth={2} />;
-      }
+      case 'Goal':
+        return (
+          <rect
+            x={-w / 2}
+            y={-h / 2}
+            width={w}
+            height={h}
+            fill={fill}
+            stroke={stroke}
+            strokeWidth={2}
+          />
+        );
+
+      case 'Strategy':
+        // skewX(-15)を使用してキャンバスと同一の形状に
+        return (
+          <rect
+            x={-w / 2}
+            y={-h / 2}
+            width={w}
+            height={h}
+            transform="skewX(-15)"
+            fill={fill}
+            stroke={stroke}
+            strokeWidth={2}
+          />
+        );
+
       case 'Context':
         return (
           <rect
@@ -631,6 +749,7 @@ const SvgDiagram: React.FC<SvgDiagramProps> = ({ nodes, links }) => {
             strokeWidth={2}
           />
         );
+
       case 'Evidence':
       case 'Assumption':
       case 'Justification':
@@ -645,6 +764,7 @@ const SvgDiagram: React.FC<SvgDiagramProps> = ({ nodes, links }) => {
             strokeWidth={2}
           />
         );
+
       case 'Undeveloped': {
         const points = [
           `${-w / 2},0`,
@@ -654,6 +774,37 @@ const SvgDiagram: React.FC<SvgDiagramProps> = ({ nodes, links }) => {
         ].join(' ');
         return <polygon points={points} fill={fill} stroke={stroke} strokeWidth={2} />;
       }
+
+      case 'Module': {
+        // フォルダ形状（タブ付き矩形）- Node.tsxと同一
+        const tabWidth = 60;
+        const tabHeight = 20;
+        const pathData = `
+          M ${-w / 2} ${-h / 2 + tabHeight}
+          L ${-w / 2} ${-h / 2}
+          L ${-w / 2 + tabWidth} ${-h / 2}
+          L ${-w / 2 + tabWidth + 10} ${-h / 2 + tabHeight}
+          L ${w / 2} ${-h / 2 + tabHeight}
+          L ${w / 2} ${h / 2}
+          L ${-w / 2} ${h / 2}
+          Z
+        `;
+        return (
+          <>
+            <path d={pathData} fill={fill} stroke={stroke} strokeWidth={2} />
+            <text
+              x={-w / 2 + 10}
+              y={-h / 2 + 15}
+              fill="#666666"
+              fontSize={14}
+              fontWeight="bold"
+            >
+              M
+            </text>
+          </>
+        );
+      }
+
       default:
         return (
           <rect
@@ -669,79 +820,182 @@ const SvgDiagram: React.FC<SvgDiagramProps> = ({ nodes, links }) => {
     }
   };
 
+  // リンクの接続点を計算（Link.tsxと同一のロジック）
+  const calculateLinkPoints = (source: SvgDiagramProps['nodes'][0], target: SvgDiagramProps['nodes'][0]) => {
+    const isInContextOf = ['Context', 'Assumption', 'Justification'].includes(target.type);
+    const verticalTargets = ['Goal', 'Strategy', 'Evidence', 'Undeveloped', 'Module'];
+    const shouldConnectVertically = verticalTargets.includes(target.type);
+
+    let x1: number, y1: number, x2: number, y2: number;
+
+    if (shouldConnectVertically) {
+      const dy = target.position.y - source.position.y;
+      if (dy > 0) {
+        x1 = source.position.x;
+        y1 = source.position.y + source.size.height / 2;
+        x2 = target.position.x;
+        y2 = target.position.y - target.size.height / 2;
+      } else {
+        x1 = source.position.x;
+        y1 = source.position.y - source.size.height / 2;
+        x2 = target.position.x;
+        y2 = target.position.y + target.size.height / 2;
+      }
+    } else {
+      const dx = target.position.x - source.position.x;
+      if (dx > 0) {
+        x1 = source.position.x + source.size.width / 2;
+        y1 = source.position.y;
+        x2 = target.position.x - target.size.width / 2;
+        y2 = target.position.y;
+      } else {
+        x1 = source.position.x - source.size.width / 2;
+        y1 = source.position.y;
+        x2 = target.position.x + target.size.width / 2;
+        y2 = target.position.y;
+      }
+    }
+
+    return { x1, y1, x2, y2, isInContextOf };
+  };
+
   return (
-    <svg
-      width="100%"
-      height="260"
-      viewBox={`${minX} ${minY} ${width} ${height}`}
-      style={{ backgroundColor: '#FFFFFF', borderRadius: '8px' }}
+    <div
+      style={{
+        maxHeight: '400px',
+        overflow: 'auto',
+        border: '1px solid #E5E7EB',
+        borderRadius: '8px',
+        backgroundColor: '#FFFFFF',
+      }}
     >
-      <defs>
-        <marker
-          id="arrow"
-          markerWidth="8"
-          markerHeight="8"
-          refX="7"
-          refY="4"
-          orient="auto"
-        >
-          <polygon points="0,0 8,4 0,8" fill="#374151" />
-        </marker>
-      </defs>
-      {links.map((link) => {
-        const source = getNode(link.source);
-        const target = getNode(link.target);
-        if (!source || !target) return null;
-        return (
-          <line
-            key={link.id}
-            x1={source.position.x}
-            y1={source.position.y}
-            x2={target.position.x}
-            y2={target.position.y}
-            stroke="#374151"
-            strokeWidth={2}
-            markerEnd="url(#arrow)"
-          />
-        );
-      })}
-      {nodes.map((node) => (
-        <g key={node.id} transform={`translate(${node.position.x}, ${node.position.y})`}>
-          {renderShape(node)}
-          <rect
-            x={-node.size.width / 2 + 6}
-            y={-node.size.height / 2 + 6}
-            width={40}
-            height={16}
-            rx={3}
-            ry={3}
-            fill="#FFFFFF"
-            stroke="#374151"
-            strokeWidth={1}
-          />
-          <text
-            x={-node.size.width / 2 + 26}
-            y={-node.size.height / 2 + 18}
-            textAnchor="middle"
-            fontSize={10}
-            fill="#111827"
+      <svg
+        width={Math.max(width, 600)}
+        height={Math.max(height, 300)}
+        viewBox={`${minX} ${minY} ${width} ${height}`}
+        style={{ display: 'block' }}
+      >
+        <defs>
+          {/* 通常の塗りつぶし矢印（SupportedBy関係用） */}
+          <marker
+            id="survey-arrowhead"
+            markerWidth="10"
+            markerHeight="10"
+            refX="9"
+            refY="3"
+            orient="auto"
           >
-            {node.label || node.type}
-          </text>
-          {wrapText(stripHtml(node.content), 12, 3).map((line, index) => (
-            <text
-              key={`${node.id}-line-${index}`}
-              x={0}
-              y={index * 14 - 2}
-              textAnchor="middle"
-              fontSize={12}
-              fill="#111827"
-            >
-              {line}
-            </text>
-          ))}
-        </g>
-      ))}
-    </svg>
+            <polygon points="0 0, 10 3, 0 6" fill="#1F2937" />
+          </marker>
+          {/* 白抜き矢印（InContextOf関係用） */}
+          <marker
+            id="survey-arrowhead-hollow"
+            markerWidth="10"
+            markerHeight="10"
+            refX="9"
+            refY="3"
+            orient="auto"
+          >
+            <polygon points="0 0, 10 3, 0 6" fill="white" stroke="#1F2937" strokeWidth="1.5" />
+          </marker>
+        </defs>
+
+        {/* リンク描画 */}
+        {links.map((link) => {
+          const source = getNode(link.source);
+          const target = getNode(link.target);
+          if (!source || !target) return null;
+
+          const { x1, y1, x2, y2, isInContextOf } = calculateLinkPoints(source, target);
+          const markerEnd = isInContextOf ? 'url(#survey-arrowhead-hollow)' : 'url(#survey-arrowhead)';
+
+          return (
+            <line
+              key={link.id}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke="#1F2937"
+              strokeWidth={2}
+              strokeDasharray={link.type === 'dashed' ? '8 8' : undefined}
+              markerEnd={markerEnd}
+            />
+          );
+        })}
+
+        {/* ノード描画 */}
+        {nodes.map((node) => {
+          const contentLines = wrapText(stripHtml(node.content), node.size.width, node.size.height, node.type);
+          const fontSize = 14;
+          const lineHeight = fontSize * 1.4;
+          const totalTextHeight = contentLines.length * lineHeight;
+          const startY = -totalTextHeight / 2 + lineHeight / 2;
+
+          return (
+            <g key={node.id} transform={`translate(${node.position.x}, ${node.position.y})`}>
+              {renderShape(node)}
+
+              {/* コンテンツテキスト */}
+              {contentLines.map((line, index) => (
+                <text
+                  key={`${node.id}-line-${index}`}
+                  x={0}
+                  y={startY + index * lineHeight + (node.type === 'Module' ? 15 : 0)}
+                  textAnchor="middle"
+                  fontSize={fontSize}
+                  fill="#111827"
+                  dominantBaseline="middle"
+                >
+                  {line}
+                </text>
+              ))}
+
+              {/* ラベル表示（ノードの上） */}
+              {node.label && (
+                <>
+                  <rect
+                    x={-node.size.width / 2}
+                    y={-node.size.height / 2 - 24}
+                    width={Math.max(40, node.label.length * 9)}
+                    height={20}
+                    fill="#FFFFFF"
+                    stroke="#D1D5DB"
+                    strokeWidth={1}
+                    rx={4}
+                    ry={4}
+                  />
+                  <text
+                    x={-node.size.width / 2 + Math.max(40, node.label.length * 9) / 2}
+                    y={-node.size.height / 2 - 9}
+                    fill="#374151"
+                    fontSize={13}
+                    fontWeight="600"
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                  >
+                    {node.label}
+                  </text>
+                </>
+              )}
+
+              {/* Assumption/Justification添え字 */}
+              {(node.type === 'Assumption' || node.type === 'Justification') && (
+                <text
+                  x={node.size.width / 2 - 10}
+                  y={node.size.height / 2 - 5}
+                  fill={node.type === 'Assumption' ? '#DC2626' : '#2563EB'}
+                  fontSize={16}
+                  fontWeight="bold"
+                  textAnchor="middle"
+                >
+                  {node.type === 'Assumption' ? 'A' : 'J'}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
   );
 };

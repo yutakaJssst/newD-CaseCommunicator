@@ -217,6 +217,7 @@ model SurveyQuestion {
   nodeId       String
   nodeType     String
   questionText String
+  contextInfo  String?  // コンテキストノードの情報（Safety Status Report参照\nC1: 説明文...）
   audience     SurveyAudience @default(general)
   scaleMin     Int      @default(0)
   scaleMax     Int      @default(3)

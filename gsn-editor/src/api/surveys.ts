@@ -12,6 +12,7 @@ export interface SurveyQuestion {
   nodeId: string;
   nodeType: string;
   questionText: string;
+  contextInfo?: string | null; // コンテキストノードの情報
   audience?: SurveyAudience;
   scaleMin: number;
   scaleMax: number;

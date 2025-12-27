@@ -12,9 +12,10 @@ type SurveyQuestionInput = {
   scaleMin?: number;
   scaleMax?: number;
   scaleType?: 'likert_0_3' | 'continuous_0_1' | 'choice';
+  contextInfo?: string; // コンテキストノードの情報（C1: 説明文, C2: 説明文 ...）
 };
 
-const DEFAULT_EXPERT_INTRO = `現状のシステムの安全性を、厳密に測定するための質問です。議論の基盤になるGSNの末端のゴールノードと戦略ノードについて専門家の立場から回答をお願いいたします。
+const DEFAULT_EXPERT_INTRO = `以下は現状のシステムの安全性を、厳密に測定するための質問です。議論の基盤になるGSNの末端のゴールノードと戦略ノードについて専門家の立場から回答をお願いいたします。
 
 それぞれの質問では0から1点の値(確信値)を入力していただきます。以下の基準で回答してください。0と1は使用しないでください。
 0.98 ほぼ標準・教科書どおり。抜けや疑問点はほとんどない
@@ -61,6 +62,90 @@ const extractLinksFromSnapshot = (snapshot: any) => {
   return [];
 };
 
+// HTMLタグを除去してプレーンテキストに変換
+const stripHtml = (html?: string): string => {
+  if (!html) return '';
+  return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+};
+
+// HTMLからURLリンクを抽出して保持しつつ、テキストを読みやすくする
+const extractTextWithLinks = (html?: string): string => {
+  if (!html) return '';
+  // aタグをMarkdown風のリンク形式に変換: <a href="url">text</a> → text (url)
+  let result = html.replace(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi, '$2 ($1)');
+  // 残りのHTMLタグを除去
+  result = result.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  return result;
+};
+
+// ノードに接続されている関連ノード（Module以外）の情報を取得
+const getContextNodesForNode = (nodeId: string, nodes: any[], links: any[]): string[] => {
+  const nodeMap = new Map(nodes.map((node) => [String(node.id), node]));
+  // Module以外の全てのノードタイプを含める
+  const excludeTypes = new Set(['Module']);
+
+  // このノードをソースとするリンクのターゲットを取得
+  const contextNodes: string[] = [];
+  links.forEach((link) => {
+    if (!link) return;
+    const source = String(link.source);
+    const target = String(link.target);
+    if (source !== nodeId) return;
+
+    const targetNode = nodeMap.get(target);
+    if (!targetNode || excludeTypes.has(targetNode.type)) return;
+
+    const label = targetNode.label || target;
+    // URLリンクを保持したテキストを取得
+    const content = extractTextWithLinks(targetNode.content);
+    contextNodes.push(`${label}: ${content || '(説明なし)'}`);
+  });
+
+  return contextNodes;
+};
+
+// Moduleノードから参照されているダイアグラムのトップゴールIDを取得
+const findModuleTopGoalIds = (gsnSnapshot: any): Set<string> => {
+  const topGoalIds = new Set<string>();
+
+  // ProjectData形式の場合、modulesから各ダイアグラムのトップゴールを取得
+  if (gsnSnapshot?.modules && typeof gsnSnapshot.modules === 'object') {
+    const modules = gsnSnapshot.modules as Record<string, any>;
+
+    // ルートモジュール内のModuleノードを探す
+    Object.values(modules).forEach((moduleData: any) => {
+      if (!moduleData?.nodes) return;
+
+      moduleData.nodes.forEach((node: any) => {
+        if (node?.type === 'Module' && node?.moduleId) {
+          // このModuleノードが参照しているダイアグラムのノードを取得
+          const targetModule = modules[node.moduleId];
+          if (targetModule?.nodes) {
+            // そのモジュール内のGoalノードのうち、親を持たないものがトップゴール
+            const targetNodes = targetModule.nodes;
+            const targetLinks = targetModule.links || [];
+            const hasParent = new Set<string>();
+
+            targetLinks.forEach((link: any) => {
+              if (link?.target) {
+                hasParent.add(String(link.target));
+              }
+            });
+
+            targetNodes.forEach((targetNode: any) => {
+              if (targetNode?.type === 'Goal' && !hasParent.has(String(targetNode.id))) {
+                topGoalIds.add(String(targetNode.id));
+              }
+            });
+          }
+        }
+      });
+    });
+  }
+
+  return topGoalIds;
+};
+
 const findLeafGoalIds = (nodes: any[], links: any[]) => {
   const nodeMap = new Map(nodes.map((node) => [String(node.id), node]));
   const childrenById = new Map<string, string[]>();
@@ -103,7 +188,16 @@ const buildDefaultQuestions = (
   const nodes = extractNodesFromSnapshot(gsnSnapshot);
   const links = extractLinksFromSnapshot(gsnSnapshot);
   const targetTypes = new Set(['Goal', 'Strategy']);
-  const filtered = nodes.filter((node: any) => targetTypes.has(node.type));
+
+  // Moduleノードから参照されているトップゴールを除外
+  const moduleTopGoals = findModuleTopGoalIds(gsnSnapshot);
+  const filtered = nodes.filter((node: any) => {
+    if (!targetTypes.has(node.type)) return false;
+    // モジュール内のトップゴールは除外
+    if (moduleTopGoals.has(String(node.id))) return false;
+    return true;
+  });
+
   const leafGoals = findLeafGoalIds(nodes, links);
 
   const roleQuestions: SurveyQuestionInput[] = [];
@@ -126,15 +220,34 @@ const buildDefaultQuestions = (
     const isLeafGoal = nodeType === 'Goal' && leafGoals.has(nodeId);
     const isStrategy = nodeType === 'Strategy';
     const useConfidenceScale = audience === 'expert' && (isLeafGoal || isStrategy);
+
+    // ノードのラベルとコンテンツを取得
+    const nodeLabel = node.label || nodeId;
+    const nodeContent = stripHtml(node.content) || '(説明なし)';
+
+    // 接続されているコンテキストノードの情報を取得
+    const contextNodes = getContextNodesForNode(nodeId, nodes, links);
+    const contextInfo = contextNodes.length > 0 ? contextNodes.join('\n') : '';
+
+    // 質問文を生成
+    // ゴールノード: 「以下の主張に...」
+    // 戦略ノード: 「以下の議論戦略に...」
+    // 専門家向け: 「確信が持てますか。」
+    // 一般向け: 「合意できますか。」
+    const subjectPrefix = isStrategy ? '以下の議論戦略に' : '以下の主張に';
+    const verbSuffix = useConfidenceScale ? '確信が持てますか。' : '合意できますか。';
+    const questionText = `${subjectPrefix}${verbSuffix}\n${nodeContent}（${nodeLabel}）`;
+
     return {
       nodeId,
       nodeType,
-      questionText: `この${node.type}の主張に同意しますか？`,
+      questionText,
       order: index + 1,
       audience,
       scaleMin: useConfidenceScale ? 0 : 0,
       scaleMax: useConfidenceScale ? 1 : 3,
       scaleType: useConfidenceScale ? 'continuous_0_1' : 'likert_0_3',
+      contextInfo: contextInfo || undefined,
     };
   });
 
@@ -273,6 +386,7 @@ export const createSurvey = async (req: AuthRequest, res: Response): Promise<voi
           nodeId: question.nodeId,
           nodeType: question.nodeType,
           questionText: question.questionText,
+          contextInfo: question.contextInfo || null,
           order: question.order,
           audience: question.audience || surveyAudience,
           scaleMin: question.scaleMin ?? 0,
