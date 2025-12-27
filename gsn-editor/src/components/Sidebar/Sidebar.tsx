@@ -14,11 +14,15 @@ export const Sidebar: React.FC = () => {
         backgroundColor: '#F9FAFB',
         display: 'flex',
         flexDirection: 'column',
-        overflowY: 'auto',
+        overflow: 'hidden',
       }}
     >
-      <NodePalette isOpen={isNodePaletteOpen} onToggle={() => setIsNodePaletteOpen((prev) => !prev)} />
-      <AiChatPanel />
+      <div style={{ flexShrink: 0 }}>
+        <NodePalette isOpen={isNodePaletteOpen} onToggle={() => setIsNodePaletteOpen((prev) => !prev)} />
+      </div>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <AiChatPanel />
+      </div>
     </div>
   );
 };

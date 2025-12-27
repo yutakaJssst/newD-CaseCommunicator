@@ -138,6 +138,10 @@ export const AiChatPanel: React.FC = () => {
       style={{
         backgroundColor: '#FFFFFF',
         borderTop: '1px solid #E5E7EB',
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+        minHeight: 0,
       }}
     >
       <button
@@ -152,6 +156,7 @@ export const AiChatPanel: React.FC = () => {
           fontWeight: 600,
           cursor: 'pointer',
           textAlign: 'left',
+          flexShrink: 0,
         }}
       >
         🤖 AIアシスタント {isOpen ? '▲' : '▼'}
@@ -164,7 +169,8 @@ export const AiChatPanel: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             gap: '8px',
-            maxHeight: '40vh',
+            flex: 1,
+            minHeight: 0,
             overflowY: 'auto',
           }}
         >
@@ -204,93 +210,57 @@ export const AiChatPanel: React.FC = () => {
           )}
 
           {error && (
-            <div style={{ fontSize: '11px', color: '#DC2626' }}>{error}</div>
+            <div style={{ fontSize: '11px', color: '#DC2626', flexShrink: 0 }}>{error}</div>
           )}
 
-          <div
-            style={{
-              border: '1px solid #E5E7EB',
-              borderRadius: '8px',
-              padding: '8px',
-              maxHeight: '220px',
-              overflowY: 'auto',
-              backgroundColor: '#F9FAFB',
-            }}
-          >
-            {messages.length === 0 ? (
-              <div style={{ fontSize: '11px', color: '#6B7280' }}>
-                AIへの質問を入力してください。
-              </div>
-            ) : (
-              messages.map((message, index) => (
-                <div
-                  key={`${message.role}-${index}`}
-                  style={{
-                    marginBottom: '8px',
-                    padding: '6px 8px',
-                    borderRadius: '6px',
-                    backgroundColor: message.role === 'user' ? '#DBEAFE' : '#FFFFFF',
-                    fontSize: '11px',
-                    whiteSpace: 'pre-wrap',
-                  }}
-                >
-                  <div style={{ fontWeight: 600, marginBottom: '4px' }}>
-                    {message.role === 'user' ? 'You' : 'AI'}
-                  </div>
-                  {message.content}
-                </div>
-              ))
-            )}
-          </div>
-
-          {attachments.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {attachments.map((file) => (
-                <div
-                  key={file.attachmentId}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    fontSize: '11px',
-                    padding: '4px 6px',
-                    border: '1px solid #E5E7EB',
-                    borderRadius: '6px',
-                  }}
-                >
-                  <span>{file.fileName}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveAttachment(file.attachmentId)}
-                    style={{
-                      border: 'none',
-                      background: 'none',
-                      color: '#DC2626',
-                      cursor: 'pointer',
-                      fontSize: '11px',
-                    }}
-                  >
-                    削除
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {/* 入力エリア（上部固定） */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="例: GSNのノード説明を英語にしてください"
+              placeholder="AIへの質問を入力してください"
               rows={3}
               style={{
                 padding: '8px',
                 border: '1px solid #D1D5DB',
                 borderRadius: '6px',
                 fontSize: '12px',
-                resize: 'vertical',
+                resize: 'none',
               }}
             />
+            {attachments.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {attachments.map((file) => (
+                  <div
+                    key={file.attachmentId}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: '11px',
+                      padding: '4px 6px',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    <span>{file.fileName}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAttachment(file.attachmentId)}
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        color: '#DC2626',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                      }}
+                    >
+                      削除
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '6px' }}>
               <label
                 style={{
@@ -330,6 +300,40 @@ export const AiChatPanel: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* チャット履歴（残りスペースを使用） */}
+          {messages.length > 0 && (
+            <div
+              style={{
+                border: '1px solid #E5E7EB',
+                borderRadius: '8px',
+                padding: '8px',
+                flex: 1,
+                minHeight: '80px',
+                overflowY: 'auto',
+                backgroundColor: '#F9FAFB',
+              }}
+            >
+              {messages.map((message, index) => (
+                <div
+                  key={`${message.role}-${index}`}
+                  style={{
+                    marginBottom: '8px',
+                    padding: '6px 8px',
+                    borderRadius: '6px',
+                    backgroundColor: message.role === 'user' ? '#DBEAFE' : '#FFFFFF',
+                    fontSize: '11px',
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                    {message.role === 'user' ? 'You' : 'AI'}
+                  </div>
+                  {message.content}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
