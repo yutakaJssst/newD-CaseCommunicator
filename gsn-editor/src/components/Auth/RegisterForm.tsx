@@ -37,7 +37,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
         firstName: firstName || undefined,
         lastName: lastName || undefined,
       });
-    } catch (error) {
+    } catch {
       // Error is handled in the store
     }
   };

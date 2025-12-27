@@ -3,6 +3,17 @@ import { persist } from 'zustand/middleware';
 import { authAPI } from '../services/api';
 import type { User, LoginRequest, RegisterRequest } from '../services/api';
 
+const getApiErrorMessage = (err: unknown, fallback: string) => {
+  if (err && typeof err === 'object') {
+    const response = (err as { response?: { data?: { error?: string } } }).response;
+    if (typeof response?.data?.error === 'string') {
+      return response.data.error;
+    }
+  }
+  if (err instanceof Error) return err.message;
+  return fallback;
+};
+
 interface AuthState {
   user: User | null;
   token: string | null;
@@ -38,8 +49,8 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
-        } catch (error: any) {
-          const errorMessage = error.response?.data?.error || 'ログインに失敗しました';
+        } catch (error: unknown) {
+          const errorMessage = getApiErrorMessage(error, 'ログインに失敗しました');
           set({ error: errorMessage, isLoading: false });
           throw error;
         }
@@ -56,8 +67,8 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
-        } catch (error: any) {
-          const errorMessage = error.response?.data?.error || '登録に失敗しました';
+        } catch (error: unknown) {
+          const errorMessage = getApiErrorMessage(error, '登録に失敗しました');
           set({ error: errorMessage, isLoading: false });
           throw error;
         }
@@ -95,7 +106,7 @@ export const useAuthStore = create<AuthState>()(
             token,
             isAuthenticated: true,
           });
-        } catch (error) {
+        } catch {
           localStorage.removeItem('authToken');
           localStorage.removeItem('selectedProjectId'); // Clear on auth failure
           set({

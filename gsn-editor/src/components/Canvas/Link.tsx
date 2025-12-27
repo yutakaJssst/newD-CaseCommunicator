@@ -5,13 +5,24 @@ interface LinkProps {
   link: LinkType;
   sourceNode: Node;
   targetNode: Node;
-  onClick: () => void;
+  isSelected: boolean;
+  onClick: (e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent) => void;
+  onCurveHandleMouseDown?: (e: React.MouseEvent) => void;
 }
 
-export const Link: React.FC<LinkProps> = ({ link, sourceNode, targetNode, onClick, onContextMenu }) => {
+export const Link: React.FC<LinkProps> = ({
+  link,
+  sourceNode,
+  targetNode,
+  isSelected,
+  onClick,
+  onContextMenu,
+  onCurveHandleMouseDown,
+}) => {
   const color = link.style?.color || '#1F2937';
   const width = link.style?.width || 2;
+  const curveType = link.style?.curve || 'straight';
 
   // InContextOf関係（ターゲットがContext/Assumption/Justificationの場合）の判定
   const isInContextOf = ['Context', 'Assumption', 'Justification'].includes(targetNode.type);
@@ -63,7 +74,16 @@ export const Link: React.FC<LinkProps> = ({ link, sourceNode, targetNode, onClic
     }
   }
 
-  const pathData = `M ${x1} ${y1} L ${x2} ${y2}`;
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+  const curveOffset = link.style?.curveOffset || { x: 0, y: 0 };
+  const controlX = midX + curveOffset.x;
+  const controlY = midY + curveOffset.y;
+
+  const pathData =
+    curveType === 'smooth'
+      ? `M ${x1} ${y1} Q ${controlX} ${controlY} ${x2} ${y2}`
+      : `M ${x1} ${y1} L ${x2} ${y2}`;
 
   return (
     <g onClick={onClick} onContextMenu={onContextMenu} style={{ cursor: 'pointer' }}>
@@ -74,6 +94,16 @@ export const Link: React.FC<LinkProps> = ({ link, sourceNode, targetNode, onClic
         strokeWidth={12}
         fill="none"
       />
+      {isSelected && (
+        <path
+          d={pathData}
+          stroke="#2563EB"
+          strokeWidth={Math.max(4, width + 2)}
+          fill="none"
+          opacity={0.25}
+          pointerEvents="none"
+        />
+      )}
       {/* 実際の表示用の線 */}
       <path
         d={pathData}
@@ -84,6 +114,32 @@ export const Link: React.FC<LinkProps> = ({ link, sourceNode, targetNode, onClic
         markerEnd={markerEnd}
         pointerEvents="none"
       />
+      {curveType === 'smooth' && isSelected && (
+        <>
+          <line
+            x1={midX}
+            y1={midY}
+            x2={controlX}
+            y2={controlY}
+            stroke="#94A3B8"
+            strokeWidth={1}
+            strokeDasharray="4 4"
+            pointerEvents="none"
+          />
+          <circle
+            cx={controlX}
+            cy={controlY}
+            r={6}
+            fill="#FFFFFF"
+            stroke="#2563EB"
+            strokeWidth={2}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              onCurveHandleMouseDown?.(e);
+            }}
+          />
+        </>
+      )}
     </g>
   );
 };

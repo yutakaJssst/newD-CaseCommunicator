@@ -15,7 +15,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
     clearError();
     try {
       await login({ email, password });
-    } catch (error) {
+    } catch {
       // Error is handled in the store
     }
   };

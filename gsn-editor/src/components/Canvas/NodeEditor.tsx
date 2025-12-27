@@ -56,7 +56,7 @@ export const NodeEditor: React.FC<NodeEditorProps> = ({ node, onSave, onClose })
         new URL(url);
         document.execCommand('createLink', false, url);
         editorRef.current?.focus();
-      } catch (e) {
+      } catch {
         alert('⚠️ 無効なURLです。正しい形式で入力してください。\n\n例: https://example.com');
       }
     }

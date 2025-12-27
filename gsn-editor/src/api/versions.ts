@@ -1,4 +1,5 @@
 import { api } from '../services/api';
+import type { DiagramData } from '../types/diagram';
 
 // Version management API - Diagram version interface
 export interface DiagramVersion {
@@ -6,7 +7,7 @@ export interface DiagramVersion {
   diagramId: string;
   versionNumber: number;
   title: string;
-  data?: any; // Full diagram data (only in getVersion response)
+  data?: DiagramData; // Full diagram data (only in getVersion response)
   commitMessage: string | null;
   createdBy: string | null;
   createdAt: string;
@@ -36,9 +37,8 @@ export const versionsApi = {
   },
 
   // バージョンへのロールバック
-  restore: async (projectId: string, diagramId: string, versionId: string): Promise<any> => {
-    const response = await api.post(`/projects/${projectId}/diagrams/${diagramId}/versions/${versionId}/restore`);
-    return response.data;
+  restore: async (projectId: string, diagramId: string, versionId: string): Promise<void> => {
+    await api.post(`/projects/${projectId}/diagrams/${diagramId}/versions/${versionId}/restore`);
   },
 
   // バージョン削除

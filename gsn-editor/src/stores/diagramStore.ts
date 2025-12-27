@@ -80,6 +80,7 @@ interface DiagramStore {
   moveNode: (id: string, x: number, y: number) => void;
 
   addLink: (sourceId: string, targetId: string, type: 'solid' | 'dashed') => void;
+  updateLink: (id: string, updates: Partial<Link>, options?: { skipHistory?: boolean }) => void;
   deleteLink: (id: string) => void;
 
   setCanvasMode: (mode: CanvasState['mode']) => void;
@@ -287,18 +288,23 @@ const normalizeProjectData = (rawData: unknown, fallbackTitle: string): ProjectD
   };
 };
 
-const buildProjectDataFromLegacyState = (stateData: any, fallbackTitle: string): ProjectData => {
+const buildProjectDataFromLegacyState = (stateData: unknown, fallbackTitle: string): ProjectData => {
   if (!stateData || typeof stateData !== 'object') {
     return normalizeProjectData(null, fallbackTitle);
   }
 
+  const data = stateData as Partial<ProjectStateSlice>;
   const slice: ProjectStateSlice = {
-    title: stateData.title || fallbackTitle,
-    nodes: stateData.nodes || [],
-    links: stateData.links || [],
-    currentDiagramId: stateData.currentDiagramId || 'root',
-    modules: stateData.modules || {},
-    labelCounters: stateData.labelCounters || getDefaultLabelCounters(),
+    title: typeof data.title === 'string' ? data.title : fallbackTitle,
+    nodes: Array.isArray(data.nodes) ? (data.nodes as Node[]) : [],
+    links: Array.isArray(data.links) ? (data.links as Link[]) : [],
+    currentDiagramId: typeof data.currentDiagramId === 'string' ? data.currentDiagramId : 'root',
+    modules: data.modules && typeof data.modules === 'object'
+      ? (data.modules as Record<string, DiagramData>)
+      : {},
+    labelCounters: data.labelCounters && typeof data.labelCounters === 'object'
+      ? (data.labelCounters as Record<NodeType, number>)
+      : getDefaultLabelCounters(),
   };
 
   return buildProjectDataFromState(slice);
@@ -311,6 +317,7 @@ const generateCommentId = () => `comment_${Date.now()}_${Math.random().toString(
 
 // デバウンス用のタイマー
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let renumberTimer: ReturnType<typeof setTimeout> | null = null;
 
 // デバウンスされたDB保存
 const debouncedSaveToDB = (saveFn: () => Promise<void>) => {
@@ -320,6 +327,43 @@ const debouncedSaveToDB = (saveFn: () => Promise<void>) => {
   saveTimer = setTimeout(() => {
     saveFn();
   }, 2000); // 2秒後に保存
+};
+
+const debouncedAutoRenumber = (
+  get: () => DiagramStore,
+  set: (state: Partial<DiagramStore>) => void,
+  delayMs = 500,
+) => {
+  if (renumberTimer) {
+    clearTimeout(renumberTimer);
+  }
+  renumberTimer = setTimeout(() => {
+    const state = get();
+    if (!canEditProject(state.projectRole)) {
+      return;
+    }
+
+    const { updatedNodes, changedNodes, nextCounters } = buildRenumberedLabels(state.nodes);
+    const countersChanged = !areLabelCountersEqual(state.labelCounters, nextCounters);
+    if (changedNodes.length === 0 && !countersChanged) {
+      return;
+    }
+
+    set({
+      nodes: updatedNodes,
+      labelCounters: nextCounters,
+      hasLocalChanges: true,
+    });
+
+    const projectId = state.currentProjectId;
+    if (projectId && websocketService.isConnected()) {
+      changedNodes.forEach((node) => {
+        websocketService.emitNodeUpdated(projectId, node, state.currentDiagramId);
+      });
+    }
+
+    debouncedSaveToDB(() => get().saveDiagramToDB());
+  }, delayMs);
 };
 
 // サブツリー抽出用のヘルパー関数（子孫ノードとリンクを再帰的に取得）
@@ -385,6 +429,81 @@ const getLabelPrefix = (type: NodeType): string => {
   };
   return prefixes[type];
 };
+
+const NODE_TYPES: NodeType[] = [
+  'Goal',
+  'Strategy',
+  'Context',
+  'Evidence',
+  'Assumption',
+  'Justification',
+  'Undeveloped',
+  'Module',
+];
+
+const buildAutoLabelPattern = (prefix: string) => new RegExp(`^${prefix}\\d+$`);
+const buildLabelNumberPattern = (prefix: string) => new RegExp(`^${prefix}(\\d+)$`);
+
+const compareNodesByPosition = (a: Node, b: Node) => {
+  if (a.position.y !== b.position.y) {
+    return a.position.y - b.position.y;
+  }
+  if (a.position.x !== b.position.x) {
+    return a.position.x - b.position.x;
+  }
+  return a.id.localeCompare(b.id);
+};
+
+const buildRenumberedLabels = (nodes: Node[]) => {
+  const labelUpdates = new Map<string, string>();
+  const nodesByType = new Map<NodeType, Node[]>();
+
+  nodes.forEach((node) => {
+    if (!nodesByType.has(node.type)) {
+      nodesByType.set(node.type, []);
+    }
+    nodesByType.get(node.type)!.push(node);
+  });
+
+  NODE_TYPES.forEach((type) => {
+    const prefix = getLabelPrefix(type);
+    const autoPattern = buildAutoLabelPattern(prefix);
+    const sortedNodes = (nodesByType.get(type) || []).slice().sort(compareNodesByPosition);
+    const autoNodes = sortedNodes.filter((node) => !node.label || autoPattern.test(node.label));
+
+    autoNodes.forEach((node, index) => {
+      labelUpdates.set(node.id, `${prefix}${index + 1}`);
+    });
+  });
+
+  const changedNodes: Node[] = [];
+  const updatedNodes = nodes.map((node) => {
+    const nextLabel = labelUpdates.get(node.id);
+    if (!nextLabel || node.label === nextLabel) {
+      return node;
+    }
+    const updated = { ...node, label: nextLabel };
+    changedNodes.push(updated);
+    return updated;
+  });
+
+  const nextCounters = getDefaultLabelCounters();
+  updatedNodes.forEach((node) => {
+    if (!node.label) return;
+    const prefix = getLabelPrefix(node.type);
+    const match = node.label.match(buildLabelNumberPattern(prefix));
+    if (!match) return;
+    const value = Number(match[1]);
+    if (value > nextCounters[node.type]) {
+      nextCounters[node.type] = value;
+    }
+  });
+
+  return { updatedNodes, changedNodes, nextCounters };
+};
+
+const areLabelCountersEqual = (a: Record<NodeType, number>, b: Record<NodeType, number>) =>
+  NODE_TYPES.every((type) => a[type] === b[type]);
 
 // 履歴管理用のヘルパー関数
 const saveToHistory = (get: () => DiagramStore, set: (state: Partial<DiagramStore>) => void) => {
@@ -608,6 +727,28 @@ export const useDiagramStore = create<DiagramStore>()(
                   [diagramId]: {
                     ...targetModule,
                     links: targetModule.links.filter(l => l.id !== linkId),
+                  },
+                },
+              });
+            }
+          },
+          onLinkUpdated: (link, diagramId) => {
+            const state = get();
+
+            if (state.currentDiagramId === diagramId) {
+              set({
+                links: state.links.map((l) => (l.id === link.id ? link : l)),
+              });
+            }
+
+            const targetModule = state.modules[diagramId];
+            if (targetModule) {
+              set({
+                modules: {
+                  ...state.modules,
+                  [diagramId]: {
+                    ...targetModule,
+                    links: targetModule.links.map((l) => (l.id === link.id ? link : l)),
                   },
                 },
               });
@@ -1322,6 +1463,7 @@ export const useDiagramStore = create<DiagramStore>()(
 
         // DB保存をデバウンス
         debouncedSaveToDB(() => get().saveDiagramToDB());
+        debouncedAutoRenumber(get, set);
       },
 
       updateNode: (id, updates) => {
@@ -1387,6 +1529,7 @@ export const useDiagramStore = create<DiagramStore>()(
 
         // DB保存をデバウンス
         debouncedSaveToDB(() => get().saveDiagramToDB());
+        debouncedAutoRenumber(get, set);
       },
 
       moveNode: (id, x, y) => {
@@ -1409,6 +1552,7 @@ export const useDiagramStore = create<DiagramStore>()(
 
         // DB保存をデバウンス
         debouncedSaveToDB(() => get().saveDiagramToDB());
+        debouncedAutoRenumber(get, set);
       },
 
       addLink: (sourceId, targetId, type) => {
@@ -1434,6 +1578,7 @@ export const useDiagramStore = create<DiagramStore>()(
           style: {
             color: '#1F2937',
             width: 2,
+            curve: 'straight',
           },
         };
 
@@ -1448,6 +1593,52 @@ export const useDiagramStore = create<DiagramStore>()(
         }
 
         // DB保存をデバウンス
+        debouncedSaveToDB(() => get().saveDiagramToDB());
+      },
+
+      updateLink: (id, updates, options) => {
+        if (!canEditProject(get().projectRole)) {
+          return;
+        }
+        const state = get();
+        const existingLink = state.links.find((link) => link.id === id);
+        if (!existingLink) return;
+
+        const nextStyle = updates.style
+          ? { ...existingLink.style, ...updates.style }
+          : existingLink.style;
+        const updatedLink: Link = {
+          ...existingLink,
+          ...updates,
+          style: nextStyle,
+        };
+
+        if (!options?.skipHistory) {
+          saveToHistory(get, set);
+        }
+        set((current) => ({
+          links: current.links.map((link) => (link.id === id ? updatedLink : link)),
+          hasLocalChanges: true,
+        }));
+
+        const targetModule = state.modules[state.currentDiagramId];
+        if (targetModule) {
+          set({
+            modules: {
+              ...state.modules,
+              [state.currentDiagramId]: {
+                ...targetModule,
+                links: targetModule.links.map((link) => (link.id === id ? updatedLink : link)),
+              },
+            },
+          });
+        }
+
+        const projectId = state.currentProjectId;
+        if (projectId && websocketService.isConnected()) {
+          websocketService.emitLinkUpdated(projectId, updatedLink, state.currentDiagramId);
+        }
+
         debouncedSaveToDB(() => get().saveDiagramToDB());
       },
 
@@ -1576,6 +1767,8 @@ export const useDiagramStore = create<DiagramStore>()(
             websocketService.emitLinkDeleted(projectId, link.id, state.currentDiagramId);
           });
         }
+
+        debouncedAutoRenumber(get, set);
       },
 
       moveSelectedNodes: (dx: number, dy: number) => {
@@ -1610,6 +1803,7 @@ export const useDiagramStore = create<DiagramStore>()(
 
         // DB保存をデバウンス
         debouncedSaveToDB(() => get().saveDiagramToDB());
+        debouncedAutoRenumber(get, set);
       },
 
       copySelectedNodes: () => {
@@ -1701,6 +1895,8 @@ export const useDiagramStore = create<DiagramStore>()(
             websocketService.emitLinkCreated(projectId, link, state.currentDiagramId);
           });
         }
+
+        debouncedAutoRenumber(get, set);
       },
 
       toggleGridSnap: () => {
@@ -2228,10 +2424,14 @@ export const useDiagramStore = create<DiagramStore>()(
         }
         saveToHistory(get, set);
 
+        const dataTitle =
+          data && typeof data === 'object' && 'title' in data
+            ? (data as { title?: unknown }).title
+            : undefined;
         const fallbackTitle =
-          (data && typeof data === 'object' && 'title' in data && typeof (data as any).title === 'string'
-            ? (data as any).title
-            : 'インポートされたGSN図') || 'インポートされたGSN図';
+          typeof dataTitle === 'string' && dataTitle.trim()
+            ? dataTitle
+            : 'インポートされたGSN図';
         const projectData = normalizeProjectData(data, fallbackTitle);
         const targetDiagram =
           projectData.modules[projectData.currentDiagramId] ||
@@ -2274,6 +2474,8 @@ export const useDiagramStore = create<DiagramStore>()(
             websocketService.emitNodeMoved(projectId, node.id, node.position, get().currentDiagramId);
           });
         }
+
+        debouncedAutoRenumber(get, set);
       },
 
       exportAsImage: (format) => {
@@ -2462,7 +2664,7 @@ export const useDiagramStore = create<DiagramStore>()(
               shape.setAttribute('rx', (w / 2).toString());
               shape.setAttribute('ry', (h / 2).toString());
               break;
-            case 'Module':
+            case 'Module': {
               const tabWidth = 60;
               const tabHeight = 20;
               const pathData = `
@@ -2478,6 +2680,7 @@ export const useDiagramStore = create<DiagramStore>()(
               shape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
               shape.setAttribute('d', pathData);
               break;
+            }
             default:
               shape = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
               shape.setAttribute('x', (-w / 2).toString());
@@ -2721,6 +2924,7 @@ export const useDiagramStore = create<DiagramStore>()(
 
         // DB保存をデバウンス
         debouncedSaveToDB(() => get().saveDiagramToDB());
+        debouncedAutoRenumber(get, set);
       },
 
       // パターン機能用：履歴保存なしでリンクを直接追加
@@ -2861,15 +3065,13 @@ export const useDiagramStore = create<DiagramStore>()(
       // LocalStorageはデフォルトで使用される（プロジェクトIDベースの保存は setCurrentProject 内で処理）
       partialize: (state) => {
         // userCursors（Map）とWebSocket関連の一時的な状態は永続化から除外
-        const {
-          userCursors,
-          isWebSocketConnected,
-          onlineUsers,
-          isReconnecting,
-          reconnectAttempts,
-          surveyResponseEvent,
-          ...rest
-        } = state;
+        const rest = { ...state };
+        delete rest.userCursors;
+        delete rest.isWebSocketConnected;
+        delete rest.onlineUsers;
+        delete rest.isReconnecting;
+        delete rest.reconnectAttempts;
+        delete rest.surveyResponseEvent;
         return rest;
       },
     }

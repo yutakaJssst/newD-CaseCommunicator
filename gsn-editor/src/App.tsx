@@ -39,19 +39,17 @@ function App() {
     const token = path.replace('/survey/', '').replace(/\/$/, '');
     return token || null;
   }, []);
-
-  if (publicSurveyToken) {
-    return <PublicSurveyPage token={publicSurveyToken} />;
-  }
+  const isPublicSurvey = Boolean(publicSurveyToken);
 
   useEffect(() => {
+    if (isPublicSurvey) return;
     console.log('App mounted, checking auth...');
     checkAuth();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [checkAuth, isPublicSurvey]);
 
   // Initialize WebSocket when user is authenticated
   useEffect(() => {
+    if (isPublicSurvey) return;
     if (isAuthenticated && user && userId) {
       const userName = user.firstName || user.lastName
         ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
@@ -65,11 +63,12 @@ function App() {
         console.log('[App] WebSocket disconnected');
       };
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, userId]); // Only re-run when authentication status or user ID changes
+    return undefined;
+  }, [isAuthenticated, user, userId, initializeWebSocket, disconnectWebSocket, isPublicSurvey]); // Only re-run when authentication status or user ID changes
 
   // Save selected project to localStorage and update diagram store
   useEffect(() => {
+    if (isPublicSurvey) return;
     if (selectedProjectId) {
       localStorage.setItem('selectedProjectId', selectedProjectId);
       setCurrentProject(selectedProjectId);
@@ -78,11 +77,11 @@ function App() {
       setCurrentProject(null);
       setProjectRole(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId]); // setCurrentProject は Zustand の安定したアクションなので依存配列に含めない
+  }, [selectedProjectId, setCurrentProject, setProjectRole, isPublicSurvey]);
 
   // Load project role for permission-aware UI
   useEffect(() => {
+    if (isPublicSurvey) return;
     if (!selectedProjectId || !user) {
       setProjectRole(null);
       return;
@@ -116,18 +115,23 @@ function App() {
     return () => {
       canceled = true;
     };
-  }, [selectedProjectId, user, setProjectRole]);
+  }, [selectedProjectId, user, setProjectRole, isPublicSurvey]);
 
   // Periodic refresh to detect missed events
   useEffect(() => {
+    if (isPublicSurvey) return;
     if (!isAuthenticated || !selectedProjectId) return;
     const intervalId = window.setInterval(() => {
       checkForRemoteUpdate();
     }, 10000);
     return () => window.clearInterval(intervalId);
-  }, [isAuthenticated, selectedProjectId, checkForRemoteUpdate]);
+  }, [isAuthenticated, selectedProjectId, checkForRemoteUpdate, isPublicSurvey]);
 
   console.log('App render:', { isAuthenticated, isLoading, user, selectedProjectId });
+
+  if (isPublicSurvey && publicSurveyToken) {
+    return <PublicSurveyPage token={publicSurveyToken} />;
+  }
 
   // Show loading state while checking authentication
   if (isLoading) {

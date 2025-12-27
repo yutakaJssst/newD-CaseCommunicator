@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { versionsApi } from '../../api/versions';
 import type { DiagramVersion } from '../../api/versions';
 import { LoadingState } from '../Status/LoadingState';
@@ -23,26 +23,32 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // バージョン一覧取得
-  useEffect(() => {
-    if (isOpen && projectId && diagramId) {
-      loadVersions();
-    }
-  }, [isOpen, projectId, diagramId]);
-
-  const loadVersions = async () => {
+  const loadVersions = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await versionsApi.getAll(projectId, diagramId);
       setVersions(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load versions:', err);
-      setError(err.response?.data?.error || 'バージョン一覧の取得に失敗しました');
+      const message =
+        typeof (err as { response?: { data?: { error?: string } } })?.response?.data?.error === 'string'
+          ? (err as { response?: { data?: { error?: string } } }).response?.data?.error
+          : err instanceof Error
+            ? err.message
+            : 'バージョン一覧の取得に失敗しました';
+      setError(message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId, diagramId]);
+
+  // バージョン一覧取得
+  useEffect(() => {
+    if (isOpen && projectId && diagramId) {
+      loadVersions();
+    }
+  }, [isOpen, projectId, diagramId, loadVersions]);
 
   // ロールバック
   const handleRestore = async (versionId: string) => {

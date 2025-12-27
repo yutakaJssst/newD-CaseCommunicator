@@ -11,6 +11,8 @@ interface NodeProps {
   onContextMenu?: (e: React.MouseEvent) => void;
   onResizeStart?: (e: React.MouseEvent, direction: string) => void;
   onCommentClick?: (e: React.MouseEvent) => void;
+  contentOverride?: string | null;
+  hideEmptyContent?: boolean;
 }
 
 export const Node: React.FC<NodeProps> = ({
@@ -22,7 +24,13 @@ export const Node: React.FC<NodeProps> = ({
   onContextMenu,
   onResizeStart,
   onCommentClick,
+  contentOverride,
+  hideEmptyContent = false,
 }) => {
+  const rawContent = contentOverride ?? node.content;
+  const contentText = rawContent ? rawContent.replace(/<[^>]*>/g, '').trim() : '';
+  const hasContent = contentText.length > 0;
+
   const renderShape = () => {
     const { width, height } = node.size;
     const fillColor = node.style?.fillColor || NODE_COLORS[node.type];
@@ -157,7 +165,7 @@ export const Node: React.FC<NodeProps> = ({
         width={node.size.width}
         height={node.size.height}
       >
-        {node.content ? (
+        {hasContent ? (
           <div
             style={{
               width: '100%',
@@ -171,7 +179,7 @@ export const Node: React.FC<NodeProps> = ({
               textAlign: 'center',
               wordBreak: 'break-word',
             }}
-            dangerouslySetInnerHTML={{ __html: node.content }}
+            dangerouslySetInnerHTML={{ __html: rawContent || '' }}
             onMouseDown={(e) => {
               // リンククリック時はノードのドラッグを防止
               const target = e.target as HTMLElement;
@@ -195,7 +203,7 @@ export const Node: React.FC<NodeProps> = ({
                   } else {
                     alert('⚠️ セキュリティ上の理由から、http:// または https:// で始まるURLのみ開くことができます。');
                   }
-                } catch (err) {
+                } catch {
                   alert('⚠️ 無効なURLです。リンクを開けません。\n\nURL: ' + href);
                 }
               }
@@ -206,7 +214,7 @@ export const Node: React.FC<NodeProps> = ({
               onDoubleClick();
             }}
           />
-        ) : (
+        ) : hideEmptyContent ? null : (
           <div
             style={{
               width: '100%',

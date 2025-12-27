@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { projectAPI } from '../../services/api';
 import type { Project } from '../../services/api';
 import ProjectMembers from './ProjectMembers';
@@ -11,6 +11,19 @@ interface ProjectListProps {
   onLogout?: () => void;
 }
 
+const getApiErrorMessage = (err: unknown, fallback: string) => {
+  if (err && typeof err === 'object') {
+    const response = (err as { response?: { data?: { error?: string } } }).response;
+    if (typeof response?.data?.error === 'string') {
+      return response.data.error;
+    }
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return fallback;
+};
+
 export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user, onLogout }) => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -21,21 +34,21 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
   const [isCreating, setIsCreating] = useState(false);
   const [selectedProjectForMembers, setSelectedProjectForMembers] = useState<{ id: string; isOwner: boolean } | null>(null);
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
-  const loadProjects = async () => {
+  const loadProjects = useCallback(async () => {
     try {
       setIsLoading(true);
       const response = await projectAPI.getAll();
       setProjects(response.projects);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'プロジェクトの読み込みに失敗しました');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'プロジェクトの読み込みに失敗しました'));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,14 +60,14 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
         title: newProjectTitle,
         description: newProjectDescription || undefined,
       });
-      setProjects([response.project, ...projects]);
+      setProjects((prevProjects) => [response.project, ...prevProjects]);
       setShowCreateModal(false);
       setNewProjectTitle('');
       setNewProjectDescription('');
       // 新規作成したプロジェクトを自動的に開く
       onSelectProject(response.project.id);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'プロジェクトの作成に失敗しました');
+    } catch (err: unknown) {
+      alert(getApiErrorMessage(err, 'プロジェクトの作成に失敗しました'));
     } finally {
       setIsCreating(false);
     }
@@ -67,9 +80,9 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, user,
 
     try {
       await projectAPI.delete(projectId);
-      setProjects(projects.filter((p) => p.id !== projectId));
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'プロジェクトの削除に失敗しました');
+      setProjects((prevProjects) => prevProjects.filter((project) => project.id !== projectId));
+    } catch (err: unknown) {
+      alert(getApiErrorMessage(err, 'プロジェクトの削除に失敗しました'));
     }
   };
 

@@ -6,19 +6,16 @@ interface CommitModalProps {
   onCommit: (message: string) => void;
 }
 
-export const CommitModal: React.FC<CommitModalProps> = ({ isOpen, onClose, onCommit }) => {
+const CommitModalContent: React.FC<Omit<CommitModalProps, 'isOpen'>> = ({ onClose, onCommit }) => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      setMessage('');
-      setError(null);
-      // フォーカスを設定
-      setTimeout(() => textareaRef.current?.focus(), 100);
-    }
-  }, [isOpen]);
+    // フォーカスを設定
+    const timeoutId = window.setTimeout(() => textareaRef.current?.focus(), 100);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,8 +39,6 @@ export const CommitModal: React.FC<CommitModalProps> = ({ isOpen, onClose, onCom
       onClose();
     }
   };
-
-  if (!isOpen) return null;
 
   return (
     <div
@@ -185,4 +180,9 @@ export const CommitModal: React.FC<CommitModalProps> = ({ isOpen, onClose, onCom
       </div>
     </div>
   );
+};
+
+export const CommitModal: React.FC<CommitModalProps> = ({ isOpen, onClose, onCommit }) => {
+  if (!isOpen) return null;
+  return <CommitModalContent onClose={onClose} onCommit={onCommit} />;
 };

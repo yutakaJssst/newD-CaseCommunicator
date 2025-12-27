@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useDiagramStore } from '../../stores/diagramStore';
 import { useAuthStore } from '../../stores/authStore';
 import { Node } from './Node';
@@ -32,6 +32,7 @@ export const Canvas: React.FC = () => {
     copyNodeTree,
     pasteNodes,
     addLink,
+    updateLink,
     deleteNode,
     deleteLink,
     convertToModule,
@@ -56,11 +57,19 @@ export const Canvas: React.FC = () => {
 
   const svgRef = useRef<SVGSVGElement>(null);
   const lastCursorSentRef = useRef<number>(0);
+  const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const didDragRef = useRef(false);
+  const lastDragAtRef = useRef(0);
+  const curveDragRef = useRef<{ linkId: string; mid: { x: number; y: number } } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
+  const [isCurveDragging, setIsCurveDragging] = useState(false);
+  const DRAG_THRESHOLD = 4;
+  const DRAG_SUPPRESS_MS = 250;
 
   // リサイズ関連
   const [isResizing, setIsResizing] = useState(false);
@@ -204,6 +213,63 @@ export const Canvas: React.FC = () => {
     };
   };
 
+  const getLinkEndpoints = (link: LinkType, sourceNode: NodeType, targetNode: NodeType) => {
+    const verticalTargets = ['Goal', 'Strategy', 'Evidence', 'Undeveloped', 'Module'];
+    const shouldConnectVertically = verticalTargets.includes(targetNode.type);
+
+    let x1: number, y1: number, x2: number, y2: number;
+
+    if (shouldConnectVertically) {
+      const dy = targetNode.position.y - sourceNode.position.y;
+      if (dy > 0) {
+        x1 = sourceNode.position.x;
+        y1 = sourceNode.position.y + sourceNode.size.height / 2;
+        x2 = targetNode.position.x;
+        y2 = targetNode.position.y - targetNode.size.height / 2;
+      } else {
+        x1 = sourceNode.position.x;
+        y1 = sourceNode.position.y - sourceNode.size.height / 2;
+        x2 = targetNode.position.x;
+        y2 = targetNode.position.y + targetNode.size.height / 2;
+      }
+    } else {
+      const dx = targetNode.position.x - sourceNode.position.x;
+      if (dx > 0) {
+        x1 = sourceNode.position.x + sourceNode.size.width / 2;
+        y1 = sourceNode.position.y;
+        x2 = targetNode.position.x - targetNode.size.width / 2;
+        y2 = targetNode.position.y;
+      } else {
+        x1 = sourceNode.position.x - sourceNode.size.width / 2;
+        y1 = sourceNode.position.y;
+        x2 = targetNode.position.x + targetNode.size.width / 2;
+        y2 = targetNode.position.y;
+      }
+    }
+
+    return { x1, y1, x2, y2 };
+  };
+
+  const getDefaultCurveOffset = (x1: number, y1: number, x2: number, y2: number) => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.hypot(dx, dy) || 1;
+    const nx = -dy / length;
+    const ny = dx / length;
+    const magnitude = Math.min(80, Math.max(30, length * 0.2));
+    return { x: nx * magnitude, y: ny * magnitude };
+  };
+
+  const getDefaultCurveOffsetForLink = (link: LinkType) => {
+    const sourceNode = nodes.find((node) => node.id === link.source);
+    const targetNode = nodes.find((node) => node.id === link.target);
+    if (!sourceNode || !targetNode) {
+      return { x: 0, y: 0 };
+    }
+    const { x1, y1, x2, y2 } = getLinkEndpoints(link, sourceNode, targetNode);
+    return getDefaultCurveOffset(x1, y1, x2, y2);
+  };
+
   // キャンバスクリック（ノード追加）
   const handleCanvasClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (e.target !== svgRef.current && e.target !== e.currentTarget) return;
@@ -211,6 +277,7 @@ export const Canvas: React.FC = () => {
     // メニューを閉じる
     setContextMenu(null);
     setLinkContextMenu(null);
+    setSelectedLinkId(null);
 
     if (mode === 'addNode' && selectedNodeType) {
       if (isReadOnly) return;
@@ -256,6 +323,7 @@ export const Canvas: React.FC = () => {
     if (isReadOnly) return;
     e.preventDefault();
     e.stopPropagation();
+    setSelectedLinkId(linkId);
     setLinkContextMenu({
       x: e.clientX,
       y: e.clientY,
@@ -264,11 +332,30 @@ export const Canvas: React.FC = () => {
     setContextMenu(null); // ノードメニューを閉じる
   };
 
+  const handleLinkClick = (linkId: string) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (mode === 'delete' && !isReadOnly) {
+      deleteLink(linkId);
+      setSelectedLinkId(null);
+      return;
+    }
+    setSelectedLinkId(linkId);
+  };
+
+  const handleCurveHandleMouseDown = (linkId: string, mid: { x: number; y: number }) => (e: React.MouseEvent) => {
+    if (isReadOnly) return;
+    e.stopPropagation();
+    setSelectedLinkId(linkId);
+    setIsCurveDragging(true);
+    curveDragRef.current = { linkId, mid };
+  };
+
   // ノードクリック
   const handleNodeClick = (nodeId: string, e?: React.MouseEvent) => {
     if (isReadOnly && (linkSourceId || mode === 'delete')) {
       return;
     }
+    setSelectedLinkId(null);
     // リンク追加モード中の場合
     if (linkSourceId) {
       if (linkSourceId !== nodeId) {
@@ -302,11 +389,14 @@ export const Canvas: React.FC = () => {
   // ノードドラッグ開始
   const handleNodeDragStart = (nodeId: string) => (e: React.MouseEvent) => {
     if (isReadOnly) return;
+    if (e.button !== 0) return;
     e.stopPropagation();
     setDraggedNodeId(nodeId);
     setIsDragging(true);
     const coords = screenToSvgCoordinates(e.clientX, e.clientY);
     setDragStart(coords);
+    dragOriginRef.current = coords;
+    didDragRef.current = false;
   };
 
   // リサイズ開始
@@ -334,14 +424,28 @@ export const Canvas: React.FC = () => {
 
     // カーソル位置をWebSocketで送信（スロットリング: 50ms）
     if (currentProjectId && websocketService.isConnected()) {
-      const now = Date.now();
+      const now = e.timeStamp;
       if (now - lastCursorSentRef.current > 50) {
         websocketService.emitCursorMoved(currentProjectId, coords.x, coords.y);
         lastCursorSentRef.current = now;
       }
     }
 
+    if (isCurveDragging && curveDragRef.current) {
+      const { linkId, mid } = curveDragRef.current;
+      const offset = { x: coords.x - mid.x, y: coords.y - mid.y };
+      updateLink(linkId, { style: { curve: 'smooth', curveOffset: offset } }, { skipHistory: true });
+      return;
+    }
+
     if (isDragging && draggedNodeId) {
+      if (dragOriginRef.current && !didDragRef.current) {
+        const totalDx = coords.x - dragOriginRef.current.x;
+        const totalDy = coords.y - dragOriginRef.current.y;
+        if (Math.hypot(totalDx, totalDy) >= DRAG_THRESHOLD) {
+          didDragRef.current = true;
+        }
+      }
       const node = nodes.find((n) => n.id === draggedNodeId);
       if (node) {
         const dx = coords.x - dragStart.x;
@@ -407,13 +511,22 @@ export const Canvas: React.FC = () => {
   };
 
   // マウスアップ
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (isCurveDragging) {
+      setIsCurveDragging(false);
+      curveDragRef.current = null;
+    }
+    if (isDragging && didDragRef.current) {
+      lastDragAtRef.current = e.timeStamp;
+    }
     setIsDragging(false);
     setDraggedNodeId(null);
     setIsPanning(false);
     setIsResizing(false);
     setResizingNodeId(null);
     setResizeDirection(null);
+    dragOriginRef.current = null;
+    didDragRef.current = false;
   };
 
   // パン開始（中ボタン、Shift+左ボタン、または空白領域で左ボタン）
@@ -475,6 +588,50 @@ export const Canvas: React.FC = () => {
     return currentDiagramId !== 'root';
   })();
 
+  const moduleTopGoalContent = useMemo(() => {
+    const map = new Map<string, string>();
+    const stripHtml = (html: string) => html.replace(/<[^>]*>/g, '').trim();
+
+    Object.entries(modules).forEach(([moduleId, moduleData]) => {
+      const nodesInModule = Array.isArray(moduleData?.nodes) ? moduleData.nodes : [];
+      const linksInModule = Array.isArray(moduleData?.links) ? moduleData.links : [];
+      const goalNodes = nodesInModule.filter((node) => node.type === 'Goal');
+      if (goalNodes.length === 0) return;
+
+      const incoming = new Set<string>();
+      linksInModule.forEach((link) => {
+        incoming.add(link.target);
+      });
+
+      const topGoals = goalNodes.filter((node) => !incoming.has(node.id));
+      if (topGoals.length !== 1) return;
+
+      const content = topGoals[0].content || '';
+      if (!stripHtml(content)) return;
+      map.set(moduleId, content);
+    });
+
+    return map;
+  }, [modules]);
+
+  const activeLink = linkContextMenu ? links.find((link) => link.id === linkContextMenu.linkId) : null;
+  const isSmoothLink = activeLink?.style?.curve === 'smooth';
+
+  const applyLinkCurve = (linkId: string, curve: 'straight' | 'smooth', resetOffset = false) => {
+    const link = links.find((item) => item.id === linkId);
+    if (!link) return;
+
+    if (curve === 'straight') {
+      updateLink(linkId, { style: { curve: 'straight' } });
+      return;
+    }
+
+    const defaultOffset = getDefaultCurveOffsetForLink(link);
+    const existingOffset = link.style?.curveOffset;
+    const nextOffset = resetOffset || !existingOffset ? defaultOffset : existingOffset;
+    updateLink(linkId, { style: { curve: 'smooth', curveOffset: nextOffset } });
+  };
+
   return (
     <>
       <svg
@@ -526,6 +683,7 @@ export const Canvas: React.FC = () => {
             const sourceNode = nodes.find((n) => n.id === link.source);
             const targetNode = nodes.find((n) => n.id === link.target);
             if (!sourceNode || !targetNode) return null;
+            const { x1, y1, x2, y2 } = getLinkEndpoints(link, sourceNode, targetNode);
 
             return (
               <Link
@@ -533,36 +691,49 @@ export const Canvas: React.FC = () => {
                 link={link}
                 sourceNode={sourceNode}
                 targetNode={targetNode}
-                onClick={() => {
-                  if (mode === 'delete' && !isReadOnly) {
-                    deleteLink(link.id);
-                  }
-                }}
+                isSelected={selectedLinkId === link.id}
+                onClick={handleLinkClick(link.id)}
                 onContextMenu={handleLinkContextMenu(link.id)}
+                onCurveHandleMouseDown={handleCurveHandleMouseDown(link.id, {
+                  x: (x1 + x2) / 2,
+                  y: (y1 + y2) / 2,
+                })}
               />
             );
           })}
 
           {/* ノードを描画 */}
-          {nodes.map((node) => (
-            <Node
-              key={node.id}
-              node={node}
-              isSelected={selectedNodes.includes(node.id) || linkSourceId === node.id}
-              onSelect={(e) => handleNodeClick(node.id, e)}
-              onDoubleClick={() => {
-                if (node.type === 'Module' && node.moduleId) {
-                  switchToModule(node.moduleId);
-                } else if (!isReadOnly) {
-                  setEditingNode(node);
-                }
-              }}
-              onDragStart={handleNodeDragStart(node.id)}
-              onContextMenu={handleNodeContextMenu(node.id)}
-              onResizeStart={(e, direction) => handleResizeStart(node.id, direction)(e)}
-              onCommentClick={handleCommentClick(node.id)}
-            />
-          ))}
+          {nodes.map((node) => {
+            const moduleContent =
+              node.type === 'Module' && node.moduleId
+                ? moduleTopGoalContent.get(node.moduleId) ?? ''
+                : null;
+
+            return (
+              <Node
+                key={node.id}
+                node={node}
+                isSelected={selectedNodes.includes(node.id) || linkSourceId === node.id}
+                contentOverride={moduleContent}
+                hideEmptyContent={node.type === 'Module'}
+                onSelect={(e) => handleNodeClick(node.id, e)}
+                onDoubleClick={() => {
+                  if (performance.now() - lastDragAtRef.current < DRAG_SUPPRESS_MS) {
+                    return;
+                  }
+                  if (node.type === 'Module' && node.moduleId) {
+                    switchToModule(node.moduleId);
+                  } else if (!isReadOnly) {
+                    setEditingNode(node);
+                  }
+                }}
+                onDragStart={handleNodeDragStart(node.id)}
+                onContextMenu={handleNodeContextMenu(node.id)}
+                onResizeStart={(e, direction) => handleResizeStart(node.id, direction)(e)}
+                onCommentClick={handleCommentClick(node.id)}
+              />
+            );
+          })}
 
           {/* 他のユーザーのカーソルを描画 */}
           {userCursors instanceof Map && Array.from(userCursors.values()).map((cursor) => {
@@ -673,7 +844,7 @@ export const Canvas: React.FC = () => {
       )}
 
       {/* リンク右クリックメニュー */}
-      {linkContextMenu && (
+      {linkContextMenu && activeLink && (
         <div
           style={{
             position: 'fixed',
@@ -688,10 +859,80 @@ export const Canvas: React.FC = () => {
           }}
           onClick={(e) => e.stopPropagation()}
         >
+          {!isSmoothLink && (
+            <button
+              onClick={() => {
+                applyLinkCurve(activeLink.id, 'smooth');
+                setLinkContextMenu(null);
+              }}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                textAlign: 'left',
+                cursor: 'pointer',
+                fontSize: '14px',
+                color: '#111827',
+                fontWeight: '500',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F3F4F6')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+            >
+              曲線にする
+            </button>
+          )}
+          {isSmoothLink && (
+            <>
+              <button
+                onClick={() => {
+                  applyLinkCurve(activeLink.id, 'straight');
+                  setLinkContextMenu(null);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: '#111827',
+                  fontWeight: '500',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F3F4F6')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                直線にする
+              </button>
+              <button
+                onClick={() => {
+                  applyLinkCurve(activeLink.id, 'smooth', true);
+                  setLinkContextMenu(null);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: '#111827',
+                  fontWeight: '500',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F3F4F6')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                曲線をリセット
+              </button>
+            </>
+          )}
           <button
             onClick={() => {
               deleteLink(linkContextMenu.linkId);
               setLinkContextMenu(null);
+              setSelectedLinkId(null);
             }}
             style={{
               width: '100%',

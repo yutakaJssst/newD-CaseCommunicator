@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import type { Node, Link } from '../types/diagram';
+import type { Node, Link, DiagramData, NodeComment } from '../types/diagram';
 
 interface OnlineUser {
   userId: string;
@@ -15,14 +15,15 @@ interface WebSocketCallbacks {
   onNodeMoved?: (nodeId: string, position: { x: number; y: number }, diagramId: string) => void;
   onLinkCreated?: (link: Link, diagramId: string) => void;
   onLinkDeleted?: (linkId: string, diagramId: string) => void;
-  onModuleCreated?: (moduleId: string, moduleData: any, parentDiagramId: string) => void;
+  onLinkUpdated?: (link: Link, diagramId: string) => void;
+  onModuleCreated?: (moduleId: string, moduleData: DiagramData, parentDiagramId: string) => void;
   onUserJoined?: (user: { userId: string; userName: string; timestamp: string }) => void;
   onUserLeft?: (user: { userId: string; userName: string; timestamp: string }) => void;
   onOnlineUsers?: (users: OnlineUser[]) => void;
   onConnectionStatusChange?: (status: { connected: boolean; reconnecting: boolean; attempts: number }) => void;
   onCursorMoved?: (cursor: { userId: string; userName: string; x: number; y: number }) => void;
   onDiagramReload?: (data: { projectId: string; diagramId: string }) => void;
-  onCommentAdded?: (data: { nodeId: string; comment: any; diagramId: string }) => void;
+  onCommentAdded?: (data: { nodeId: string; comment: NodeComment; diagramId: string }) => void;
   onCommentDeleted?: (data: { nodeId: string; commentId: string; diagramId: string }) => void;
   onSurveyResponseCreated?: (data: { projectId: string; surveyId: string; timestamp?: string }) => void;
 }
@@ -149,6 +150,11 @@ class WebSocketService {
       this.callbacks.onLinkDeleted?.(data.linkId, data.diagramId || 'root');
     });
 
+    this.socket.on('link_updated', (data) => {
+      console.log('[WebSocket] Link updated:', data);
+      this.callbacks.onLinkUpdated?.(data.link, data.diagramId || 'root');
+    });
+
     this.socket.on('module_created', (data) => {
       console.log('[WebSocket] Module created:', data);
       this.callbacks.onModuleCreated?.(data.moduleId, data.moduleData, data.parentDiagramId);
@@ -271,8 +277,12 @@ class WebSocketService {
     this.socket?.emit('link_deleted', { projectId, linkId, diagramId });
   }
 
+  emitLinkUpdated(projectId: string, link: Link, diagramId: string) {
+    this.socket?.emit('link_updated', { projectId, link, diagramId });
+  }
+
   // Emit module operations
-  emitModuleCreated(projectId: string, moduleId: string, moduleData: any, parentDiagramId: string) {
+  emitModuleCreated(projectId: string, moduleId: string, moduleData: DiagramData, parentDiagramId: string) {
     console.log('[WebSocket Client] Emitting module_created:', { projectId, moduleId, parentDiagramId });
     this.socket?.emit('module_created', { projectId, moduleId, moduleData, parentDiagramId });
   }
@@ -281,7 +291,7 @@ class WebSocketService {
     this.socket?.emit('diagram_reload', { projectId, diagramId });
   }
 
-  emitCommentAdded(projectId: string, nodeId: string, comment: any, diagramId: string) {
+  emitCommentAdded(projectId: string, nodeId: string, comment: NodeComment, diagramId: string) {
     this.socket?.emit('comment_added', { projectId, nodeId, comment, diagramId });
   }
 

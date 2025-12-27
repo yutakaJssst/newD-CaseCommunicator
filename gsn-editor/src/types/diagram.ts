@@ -77,6 +77,8 @@ export interface Node {
 export interface LinkStyle {
   color?: string;
   width?: number;
+  curve?: 'straight' | 'smooth';
+  curveOffset?: { x: number; y: number };
 }
 
 /**

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   surveysApi,
   type Survey,
@@ -8,6 +8,7 @@ import {
   type SurveyAudience,
   type SurveyMode,
 } from '../../api/surveys';
+import type { DiagramData, ProjectData, Node as DiagramNode, Link as DiagramLink } from '../../types/diagram';
 import { LoadingState } from '../Status/LoadingState';
 import { ErrorState } from '../Status/ErrorState';
 import { useDiagramStore } from '../../stores/diagramStore';
@@ -40,6 +41,41 @@ const ROLE_OPTIONS = [
 
 const isRoleQuestion = (question: SurveyQuestion) =>
   question.nodeId === 'meta_role' && question.nodeType === 'Meta';
+
+type GsnSnapshot = ProjectData | DiagramData;
+type DiagramSnapshot = Pick<DiagramData, 'nodes' | 'links'>;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const isDiagramData = (value: unknown): value is DiagramData =>
+  isRecord(value) && Array.isArray(value.nodes) && Array.isArray(value.links);
+
+const isProjectData = (value: unknown): value is ProjectData =>
+  isRecord(value) && isRecord(value.modules);
+
+const normalizeSnapshot = (value: unknown): GsnSnapshot | null => {
+  if (isProjectData(value)) return value;
+  if (isDiagramData(value)) return value;
+  return null;
+};
+
+const getApiErrorMessage = (err: unknown, fallback: string) => {
+  if (err && typeof err === 'object') {
+    const response = (err as { response?: { data?: { error?: string } } }).response;
+    if (typeof response?.data?.error === 'string') {
+      return response.data.error;
+    }
+  }
+  if (err instanceof Error) return err.message;
+  return fallback;
+};
+
+const calculateSampleVariance = (values: number[]) => {
+  if (values.length < 2) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  return values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1);
+};
 
 export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
   isOpen,
@@ -91,7 +127,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       : null;
     const single = selectedSurvey.mode === 'combined' ? null : general;
     return { general, expert, single };
-  }, [selectedSurvey?.publicToken, selectedSurvey?.publicTokenExpert, selectedSurvey?.mode]);
+  }, [selectedSurvey]);
 
   const introDirty = useMemo(() => {
     if (!selectedSurvey) return false;
@@ -106,46 +142,38 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       editImageUrl !== currentImage ||
       editExpertIntro !== currentExpertIntro
     );
-  }, [
-    editDescription,
-    editImageUrl,
-    editExpertIntro,
-    selectedSurvey?.description,
-    selectedSurvey?.publicImageUrl,
-    selectedSurvey?.expertIntro,
-    selectedSurvey?.mode,
-    selectedSurvey?.audience,
-  ]);
+  }, [editDescription, editImageUrl, editExpertIntro, selectedSurvey]);
 
   const nodeMap = useMemo(() => {
-    const snapshot = selectedSurvey?.gsnSnapshot as any;
-    if (!snapshot || typeof snapshot !== 'object') return new Map<string, any>();
-    const modules = snapshot.modules && typeof snapshot.modules === 'object'
-      ? snapshot.modules
-      : { root: snapshot };
+    const snapshot = normalizeSnapshot(selectedSurvey?.gsnSnapshot);
+    if (!snapshot) return new Map<string, DiagramNode>();
+    const modules = isProjectData(snapshot) ? snapshot.modules : { root: snapshot };
     const allNodes = Object.values(modules)
-      .flatMap((module: any) => (Array.isArray(module?.nodes) ? module.nodes : []));
-    return new Map(allNodes.map((node: any) => [String(node.id), node]));
+      .flatMap((module) => (Array.isArray(module.nodes) ? module.nodes : []));
+    return new Map(allNodes.map((node) => [String(node.id), node]));
   }, [selectedSurvey?.gsnSnapshot]);
 
-  const diagramData = useMemo(() => {
-    const snapshot = selectedSurvey?.gsnSnapshot as any;
-    if (!snapshot || typeof snapshot !== 'object') return null;
-    const currentId = snapshot.currentDiagramId || 'root';
-    const modules = snapshot.modules && typeof snapshot.modules === 'object'
-      ? snapshot.modules
-      : { root: snapshot };
-    const moduleData = modules[currentId] || modules.root || null;
-    if (!moduleData) return null;
+  const diagramData = useMemo<DiagramSnapshot | null>(() => {
+    const snapshot = normalizeSnapshot(selectedSurvey?.gsnSnapshot);
+    if (!snapshot) return null;
+    if (isProjectData(snapshot)) {
+      const currentId = snapshot.currentDiagramId || 'root';
+      const moduleData = snapshot.modules[currentId] || snapshot.modules.root || null;
+      if (!moduleData) return null;
+      return {
+        nodes: Array.isArray(moduleData.nodes) ? moduleData.nodes : [],
+        links: Array.isArray(moduleData.links) ? moduleData.links : [],
+      };
+    }
     return {
-      nodes: Array.isArray(moduleData.nodes) ? moduleData.nodes : [],
-      links: Array.isArray(moduleData.links) ? moduleData.links : [],
+      nodes: Array.isArray(snapshot.nodes) ? snapshot.nodes : [],
+      links: Array.isArray(snapshot.links) ? snapshot.links : [],
     };
   }, [selectedSurvey?.gsnSnapshot]);
 
   const consensusNodes = useMemo(() => {
     if (!diagramData) return [];
-    return diagramData.nodes.filter((node: any) => node?.type === 'Goal' || node?.type === 'Strategy');
+    return diagramData.nodes.filter((node) => node.type === 'Goal' || node.type === 'Strategy');
   }, [diagramData]);
 
   const stripHtml = (html?: string) => {
@@ -153,13 +181,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     return html.replace(/<[^>]*>/g, '').trim();
   };
 
-  const calculateSampleVariance = (values: number[]) => {
-    if (values.length < 2) return 0;
-    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
-    return values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1);
-  };
-
-  const computeConsensusAndConfidence = async (
+  const computeConsensusAndConfidence = useCallback(async (
     combinedSurveyId: string | null,
     generalSurveyId: string | null,
     expertSurveyId: string | null
@@ -191,12 +213,12 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
         }
       }
 
-      const nodesById = new Map<string, any>(
-        diagramData.nodes.map((node: any) => [String(node.id), node])
+      const nodesById = new Map<string, DiagramNode>(
+        diagramData.nodes.map((node) => [String(node.id), node])
       );
       const childrenById = new Map<string, string[]>();
       const incoming = new Set<string>();
-      diagramData.links.forEach((link: any) => {
+      diagramData.links.forEach((link: DiagramLink) => {
         const source = String(link.source);
         const target = String(link.target);
         const list = childrenById.get(source) || [];
@@ -283,13 +305,13 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       };
 
       nodesById.forEach((node, nodeId) => {
-        if (node?.type !== 'Strategy') return;
+        if (node.type !== 'Strategy') return;
         consensusByNodeMap.set(nodeId, avgRatings.get(nodeId) ?? null);
       });
 
       const goalIds: string[] = diagramData.nodes
-        .filter((node: any) => node?.type === 'Goal')
-        .map((node: any) => String(node.id));
+        .filter((node) => node.type === 'Goal')
+        .map((node) => String(node.id));
 
       goalIds.forEach((goalId) => {
         consensusByNodeMap.set(goalId, calcGoalConsensus(goalId, new Set()));
@@ -410,7 +432,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     } finally {
       setIsConsensusLoading(false);
     }
-  };
+  }, [diagramData]);
 
   const escapeCsv = (value: string | number | null | undefined) => {
     const text = value === null || value === undefined ? '' : String(value);
@@ -434,7 +456,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const loadSurveys = async () => {
+  const loadSurveys = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -444,39 +466,37 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
         responseCount: survey._count?.responses ?? 0,
       }));
       setSurveys(list);
-      if (list.length > 0 && !selectedSurvey) {
-        setSelectedSurvey(list[0]);
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'アンケートの読み込みに失敗しました');
+      setSelectedSurvey((prev) => (prev ? prev : list[0] ?? null));
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'アンケートの読み込みに失敗しました'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
 
-  const loadSurveyDetail = async (surveyId: string) => {
+  const loadSurveyDetail = useCallback(async (surveyId: string) => {
     try {
       const response = await surveysApi.getSurvey(surveyId);
       setSelectedSurvey(response.survey);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'アンケートの取得に失敗しました');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'アンケートの取得に失敗しました'));
     }
-  };
+  }, []);
 
-  const loadAnalytics = async (surveyId: string) => {
+  const loadAnalytics = useCallback(async (surveyId: string) => {
     try {
       const response = await surveysApi.getSurveyAnalytics(surveyId);
       setAnalytics(response);
-    } catch (err: any) {
-      setError(err.response?.data?.error || '集計の取得に失敗しました');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, '集計の取得に失敗しました'));
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isOpen && projectId) {
       loadSurveys();
     }
-  }, [isOpen, projectId]);
+  }, [isOpen, projectId, loadSurveys]);
 
   useEffect(() => {
     if (selectedSurvey?.id) {
@@ -485,7 +505,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     } else {
       setAnalytics(null);
     }
-  }, [selectedSurvey?.id]);
+  }, [selectedSurvey?.id, loadSurveyDetail, loadAnalytics]);
 
   useEffect(() => {
     if (!selectedSurvey) {
@@ -498,7 +518,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     setEditDescription(selectedSurvey.description ?? '');
     setEditImageUrl(selectedSurvey.publicImageUrl ?? '');
     setEditExpertIntro(hasExpertIntro ? selectedSurvey.expertIntro ?? DEFAULT_EXPERT_INTRO : '');
-  }, [selectedSurvey?.id]);
+  }, [selectedSurvey]);
 
   useEffect(() => {
     if (!isOpen || !selectedSurvey || !diagramData) {
@@ -545,9 +565,9 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
           generalSurvey?.id || null,
           expertSurvey?.id || null
         );
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!canceled) {
-          setError(err.response?.data?.error || '合意形成点の計算に失敗しました');
+          setError(getApiErrorMessage(err, '合意形成点の計算に失敗しました'));
           setConsensusScore(null);
           setConfidenceScore(null);
           setConsensusByNode(new Map());
@@ -563,13 +583,11 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     };
   }, [
     isOpen,
-    selectedSurvey?.id,
-    selectedSurvey?.diagramId,
-    selectedSurvey?.mode,
-    selectedSurvey?.audience,
+    selectedSurvey,
     diagramData,
     surveys,
     surveyResponseEvent?.receivedAt,
+    computeConsensusAndConfidence,
   ]);
 
   useEffect(() => {
@@ -594,7 +612,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     if (selectedSurvey?.id === surveyResponseEvent.surveyId) {
       loadAnalytics(selectedSurvey.id);
     }
-  }, [surveyResponseEvent?.receivedAt, isOpen, projectId, selectedSurvey?.id]);
+  }, [surveyResponseEvent, isOpen, projectId, selectedSurvey, loadSurveys, loadAnalytics]);
 
   useEffect(() => {
     if (!isOpen || !selectedSurvey?.id) return;
@@ -605,9 +623,9 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
         if (active) {
           setAnalytics(response);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (active) {
-          setError(err.response?.data?.error || '集計の取得に失敗しました');
+          setError(getApiErrorMessage(err, '集計の取得に失敗しました'));
         }
       }
     };
@@ -643,8 +661,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       setMode('single');
       await loadSurveys();
       setSelectedSurvey(response.survey);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'アンケートの作成に失敗しました');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'アンケートの作成に失敗しました'));
     } finally {
       setIsCreating(false);
     }
@@ -664,8 +682,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       const response = await surveysApi.updateSurvey(selectedSurvey.id, payload);
       setSelectedSurvey(response.survey);
       await loadSurveys();
-    } catch (err: any) {
-      setError(err.response?.data?.error || '説明の更新に失敗しました');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, '説明の更新に失敗しました'));
     } finally {
       setIsSaving(false);
     }
@@ -748,8 +766,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       link.download = `${safeTitle}-results.csv`;
       link.click();
       URL.revokeObjectURL(url);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'CSVの出力に失敗しました');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'CSVの出力に失敗しました'));
     } finally {
       setIsExporting(false);
     }
@@ -761,8 +779,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       const response = await surveysApi.publishSurvey(selectedSurvey.id);
       setSelectedSurvey(response.survey);
       await loadSurveys();
-    } catch (err: any) {
-      setError(err.response?.data?.error || '公開に失敗しました');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, '公開に失敗しました'));
     }
   };
 
@@ -772,8 +790,8 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
       const response = await surveysApi.closeSurvey(selectedSurvey.id);
       setSelectedSurvey(response.survey);
       await loadSurveys();
-    } catch (err: any) {
-      setError(err.response?.data?.error || '終了に失敗しました');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, '終了に失敗しました'));
     }
   };
 
@@ -782,7 +800,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
     try {
       await navigator.clipboard.writeText(url);
       setCopiedUrl(url);
-    } catch (err) {
+    } catch {
       setError('URLのコピーに失敗しました');
     }
   };
@@ -1362,7 +1380,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
                           </div>
                         ) : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {consensusNodes.map((node: any) => {
+                            {consensusNodes.map((node: DiagramNode) => {
                               const nodeId = String(node.id);
                               const nodeLabel = nodeMap.get(nodeId)?.label || nodeId;
                               const consensusValue = consensusByNode.get(nodeId);

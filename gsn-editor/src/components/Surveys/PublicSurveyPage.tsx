@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { publicSurveysApi, type PublicSurveyAnswer, type PublicSurveyResponse } from '../../api/surveys';
+import type { DiagramData, ProjectData, Node as DiagramNode } from '../../types/diagram';
 import { LoadingState } from '../Status/LoadingState';
 import { ErrorState } from '../Status/ErrorState';
 
@@ -36,6 +37,34 @@ const ROLE_OPTIONS = [
 const isRoleQuestion = (question: PublicSurveyResponse['survey']['questions'][number]) =>
   question.nodeId === 'meta_role' && question.nodeType === 'Meta';
 
+type GsnSnapshot = ProjectData | DiagramData;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const isDiagramData = (value: unknown): value is DiagramData =>
+  isRecord(value) && Array.isArray(value.nodes) && Array.isArray(value.links);
+
+const isProjectData = (value: unknown): value is ProjectData =>
+  isRecord(value) && isRecord(value.modules);
+
+const normalizeSnapshot = (value: unknown): GsnSnapshot | null => {
+  if (isProjectData(value)) return value;
+  if (isDiagramData(value)) return value;
+  return null;
+};
+
+const getApiErrorMessage = (err: unknown, fallback: string) => {
+  if (err && typeof err === 'object') {
+    const response = (err as { response?: { data?: { error?: string } } }).response;
+    if (typeof response?.data?.error === 'string') {
+      return response.data.error;
+    }
+  }
+  if (err instanceof Error) return err.message;
+  return fallback;
+};
+
 export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => {
   const [survey, setSurvey] = useState<PublicSurveyResponse['survey'] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,14 +100,12 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
   }, [questionsToDisplay, entryAudience]);
 
   const nodeMap = useMemo(() => {
-    const snapshot = survey?.gsnSnapshot as any;
-    if (!snapshot || typeof snapshot !== 'object') return new Map<string, any>();
-    const modules = snapshot.modules && typeof snapshot.modules === 'object'
-      ? snapshot.modules
-      : { root: snapshot };
+    const snapshot = normalizeSnapshot(survey?.gsnSnapshot);
+    if (!snapshot) return new Map<string, DiagramNode>();
+    const modules = isProjectData(snapshot) ? snapshot.modules : { root: snapshot };
     const allNodes = Object.values(modules)
-      .flatMap((module: any) => (Array.isArray(module?.nodes) ? module.nodes : []));
-    return new Map(allNodes.map((node: any) => [String(node.id), node]));
+      .flatMap((module) => (Array.isArray(module.nodes) ? module.nodes : []));
+    return new Map(allNodes.map((node) => [String(node.id), node]));
   }, [survey?.gsnSnapshot]);
 
   const stripHtml = (html?: string) => {
@@ -87,17 +114,20 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
   };
 
   const diagramData = useMemo(() => {
-    const snapshot = survey?.gsnSnapshot as any;
-    if (!snapshot || typeof snapshot !== 'object') return null;
-    const currentId = snapshot.currentDiagramId || 'root';
-    const modules = snapshot.modules && typeof snapshot.modules === 'object'
-      ? snapshot.modules
-      : { root: snapshot };
-    const moduleData = modules[currentId] || modules.root || null;
-    if (!moduleData) return null;
+    const snapshot = normalizeSnapshot(survey?.gsnSnapshot);
+    if (!snapshot) return null;
+    if (isProjectData(snapshot)) {
+      const currentId = snapshot.currentDiagramId || 'root';
+      const moduleData = snapshot.modules[currentId] || snapshot.modules.root || null;
+      if (!moduleData) return null;
+      return {
+        nodes: Array.isArray(moduleData.nodes) ? moduleData.nodes : [],
+        links: Array.isArray(moduleData.links) ? moduleData.links : [],
+      };
+    }
     return {
-      nodes: Array.isArray(moduleData.nodes) ? moduleData.nodes : [],
-      links: Array.isArray(moduleData.links) ? moduleData.links : [],
+      nodes: Array.isArray(snapshot.nodes) ? snapshot.nodes : [],
+      links: Array.isArray(snapshot.links) ? snapshot.links : [],
     };
   }, [survey?.gsnSnapshot]);
 
@@ -109,8 +139,8 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
         const response = await publicSurveysApi.getSurvey(token);
         setSurvey(response.survey);
         setMissingScores(new Set());
-      } catch (err: any) {
-        setError(err.response?.data?.error || 'アンケートの読み込みに失敗しました');
+      } catch (err: unknown) {
+        setError(getApiErrorMessage(err, 'アンケートの読み込みに失敗しました'));
       } finally {
         setLoading(false);
       }
@@ -203,8 +233,8 @@ export const PublicSurveyPage: React.FC<PublicSurveyPageProps> = ({ token }) => 
       setError(null);
       await publicSurveysApi.submitResponse(token, answerList as PublicSurveyAnswer[]);
       setSubmitted(true);
-    } catch (err: any) {
-      setError(err.response?.data?.error || '送信に失敗しました');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, '送信に失敗しました'));
     }
   };
 

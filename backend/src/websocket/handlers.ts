@@ -133,6 +133,10 @@ export const setupWebSocket = (io: Server) => {
       socket.to(data.projectId).emit('link_deleted', data);
     });
 
+    socket.on('link_updated', (data) => {
+      socket.to(data.projectId).emit('link_updated', data);
+    });
+
     // Handle comment operations
     socket.on('comment_added', (data) => {
       socket.to(data.projectId).emit('comment_added', data);

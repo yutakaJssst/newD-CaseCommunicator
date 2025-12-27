@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { projectMembersApi, type ProjectMember, type User } from '../../api/projectMembers';
 import { LoadingState } from '../Status/LoadingState';
 import { ErrorState } from '../Status/ErrorState';
@@ -21,12 +21,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor');
   const [inviting, setInviting] = useState(false);
 
-  // Load members
-  useEffect(() => {
-    loadMembers();
-  }, [projectId]);
-
-  const loadMembers = async () => {
+  const loadMembers = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -38,7 +33,12 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, isOwner, onC
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
+
+  // Load members
+  useEffect(() => {
+    loadMembers();
+  }, [loadMembers]);
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
