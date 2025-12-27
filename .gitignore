@@ -47,3 +47,6 @@ lerna-debug.log*
 /tmp/
 *.tmp
 *.temp
+
+# Uploads (AI attachments)
+backend/uploads/
