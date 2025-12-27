@@ -6,6 +6,7 @@ export interface RequestWithId extends Request {
 }
 
 const DEFAULT_TIMEOUT_MS = 15000;
+const AI_TIMEOUT_MS = 120000; // 2 minutes for AI requests
 
 export const requestContext = (
   req: RequestWithId,
@@ -18,7 +19,11 @@ export const requestContext = (
   req.requestId = requestId;
   res.setHeader('X-Request-Id', requestId);
 
-  res.setTimeout(DEFAULT_TIMEOUT_MS, () => {
+  // Use longer timeout for AI chat endpoint
+  const isAiRequest = req.path.endsWith('/ai/chat');
+  const timeoutMs = isAiRequest ? AI_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
+
+  res.setTimeout(timeoutMs, () => {
     if (res.headersSent) return;
     res.status(504).json({ error: 'リクエストがタイムアウトしました', requestId });
   });

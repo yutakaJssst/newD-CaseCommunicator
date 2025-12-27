@@ -242,15 +242,16 @@ export const Node: React.FC<NodeProps> = ({
             y={-node.size.height / 2 - 24}
             width={Math.max(40, node.label.length * 9)}
             height={20}
-            fill="#1F2937"
-            stroke="none"
+            fill="#FFFFFF"
+            stroke="#D1D5DB"
+            strokeWidth={1}
             rx={4}
             ry={4}
           />
           <text
             x={-node.size.width / 2 + Math.max(40, node.label.length * 9) / 2}
             y={-node.size.height / 2 - 9}
-            fill="#FFFFFF"
+            fill="#374151"
             fontSize={13}
             fontWeight="600"
             textAnchor="middle"
@@ -265,7 +266,7 @@ export const Node: React.FC<NodeProps> = ({
         <text
           x={node.size.width / 2 - 10}
           y={node.size.height / 2 - 5}
-          fill="#000000"
+          fill={node.type === 'Assumption' ? '#DC2626' : '#2563EB'}
           fontSize={16}
           fontWeight="bold"
           textAnchor="middle"

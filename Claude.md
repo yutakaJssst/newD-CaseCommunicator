@@ -5,8 +5,8 @@
 既存の **D-Case Communicator** (AngularJS + PHP + MongoDB) をモダンな技術スタックで再実装。
 リアルタイム協調編集可能なGSN（Goal Structuring Notation）エディタ。
 
-**更新日**: 2025-12-25
-**状態**: Phase 1-6 + アンケート機能（統合アンケート/公開/集計/CSV）実装済み
+**更新日**: 2025-12-27
+**状態**: Phase 1-7 + AIアシスタント + 自動レイアウト改善 実装済み
 
 ---
 
@@ -41,7 +41,7 @@ newD-CaseEditor/
 │       │   │                           # ContextMenu, ValidationModal, CommentPopover
 │       │   │                           # CommitModal, VersionHistoryModal, UserCursor
 │       │   ├── Header/                 # Header (ズーム・エクスポート・オンラインユーザー)
-│       │   ├── Sidebar/                # Sidebar, NodePalette, PatternLibrary
+│       │   ├── Sidebar/                # Sidebar, NodePalette, AiChatPanel, PatternLibrary
 │       │   ├── Projects/               # ProjectList, ProjectMembers
 │       │   ├── Surveys/                # SurveyManagerModal, PublicSurveyPage
 │       │   └── Status/                 # LoadingState, ReconnectingState
@@ -56,10 +56,12 @@ newD-CaseEditor/
 │       │   ├── versions.ts             # バージョン管理API
 │       │   ├── patterns.ts             # パターンAPI
 │       │   ├── surveys.ts              # アンケートAPI
+│       │   ├── ai.ts                   # AI API（Claude連携）
 │       │   └── projectMembers.ts       # メンバー管理API
 │       ├── types/diagram.ts            # TypeScript型定義・定数
 │       └── utils/
-│           ├── autoLayout.ts           # Reingold-Tilfordアルゴリズム
+│           ├── autoLayout.ts           # 自動レイアウト（黄金比・CJK対応）
+│           ├── aiOps.ts                # AI操作適用ユーティリティ
 │           └── validation.ts           # GSN検証ロジック（6種類）
 │
 ├── backend/                            # バックエンド
@@ -68,8 +70,8 @@ newD-CaseEditor/
 │   │   ├── controllers/                # authController, projectController
 │   │   │                               # diagramController, versionController
 │   │   │                               # patternController, projectMemberController
-│   │   │                               # surveyController, surveyPublicController
-│   │   ├── routes/                     # auth, projects, diagrams, versions, patterns, surveys
+│   │   │                               # surveyController, surveyPublicController, aiController
+│   │   ├── routes/                     # auth, projects, diagrams, versions, patterns, surveys, ai
 │   │   ├── middleware/                 # auth (JWT検証), errorHandler, requestContext
 │   │   ├── websocket/handlers.ts       # WebSocketイベントハンドラー
 │   │   ├── websocket/emitter.ts        # WebSocket送信ヘルパー
@@ -165,7 +167,7 @@ model Diagram {
 - プロジェクト全体エクスポート/インポート
 
 ### Phase 4: 自動化・検証 ✅
-- 自動レイアウト（Reingold-Tilfordアルゴリズム）
+- 自動レイアウト（Reingold-Tilford、黄金比、日本語/英語混在対応）
 - キーボードショートカット（Delete, Ctrl+A, Ctrl+C/V, 矢印キー）
 - 全体表示（Fit to Screen）
 - 選択範囲にズーム
@@ -205,6 +207,14 @@ model Diagram {
 - 集計（平均/件数）表示、CSV出力
 - 回答到着時に集計を自動更新（WebSocket）
 
+### Phase 8: AIアシスタント ✅
+- Claude API連携（claude-sonnet-4モデル）
+- サイドバーにAIチャットパネル
+- GSNダイアグラムのスナップショットをAIに送信
+- AIによるノード追加・更新・削除操作
+- 操作プレビュー＆確認モーダル
+- AIリクエスト用2分タイムアウト
+
 ---
 
 ## GSN標準準拠
@@ -217,8 +227,8 @@ model Diagram {
 | Strategy | 平行四辺形 (`skewX(-15)`) | `#FFFFFF` (白) | ゴール分解の方針 |
 | Context | 角丸矩形 (`rx=10`) | `#FFFFFF` (白) | 前提条件 |
 | Evidence | 楕円 | `#FFC5AA` (薄橙) | ゴール達成の根拠 |
-| Assumption | 楕円 + "A"添え字 | `#FFE699` (薄黄) | 論証の仮定事項 |
-| Justification | 楕円 + "J"添え字 | `#BDD7EE` (薄青) | 戦略の正当性根拠 |
+| Assumption | 楕円 + 赤"A"添え字 | `#FFE699` (薄黄) | 論証の仮定事項 |
+| Justification | 楕円 + 青"J"添え字 | `#BDD7EE` (薄青) | 戦略の正当性根拠 |
 | Undeveloped | ダイヤモンド (polygon) | `#FFFFFF` (白) | 未展開のゴール |
 | Module | フォルダ型（タブ付き） | `#E0E0E0` (グレー) | 別ダイアグラムへのリンク |
 
@@ -372,6 +382,12 @@ model ActivityLog { id, projectId, userId, action, data (Json), createdAt }
 - `GET /api/surveys/public/:token` - 公開アンケート取得（一般/専門家のトークン対応）
 - `POST /api/surveys/public/:token/response` - 公開アンケート回答
 
+### AI
+- `GET /api/ai/credentials` - AI APIキー設定状況確認
+- `POST /api/ai/credentials` - AI APIキー登録
+- `POST /api/projects/:projectId/ai/attachments` - 添付ファイルアップロード
+- `POST /api/projects/:projectId/ai/chat` - AIチャット送信（2分タイムアウト）
+
 ---
 
 ## セキュリティ
@@ -405,10 +421,10 @@ model ActivityLog { id, projectId, userId, action, data (Json), createdAt }
 
 ---
 
-## テスト結果 (2025-12-24)
+## テスト結果 (2025-12-27)
 
 - `backend`: `npm run build` ✅
-- `gsn-editor`: `npm run build` ✅（Viteのdynamic import警告あり）
+- `gsn-editor`: `npm run build` ✅
 - 実ブラウザでの機能テストは未実施
 
 ---
@@ -426,12 +442,31 @@ model ActivityLog { id, projectId, userId, action, data (Json), createdAt }
 
 ## 最近の変更履歴
 
+### 2025-12-27
+
+#### 自動レイアウト改善 ✅
+- 黄金比（1.618:1）でノードサイズを最適化
+- 日本語/英語混在テキストに対応（CJK文字幅判定）
+- Moduleノードは内部トップゴールの内容に基づいてサイズ決定
+- 余白が大きすぎる場合は自動で縮小
+
+#### コードレビュー対応 ✅
+- Assumption添え字を赤色、Justification添え字を青色に修正
+- 未使用変数の削除、マジックナンバーの定数化
+
 ### 2025-12-25
 
 #### 統合アンケート ✅
 - 単一アンケートで非専門家/専門家の質問を生成
 - 一般/専門家の公開URLを別トークンで発行
 - 合意形成は0〜3を正規化して合算、Confidenceは専門家0〜1のみ使用
+
+#### AIアシスタント機能 ✅
+- Claude API連携（claude-sonnet-4モデル）
+- サイドバーにAIチャットパネル追加
+- PDF/画像の添付対応（10MBまで）
+- AI操作プレビュー＆確認モーダル
+- AIリクエスト用2分タイムアウト
 
 ### 2025-12-24
 

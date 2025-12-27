@@ -21,11 +21,12 @@ Goal Structuring Notation (GSN) を描画・編集するためのWebアプリケ
 
 ### 高度な機能
 - モジュール機能とパンくずナビゲーション
-- 自動レイアウト（Reingold-Tilford）
+- 自動レイアウト（Reingold-Tilford、黄金比、日本語/英語対応）
 - Undo/Redo、サブツリーコピー
 - GSN検証（6種類：ルートノード、循環参照、孤立ノード等）
 - コメント機能（ノード単位）
 - パターン保存・再利用
+- AIアシスタント（Claude API連携）
 
 ### 協調作業
 - プロジェクト/メンバー管理（owner/editor/viewer）
@@ -100,10 +101,10 @@ npm run dev  # → http://localhost:5173
 4. ノード/リンク操作が同期されることを確認
 5. ヘッダーに「○人オンライン」と表示される
 
-## テスト結果 (2025-12-24)
+## テスト結果 (2025-12-27)
 
 - `backend`: `npm run build` ✅
-- `gsn-editor`: `npm run build` ✅（Viteのdynamic import警告あり）
+- `gsn-editor`: `npm run build` ✅
 - 実ブラウザでの機能テストは未実施
 
 ## ディレクトリ構成

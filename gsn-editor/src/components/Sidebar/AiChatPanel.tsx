@@ -136,9 +136,8 @@ export const AiChatPanel: React.FC = () => {
   return (
     <div
       style={{
-        borderTop: '1px solid #E5E7EB',
         backgroundColor: '#FFFFFF',
-        marginTop: 'auto',
+        borderTop: '1px solid #E5E7EB',
       }}
     >
       <button
