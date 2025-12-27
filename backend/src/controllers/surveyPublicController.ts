@@ -97,14 +97,15 @@ export const submitPublicResponse = async (req: Request, res: Response): Promise
     const scaleType = question.scaleType || 'likert_0_3';
     const min = typeof question.scaleMin === 'number' ? question.scaleMin : 0;
     const max = typeof question.scaleMax === 'number' ? question.scaleMax : 3;
+    const rangeMessage = `${min}〜${max}の範囲で回答してください`;
     if (scaleType === 'continuous_0_1') {
       if (score < min || score > max) {
-        res.status(400).json({ error: '0〜1の範囲で回答してください' });
+        res.status(400).json({ error: rangeMessage });
         return;
       }
     } else {
       if (!Number.isInteger(score) || score < min || score > max) {
-        res.status(400).json({ error: '0〜3点で回答してください' });
+        res.status(400).json({ error: rangeMessage });
         return;
       }
     }

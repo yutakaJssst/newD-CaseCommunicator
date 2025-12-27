@@ -11,7 +11,7 @@ type SurveyQuestionInput = {
   audience?: 'general' | 'expert';
   scaleMin?: number;
   scaleMax?: number;
-  scaleType?: 'likert_0_3' | 'continuous_0_1';
+  scaleType?: 'likert_0_3' | 'continuous_0_1' | 'choice';
 };
 
 const DEFAULT_EXPERT_INTRO = `現状のシステムの安全性を、厳密に測定するための質問です。議論の基盤になるGSNの末端のゴールノードと戦略ノードについて専門家の立場から回答をお願いいたします。
@@ -116,7 +116,7 @@ const buildDefaultQuestions = (
       audience,
       scaleMin: 0,
       scaleMax: ROLE_QUESTION_OPTIONS.length - 1,
-      scaleType: 'likert_0_3',
+      scaleType: 'choice',
     });
   }
 

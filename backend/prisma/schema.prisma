@@ -24,6 +24,7 @@ enum SurveyAudience {
 enum SurveyScaleType {
   likert_0_3
   continuous_0_1
+  choice
 }
 
 enum SurveyMode {

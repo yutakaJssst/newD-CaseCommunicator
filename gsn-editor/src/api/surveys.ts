@@ -3,7 +3,7 @@ import { api } from '../services/api';
 
 export type SurveyStatus = 'draft' | 'published' | 'closed';
 export type SurveyAudience = 'general' | 'expert';
-export type SurveyScaleType = 'likert_0_3' | 'continuous_0_1';
+export type SurveyScaleType = 'likert_0_3' | 'continuous_0_1' | 'choice';
 export type SurveyMode = 'single' | 'combined';
 
 export interface SurveyQuestion {
