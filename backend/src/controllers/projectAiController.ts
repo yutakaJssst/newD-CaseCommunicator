@@ -193,9 +193,10 @@ const buildConversationHistory = async (
   conversationId: string,
   maxMessages: number,
 ): Promise<Array<{ role: 'user' | 'assistant'; content: ClaudeMessageContent[] }>> => {
+  // 最新N件を取得するため、降順で取得してから逆順にする
   const messages = await prisma.aiMessage.findMany({
     where: { conversationId },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { createdAt: 'desc' },
     take: maxMessages,
     select: {
       role: true,
@@ -203,7 +204,8 @@ const buildConversationHistory = async (
     },
   });
 
-  return messages.map((msg) => ({
+  // 時系列順（古い順）に並び替え
+  return messages.reverse().map((msg) => ({
     role: msg.role as 'user' | 'assistant',
     content: [{ type: 'text' as const, text: msg.content }],
   }));

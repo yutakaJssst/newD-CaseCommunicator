@@ -147,16 +147,28 @@ export const applyAiOps = (ops: AiOp[], runAutoLayout = true) => {
         break;
       }
       case 'updateNode': {
-        if (!state.nodes.find((node) => node.id === op.nodeId)) break;
-        store.updateNode(op.nodeId, {
-          content: op.content,
-          label: op.label,
-        });
+        // テンポラリIDマッピングを適用
+        const mappedNodeId = idMap.get(op.nodeId) ?? op.nodeId;
+        if (!state.nodes.find((node) => node.id === mappedNodeId)) break;
+        // undefinedの場合は既存値を保持するため、明示的に指定されたプロパティのみ更新
+        // 型チェックを追加してAIの不正出力を防ぐ
+        const updates: { content?: string; label?: string } = {};
+        if (typeof op.content === 'string') {
+          updates.content = op.content;
+        }
+        if (typeof op.label === 'string') {
+          updates.label = op.label;
+        }
+        if (Object.keys(updates).length > 0) {
+          store.updateNode(mappedNodeId, updates);
+        }
         break;
       }
       case 'deleteNode': {
-        if (!state.nodes.find((node) => node.id === op.nodeId)) break;
-        store.deleteNode(op.nodeId);
+        // テンポラリIDマッピングを適用
+        const mappedNodeId = idMap.get(op.nodeId) ?? op.nodeId;
+        if (!state.nodes.find((node) => node.id === mappedNodeId)) break;
+        store.deleteNode(mappedNodeId);
         break;
       }
       case 'addLink': {
@@ -183,8 +195,10 @@ export const applyAiOps = (ops: AiOp[], runAutoLayout = true) => {
         break;
       }
       case 'moveNode': {
-        if (!state.nodes.find((node) => node.id === op.nodeId)) break;
-        store.moveNode(op.nodeId, op.x, op.y);
+        // テンポラリIDマッピングを適用
+        const mappedNodeId = idMap.get(op.nodeId) ?? op.nodeId;
+        if (!state.nodes.find((node) => node.id === mappedNodeId)) break;
+        store.moveNode(mappedNodeId, op.x, op.y);
         break;
       }
       default:
