@@ -2722,34 +2722,91 @@ export const useDiagramStore = create<DiagramStore>()(
             nodeG.appendChild(labelText);
           }
 
-          // ノード内容を表示（foreignObjectを使用してHTMLをそのまま表示）
+          // ノード内容を表示
           if (node.content) {
-            const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-            fo.setAttribute('x', (-w / 2).toString());
-            fo.setAttribute('y', (-h / 2).toString());
-            fo.setAttribute('width', w.toString());
-            fo.setAttribute('height', h.toString());
+            // HTMLタグを除去してプレーンテキストに変換
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = node.content;
+            const plainText = tempDiv.textContent || tempDiv.innerText || '';
 
-            const contentDiv = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
-            contentDiv.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
-            contentDiv.setAttribute('style', `
-              width: 100%;
-              height: 100%;
-              padding: ${node.type === 'Module' ? '30px 10px 10px 10px' : '10px'};
-              overflow: hidden;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-size: 14px;
-              text-align: center;
-              word-break: break-word;
-              box-sizing: border-box;
-              color: #1F2937;
-              font-family: system-ui, -apple-system, sans-serif;
-            `);
-            contentDiv.innerHTML = node.content;
-            fo.appendChild(contentDiv);
-            nodeG.appendChild(fo);
+            if (plainText.trim()) {
+              // パディングを考慮した利用可能幅
+              const padding = 10;
+              const topPadding = node.type === 'Module' ? 30 : 10;
+              const availableWidth = w - padding * 2;
+              const availableHeight = h - topPadding - padding;
+
+              // CJK文字判定関数
+              const isCJK = (char: string): boolean => {
+                const code = char.charCodeAt(0);
+                return (
+                  (code >= 0x3000 && code <= 0x9FFF) ||   // CJK統合漢字、ひらがな、カタカナ等
+                  (code >= 0xAC00 && code <= 0xD7AF) ||   // 韓国語
+                  (code >= 0xFF00 && code <= 0xFFEF)      // 全角英数
+                );
+              };
+
+              // 文字幅を考慮した折り返し
+              const fontSize = 14;
+              const halfWidthChar = fontSize * 0.6;  // 半角文字の幅
+              const fullWidthChar = fontSize;        // 全角文字の幅
+              const lineHeight = fontSize * 1.4;
+              const maxLines = Math.floor(availableHeight / lineHeight);
+
+              const lines: string[] = [];
+              let currentLine = '';
+              let currentWidth = 0;
+
+              for (const char of plainText) {
+                if (char === '\n') {
+                  if (currentLine) lines.push(currentLine);
+                  currentLine = '';
+                  currentWidth = 0;
+                } else {
+                  const charW = isCJK(char) ? fullWidthChar : halfWidthChar;
+                  if (currentWidth + charW > availableWidth && currentLine) {
+                    lines.push(currentLine);
+                    currentLine = char;
+                    currentWidth = charW;
+                  } else {
+                    currentLine += char;
+                    currentWidth += charW;
+                  }
+                }
+              }
+              if (currentLine) {
+                lines.push(currentLine);
+              }
+
+              // 表示する行数を制限
+              const displayLines = lines.slice(0, maxLines);
+              const totalHeight = displayLines.length * lineHeight;
+              const startY = -totalHeight / 2 + lineHeight / 2 + (node.type === 'Module' ? 10 : 0);
+
+              displayLines.forEach((line, index) => {
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', '0');
+                text.setAttribute('y', (startY + index * lineHeight).toString());
+                text.setAttribute('fill', '#1F2937');
+                text.setAttribute('font-size', fontSize.toString());
+                text.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('dominant-baseline', 'middle');
+                text.textContent = line;
+                nodeG.appendChild(text);
+              });
+
+              // 省略記号（行数を超える場合）
+              if (lines.length > maxLines && displayLines.length > 0) {
+                const lastText = nodeG.lastChild as SVGTextElement;
+                if (lastText && lastText.textContent) {
+                  const lastLine = lastText.textContent;
+                  if (lastLine.length > 2) {
+                    lastText.textContent = lastLine.slice(0, -2) + '…';
+                  }
+                }
+              }
+            }
           }
 
           // Assumption/Justification添え字
