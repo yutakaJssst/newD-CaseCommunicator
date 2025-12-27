@@ -8,6 +8,8 @@ import { buildClaudeContent, sendClaudeMessage } from '../services/ai/claudeClie
 import type { AiAttachment } from '../services/ai/types';
 
 const MAX_TOKENS = 4096;
+const MAX_INPUT_CHARS = 100000; // Approximate limit for input (about 25k tokens)
+const MAX_HISTORY_MESSAGES = 10; // Maximum number of history messages to include
 const PROVIDER_CLAUDE = 'claude';
 
 const SYSTEM_PROMPT = `You are an expert GSN (Goal Structuring Notation) assistant.
@@ -16,8 +18,8 @@ Follow the GSN Community Standard:
 - Strategy nodes (S) explain reasoning steps that decompose goals.
 - Context (C), Assumption (A), and Justification (J) provide side information and connect horizontally.
 - Evidence nodes (E) support goals or strategies.
-- Supported-by links connect Goal/Strategy to Strategy/Goal/Evidence.
-- In-context-of links connect Goal/Strategy to Context/Assumption/Justification.
+- Supported-by links connect Goal/Strategy to Strategy/Goal/Evidence (use "solid" type).
+- In-context-of links connect Goal/Strategy to Context/Assumption/Justification (use "dashed" type).
 
 You must return a single JSON object with the following shape:
 {
@@ -26,9 +28,27 @@ You must return a single JSON object with the following shape:
     { "type": "addNode" | "updateNode" | "deleteNode" | "addLink" | "deleteLink" | "moveNode", ... }
   ]
 }
-If the request requires changes, you MUST include ops that implement those changes.
-Do not claim completion without providing ops.
-If you cannot comply, return ops as an empty array and explain why.
+
+For addNode operations:
+{ "type": "addNode", "id": "temp_1", "nodeType": "Goal" | "Strategy" | "Context" | "Evidence" | "Assumption" | "Justification" | "Undeveloped" | "Module", "content": "description text" }
+- You MUST include a temporary "id" (like "temp_1", "temp_2") for each new node so links can reference them.
+- Use these temp IDs in addLink operations to connect nodes you just created.
+
+For addLink operations:
+{ "type": "addLink", "source": "node_id", "target": "node_id", "linkType": "solid" | "dashed" }
+- source and target can be existing node IDs or temp IDs from addNode ops.
+- Use "solid" for SupportedBy (vertical hierarchy), "dashed" for InContextOf (horizontal context).
+
+For updateNode operations:
+{ "type": "updateNode", "nodeId": "existing_id", "content": "new text" }
+
+IMPORTANT RULES:
+1. If the user asks to CREATE something, you MUST include addNode and addLink ops even if similar nodes already exist.
+2. If the user asks to MODIFY or UPDATE, use updateNode ops.
+3. If the user asks to DELETE, use deleteNode/deleteLink ops.
+4. Never claim something is "already done" without providing ops - always execute the requested action.
+5. When creating a GSN structure, create ALL necessary nodes and links in a single response.
+
 Do not include any additional text outside JSON.`;
 
 const STRICT_JSON_PROMPT = `Return ONLY valid JSON with keys "assistantMessage" and "ops".
@@ -119,6 +139,74 @@ const readAttachmentImages = async (attachments: AiAttachment[]) => {
     })
   );
   return images;
+};
+
+// Truncate diagram data if it exceeds the limit
+const truncateDiagramData = (
+  nodes: DiagramNodeSummary[],
+  links: DiagramLinkSummary[],
+  maxChars: number,
+): { nodes: DiagramNodeSummary[]; links: DiagramLinkSummary[]; truncated: boolean } => {
+  const nodeLines = nodes.map((node) => {
+    const content = stripHtml(node.content);
+    return `- ${node.id} [${node.type || 'Unknown'}] ${node.label || ''} ${content}`;
+  });
+  const linkLines = links.map((link) => `- ${link.source} -> ${link.target} (${link.type || 'solid'})`);
+
+  const totalLength = nodeLines.join('\n').length + linkLines.join('\n').length;
+
+  if (totalLength <= maxChars) {
+    return { nodes, links, truncated: false };
+  }
+
+  // Truncate nodes to fit within limit
+  const truncatedNodes: DiagramNodeSummary[] = [];
+  let currentLength = 0;
+  const avgLinkLength = linkLines.join('\n').length / (links.length || 1);
+  const reservedForLinks = Math.min(avgLinkLength * links.length, maxChars * 0.3);
+
+  for (const node of nodes) {
+    const content = stripHtml(node.content);
+    const line = `- ${node.id} [${node.type || 'Unknown'}] ${node.label || ''} ${content}`;
+    if (currentLength + line.length > maxChars - reservedForLinks) {
+      break;
+    }
+    truncatedNodes.push(node);
+    currentLength += line.length + 1;
+  }
+
+  // Only include links that reference included nodes
+  const nodeIds = new Set(truncatedNodes.map((n) => n.id));
+  const truncatedLinks = links.filter(
+    (link) => nodeIds.has(link.source) && nodeIds.has(link.target),
+  );
+
+  return { nodes: truncatedNodes, links: truncatedLinks, truncated: true };
+};
+
+// Build conversation history for Claude API
+type ClaudeMessageContent =
+  | { type: 'text'; text: string }
+  | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } };
+
+const buildConversationHistory = async (
+  conversationId: string,
+  maxMessages: number,
+): Promise<Array<{ role: 'user' | 'assistant'; content: ClaudeMessageContent[] }>> => {
+  const messages = await prisma.aiMessage.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: 'asc' },
+    take: maxMessages,
+    select: {
+      role: true,
+      content: true,
+    },
+  });
+
+  return messages.map((msg) => ({
+    role: msg.role as 'user' | 'assistant',
+    content: [{ type: 'text' as const, text: msg.content }],
+  }));
 };
 
 export const createConversation = async (req: AuthRequest, res: Response) => {
@@ -307,7 +395,14 @@ export const chatWithAi = async (req: AuthRequest, res: Response) => {
   const attachmentText = buildAttachmentText(attachmentList);
   const images = await readAttachmentImages(attachmentList);
 
-  const { nodes, links } = extractDiagramSnapshot(diagramSnapshot);
+  const { nodes: rawNodes, links: rawLinks } = extractDiagramSnapshot(diagramSnapshot);
+
+  // Truncate diagram data if too large
+  const { nodes, links, truncated } = truncateDiagramData(rawNodes, rawLinks, MAX_INPUT_CHARS);
+  if (truncated) {
+    console.log(`[chatWithAi] ダイアグラムデータを切り詰めました: ${rawNodes.length} -> ${nodes.length} ノード`);
+  }
+
   const nodeLines = nodes.map((node) => {
     const content = stripHtml(node.content);
     return `- ${node.id} [${node.type || 'Unknown'}] ${node.label || ''} ${content}`;
@@ -318,6 +413,7 @@ export const chatWithAi = async (req: AuthRequest, res: Response) => {
     `User request:\n${prompt}`,
     `Current diagram nodes:\n${nodeLines.join('\n') || '(none)'}`,
     `Current diagram links:\n${linkLines.join('\n') || '(none)'}`,
+    truncated ? '(Note: Diagram was truncated due to size limits)' : '',
     attachmentText ? `Attachments:\n${attachmentText}` : '',
   ]
     .filter(Boolean)
@@ -331,23 +427,41 @@ export const chatWithAi = async (req: AuthRequest, res: Response) => {
     },
   });
 
+  // Build conversation history for context
+  const history = await buildConversationHistory(conversation.id, MAX_HISTORY_MESSAGES);
+
   const content = buildClaudeContent(userPayload, images);
   const apiKey = decryptSecret(credential.encryptedApiKey);
+
+  // Build messages array with history + current message
+  const messagesForApi = [
+    ...history,
+    { role: 'user' as const, content },
+  ];
 
   try {
     const raw = await sendClaudeMessage(apiKey, {
       model,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content }],
+      messages: messagesForApi,
       max_tokens: MAX_TOKENS,
     });
 
+    console.log('[chatWithAi] Raw AI response:', raw.substring(0, 2000));
+
     let parsed = extractJson(raw);
+    console.log('[chatWithAi] Parsed ops count:', parsed?.ops?.length ?? 0);
+    if (parsed?.ops?.length > 0) {
+      console.log('[chatWithAi] First 3 ops:', JSON.stringify(parsed.ops.slice(0, 3), null, 2));
+    }
+
     let assistantMessage =
       parsed && typeof parsed.assistantMessage === 'string' ? parsed.assistantMessage : raw;
     let ops = parsed && Array.isArray(parsed.ops) ? parsed.ops : [];
 
-    if (!parsed || ops.length === 0) {
+    // Only retry if parsing completely failed (not just empty ops)
+    // Empty ops is valid for explanation requests
+    if (!parsed) {
       const retryPayload = [
         STRICT_JSON_PROMPT,
         userPayload,

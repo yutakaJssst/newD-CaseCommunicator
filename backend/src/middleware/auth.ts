@@ -70,6 +70,18 @@ export const requireProjectAccess = (minRole: 'viewer' | 'editor' | 'owner') => 
         throw createError(401, 'Unauthorized');
       }
 
+      // Check if user is the project owner
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { ownerId: true },
+      });
+
+      if (project?.ownerId === userId) {
+        // Project owner has full access
+        req.userRole = 'owner';
+        return next();
+      }
+
       // Check if user is a member of the project
       const member = await prisma.projectMember.findFirst({
         where: {

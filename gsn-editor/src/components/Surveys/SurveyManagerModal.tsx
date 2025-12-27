@@ -742,7 +742,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
             responseEntry.submittedAt,
             responseEntry.respondentHash || '',
             responseEntry.audience || '',
-            question?.order ?? '',
+            String(question?.order ?? ''),
             answer.questionId,
             question?.audience ?? '',
             question?.nodeId ?? '',
@@ -750,7 +750,7 @@ export const SurveyManagerModal: React.FC<SurveyManagerModalProps> = ({
             nodeLabel,
             nodeText,
             question?.questionText ?? '',
-            answer.score,
+            String(answer.score),
             answer.comment ?? '',
           ]);
         });

@@ -6,11 +6,11 @@ const IV_LENGTH = 12;
 const getKey = (): Buffer => {
   const raw = process.env[KEY_ENV];
   if (!raw) {
-    throw new Error(`${KEY_ENV} is not defined`);
+    throw new Error(`環境変数 ${KEY_ENV} が設定されていません`);
   }
   const key = Buffer.from(raw, 'base64');
   if (key.length !== 32) {
-    throw new Error(`${KEY_ENV} must be a 32-byte base64 string`);
+    throw new Error(`環境変数 ${KEY_ENV} は32バイトのbase64文字列である必要があります`);
   }
   return key;
 };
@@ -28,7 +28,7 @@ export const decryptSecret = (payload: string): string => {
   const key = getKey();
   const [ivB64, tagB64, dataB64] = payload.split('.');
   if (!ivB64 || !tagB64 || !dataB64) {
-    throw new Error('Invalid encrypted payload');
+    throw new Error('暗号化されたデータの形式が不正です');
   }
   const iv = Buffer.from(ivB64, 'base64');
   const tag = Buffer.from(tagB64, 'base64');

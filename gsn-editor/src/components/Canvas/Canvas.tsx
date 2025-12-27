@@ -239,7 +239,7 @@ export const Canvas: React.FC = () => {
     };
   };
 
-  const getLinkEndpoints = (link: LinkType, sourceNode: NodeType, targetNode: NodeType) => {
+  const getLinkEndpoints = (_link: LinkType, sourceNode: NodeType, targetNode: NodeType) => {
     const verticalTargets = ['Goal', 'Strategy', 'Evidence', 'Undeveloped', 'Module'];
     const shouldConnectVertically = verticalTargets.includes(targetNode.type);
 

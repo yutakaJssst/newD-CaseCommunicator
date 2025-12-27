@@ -2461,7 +2461,7 @@ export const useDiagramStore = create<DiagramStore>()(
         }
 
         saveToHistory(get, set);
-        const layoutedNodes = autoLayout(state.nodes, state.links);
+        const layoutedNodes = autoLayout(state.nodes, state.links, state.modules);
 
         set({
           nodes: layoutedNodes,
@@ -3065,13 +3065,15 @@ export const useDiagramStore = create<DiagramStore>()(
       // LocalStorageはデフォルトで使用される（プロジェクトIDベースの保存は setCurrentProject 内で処理）
       partialize: (state) => {
         // userCursors（Map）とWebSocket関連の一時的な状態は永続化から除外
-        const rest = { ...state };
-        delete rest.userCursors;
-        delete rest.isWebSocketConnected;
-        delete rest.onlineUsers;
-        delete rest.isReconnecting;
-        delete rest.reconnectAttempts;
-        delete rest.surveyResponseEvent;
+        const {
+          userCursors: _userCursors,
+          isWebSocketConnected: _isWebSocketConnected,
+          onlineUsers: _onlineUsers,
+          isReconnecting: _isReconnecting,
+          reconnectAttempts: _reconnectAttempts,
+          surveyResponseEvent: _surveyResponseEvent,
+          ...rest
+        } = state;
         return rest;
       },
     }

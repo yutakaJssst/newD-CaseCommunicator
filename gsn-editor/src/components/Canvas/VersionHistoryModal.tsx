@@ -37,7 +37,7 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
           : err instanceof Error
             ? err.message
             : 'バージョン一覧の取得に失敗しました';
-      setError(message);
+      setError(message ?? 'バージョン一覧の取得に失敗しました');
     } finally {
       setLoading(false);
     }

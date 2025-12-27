@@ -13,6 +13,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { setupWebSocket } from './websocket/handlers';
 import { setWebSocketServer } from './websocket/emitter';
 import { requestContext } from './middleware/requestContext';
+import { startAttachmentCleanupScheduler, stopAttachmentCleanupScheduler } from './services/ai/attachmentCleanup';
 
 // Load environment variables
 dotenv.config();
@@ -69,11 +70,15 @@ httpServer.listen(PORT, HOST, () => {
   console.log(`🚀 Server running on http://${displayHost}:${PORT}`);
   console.log(`🔌 WebSocket server ready`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  // Start attachment cleanup scheduler
+  startAttachmentCleanupScheduler();
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM signal received: closing HTTP server');
+  stopAttachmentCleanupScheduler();
   httpServer.close(() => {
     console.log('HTTP server closed');
   });

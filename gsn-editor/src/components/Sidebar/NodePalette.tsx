@@ -73,7 +73,12 @@ const NodeIcon: React.FC<{ type: NodeType }> = ({ type }) => {
   }
 };
 
-export const NodePalette: React.FC = () => {
+interface NodePaletteProps {
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+export const NodePalette: React.FC<NodePaletteProps> = ({ isOpen, onToggle }) => {
   const { canvasState, setSelectedNodeType, projectRole } = useDiagramStore();
   const { selectedNodeType } = canvasState;
   const isReadOnly = projectRole === 'viewer';
@@ -87,57 +92,79 @@ export const NodePalette: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h3 style={{
-        fontSize: '13px',
-        fontWeight: '600',
-        marginBottom: '16px',
-        color: '#6B7280',
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-      }}>
-        ノード
-      </h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {nodeTypes.map((type) => (
-          <button
-            key={type}
-            onClick={() => handleNodeTypeClick(type)}
-            disabled={isReadOnly}
-            style={{
-              padding: '12px 16px',
-              border: selectedNodeType === type ? '2px solid #3B82F6' : '1px solid #E5E7EB',
-              backgroundColor: selectedNodeType === type ? '#EFF6FF' : '#FFFFFF',
-              borderRadius: '8px',
-              cursor: isReadOnly ? 'not-allowed' : 'pointer',
-              fontSize: '14px',
-              fontWeight: selectedNodeType === type ? '600' : '500',
-              color: selectedNodeType === type ? '#3B82F6' : '#374151',
-              textAlign: 'left',
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              opacity: isReadOnly ? 0.6 : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (selectedNodeType !== type && !isReadOnly) {
-                e.currentTarget.style.backgroundColor = '#F9FAFB';
-                e.currentTarget.style.borderColor = '#D1D5DB';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (selectedNodeType !== type && !isReadOnly) {
-                e.currentTarget.style.backgroundColor = '#FFFFFF';
-                e.currentTarget.style.borderColor = '#E5E7EB';
-              }
-            }}
-          >
-            <span>{NODE_LABELS[type]}</span>
-            <NodeIcon type={type} />
-          </button>
-        ))}
-      </div>
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        style={{
+          width: '100%',
+          padding: '10px 12px',
+          border: 'none',
+          backgroundColor: '#F3F4F6',
+          fontSize: '12px',
+          fontWeight: 600,
+          cursor: 'pointer',
+          textAlign: 'left',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <span style={{
+          fontSize: '13px',
+          color: '#6B7280',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+        }}>
+          ノードパレット
+        </span>
+        <span>{isOpen ? '▲' : '▼'}</span>
+      </button>
+
+      {isOpen && (
+        <div style={{ padding: '12px 12px 4px 12px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {nodeTypes.map((type) => (
+              <button
+                key={type}
+                onClick={() => handleNodeTypeClick(type)}
+                disabled={isReadOnly}
+                style={{
+                  padding: '12px 16px',
+                  border: selectedNodeType === type ? '2px solid #3B82F6' : '1px solid #E5E7EB',
+                  backgroundColor: selectedNodeType === type ? '#EFF6FF' : '#FFFFFF',
+                  borderRadius: '8px',
+                  cursor: isReadOnly ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: selectedNodeType === type ? '600' : '500',
+                  color: selectedNodeType === type ? '#3B82F6' : '#374151',
+                  textAlign: 'left',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  opacity: isReadOnly ? 0.6 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedNodeType !== type && !isReadOnly) {
+                    e.currentTarget.style.backgroundColor = '#F9FAFB';
+                    e.currentTarget.style.borderColor = '#D1D5DB';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedNodeType !== type && !isReadOnly) {
+                    e.currentTarget.style.backgroundColor = '#FFFFFF';
+                    e.currentTarget.style.borderColor = '#E5E7EB';
+                  }
+                }}
+              >
+                <span>{NODE_LABELS[type]}</span>
+                <NodeIcon type={type} />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

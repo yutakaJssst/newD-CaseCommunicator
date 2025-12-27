@@ -78,28 +78,71 @@ const computePosition = (
   }
 };
 
-export const applyAiOps = (ops: AiOp[]) => {
+export const applyAiOps = (ops: AiOp[], runAutoLayout = true) => {
   const store = useDiagramStore.getState();
-  ops.forEach((op) => {
+  // Map AI-generated IDs to actual node IDs
+  const idMap = new Map<string, string>();
+  let hasAddNodeOps = false;
+
+  console.log('[applyAiOps] Starting with ops:', JSON.stringify(ops, null, 2));
+
+  ops.forEach((op, index) => {
     const state = useDiagramStore.getState();
+    console.log(`[applyAiOps] Processing op ${index}:`, op.type, op);
+
     switch (op.type) {
       case 'addNode': {
-        const anchorNode = op.anchor
-          ? state.nodes.find((node) => node.id === op.anchor)
+        hasAddNodeOps = true;
+        // Check if anchor uses an AI-generated ID that we've mapped
+        const mappedAnchor = op.anchor ? (idMap.get(op.anchor) ?? op.anchor) : undefined;
+        const anchorNode = mappedAnchor
+          ? state.nodes.find((node) => node.id === mappedAnchor)
           : null;
-        const position = computePosition(
-          anchorNode ? { x: anchorNode.position.x, y: anchorNode.position.y } : null,
-          op.direction,
-        );
+
+        // If no anchor or anchor not found, use auto-layout position
+        let position: { x: number; y: number };
+        if (anchorNode && op.direction) {
+          position = computePosition(
+            { x: anchorNode.position.x, y: anchorNode.position.y },
+            op.direction,
+          );
+        } else {
+          // Auto-position based on existing nodes
+          const existingNodes = state.nodes;
+          if (existingNodes.length === 0) {
+            // First node - center of viewport
+            position = { x: 400, y: 100 };
+          } else {
+            // Position below existing nodes with offset
+            const maxY = Math.max(...existingNodes.map(n => n.position.y));
+            const avgX = existingNodes.reduce((sum, n) => sum + n.position.x, 0) / existingNodes.length;
+            position = { x: avgX + (index * 50) % 200 - 100, y: maxY + NODE_OFFSET };
+          }
+        }
+
+        console.log(`[applyAiOps] addNode position:`, position, 'anchor:', op.anchor, 'mappedAnchor:', mappedAnchor);
+
         const beforeIds = new Set(state.nodes.map((node) => node.id));
         store.addNode(op.nodeType, position.x, position.y);
         const nextState = useDiagramStore.getState();
         const newNode = nextState.nodes.find((node) => !beforeIds.has(node.id));
-        if (newNode && (op.content || op.label)) {
-          store.updateNode(newNode.id, {
-            content: op.content ?? newNode.content,
-            label: op.label ?? newNode.label,
-          });
+
+        if (newNode) {
+          console.log(`[applyAiOps] Created node:`, newNode.id, newNode.label);
+
+          // Map AI-generated ID to actual ID (if AI provided an ID)
+          const aiId = (op as unknown as { id?: string }).id;
+          if (aiId) {
+            idMap.set(aiId, newNode.id);
+            console.log(`[applyAiOps] Mapped AI ID ${aiId} -> ${newNode.id}`);
+          }
+
+          if (op.content || op.label) {
+            store.updateNode(newNode.id, {
+              content: op.content ?? newNode.content,
+              label: op.label ?? newNode.label,
+            });
+          }
         }
         break;
       }
@@ -117,10 +160,20 @@ export const applyAiOps = (ops: AiOp[]) => {
         break;
       }
       case 'addLink': {
-        const hasSource = state.nodes.find((node) => node.id === op.source);
-        const hasTarget = state.nodes.find((node) => node.id === op.target);
-        if (!hasSource || !hasTarget) break;
-        store.addLink(op.source, op.target, op.linkType || 'solid');
+        // Map AI-generated IDs to actual IDs
+        const mappedSource = idMap.get(op.source) ?? op.source;
+        const mappedTarget = idMap.get(op.target) ?? op.target;
+        console.log(`[applyAiOps] addLink: ${op.source} -> ${op.target}, mapped: ${mappedSource} -> ${mappedTarget}`);
+
+        // Get fresh state after addNode operations
+        const currentState = useDiagramStore.getState();
+        const hasSource = currentState.nodes.find((node) => node.id === mappedSource);
+        const hasTarget = currentState.nodes.find((node) => node.id === mappedTarget);
+        if (!hasSource || !hasTarget) {
+          console.log(`[applyAiOps] addLink skipped - source: ${!!hasSource}, target: ${!!hasTarget}`);
+          break;
+        }
+        store.addLink(mappedSource, mappedTarget, op.linkType || 'solid');
         break;
       }
       case 'deleteLink': {
@@ -138,6 +191,12 @@ export const applyAiOps = (ops: AiOp[]) => {
         break;
     }
   });
+
+  // Run auto layout if nodes were added
+  if (runAutoLayout && hasAddNodeOps) {
+    console.log('[applyAiOps] Running auto layout after adding nodes');
+    useDiagramStore.getState().applyAutoLayout();
+  }
 };
 
 export const summarizeAiOps = (ops: AiOp[]) => {
